@@ -1,0 +1,77 @@
+/*
+ * Design tokens — see docs/DESIGN_SYSTEM.md.
+ * Root font size follows iOS Dynamic Type (-apple-system-body), so every rem scales with the
+ * user's text-size setting. 1rem = 17px at the default size.
+ */
+:root {
+  /* Color */
+  --color-bg: #fafaf8;
+  --color-surface: #ffffff;
+  --color-surface-2: #f5f5f4;
+  --color-text: #1c1917;
+  --color-text-2: #57534e; /* 7.0:1 on white */
+  --color-text-3: #78716c; /* 4.8:1 on white — minimum for small text */
+  --color-border: #e7e5e4;
+  --color-border-strong: #d6d3d1;
+  --color-brand: #f97316; /* fills, rings, icons — never small text on white */
+  --color-brand-soft: #ffedd5;
+  --color-action: #c2410c; /* buttons, orange text (5.2:1 on white) */
+  --color-action-pressed: #9a3412;
+  --color-on-action: #ffffff;
+  --color-success: #3f7d58;
+  --color-success-soft: #e7f2ea;
+  --color-warning: #a16207;
+  --color-warning-soft: #fef6dc;
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fdecec;
+  --color-track: #f0eeec;
+  --color-protein: #c2410c;
+  --color-fat: #f59e0b;
+  --color-carbs: #fb923c;
+  --color-scrim: rgb(28 25 23 / 0.4);
+
+  /* Spacing — 4-point grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Typography — fixed six-step scale (px values at default text size) */
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto,
+    'PingFang TC', 'Hiragino Sans', 'Noto Sans CJK TC', 'Noto Sans JP', sans-serif;
+  --text-xs: 0.765rem; /* 13 */
+  --text-sm: 0.882rem; /* 15 */
+  --text-md: 1rem; /* 17 */
+  --text-lg: 1.176rem; /* 20 */
+  --text-xl: 1.647rem; /* 28 */
+  --text-2xl: 2.353rem; /* 40 */
+  --leading-tight: 1.2;
+  --leading-normal: 1.4;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Shape */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+  --shadow-1: 0 1px 2px rgb(28 25 23 / 0.06), 0 1px 1px rgb(28 25 23 / 0.04);
+  --shadow-2: 0 8px 24px rgb(28 25 23 / 0.12);
+
+  /* Layout */
+  --touch: 44px;
+  --tabbar-h: 56px;
+  --content-max: 560px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}

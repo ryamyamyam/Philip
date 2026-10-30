@@ -41,6 +41,8 @@ async function seed(page: Page) {
     db.close();
   });
   await page.reload();
+  // Seeded data with no backup triggers the backup pop-up (OBS-3AD584); dismiss it for the screenshots.
+  await page.getByRole('dialog', { name: 'Back up your food log' }).getByRole('button', { name: 'Later' }).click();
 }
 
 const widths = [375, 440];

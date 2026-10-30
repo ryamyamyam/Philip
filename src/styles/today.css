@@ -185,3 +185,128 @@
 .adherence-pill {
   align-self: center;
 }
+
+/* "Back to today" — an action, not a label (OBS-763014) */
+.today-link {
+  align-self: center;
+  min-height: var(--touch);
+  gap: var(--space-1);
+  border-radius: var(--radius-full);
+}
+.today-link svg {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+/* Per-food macro chips: letter + grams in a rounded square, one color each (OBS-352C94) */
+.entry-macros {
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: 2px;
+}
+.entry-grams {
+  margin-right: var(--space-1);
+}
+.macro-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.macro-chip > span[aria-hidden='true'] {
+  font-weight: var(--weight-bold);
+}
+.macro-chip-p {
+  background: var(--color-protein-soft);
+  color: var(--color-protein-text);
+}
+.macro-chip-f {
+  background: var(--color-fat-soft);
+  color: var(--color-fat-text);
+}
+.macro-chip-c {
+  background: var(--color-carbs-soft);
+  color: var(--color-carbs-text);
+}
+
+/* Swipe-left actions on food rows (OBS-3E7A73) */
+.list-item-swipe {
+  padding: 0;
+  display: block;
+}
+.swipe-row {
+  position: relative;
+  overflow: hidden;
+}
+.swipe-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  touch-action: pan-y;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 144px;
+  display: flex;
+}
+.swipe-actions[hidden] {
+  display: none;
+}
+.swipe-action {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: none;
+  color: #fff;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  min-height: var(--touch);
+}
+.swipe-action svg {
+  width: 22px;
+  height: 22px;
+}
+.swipe-action-move {
+  background: var(--color-text-2);
+}
+.swipe-action-delete {
+  background: var(--color-danger);
+}
+
+/* Backup reminder pop-up (OBS-3AD584) */
+.backup-popup h2 {
+  font-size: var(--text-lg);
+}
+.backup-popup p {
+  margin: 0;
+}
+.backup-popup-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-soft);
+  color: var(--color-action);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.backup-popup-icon svg {
+  width: 24px;
+  height: 24px;
+}

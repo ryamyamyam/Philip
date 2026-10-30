@@ -54,7 +54,7 @@ test('date navigation keeps entries on their day', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Yesterday' })).toBeVisible();
   await expect(page.getByText('Toast')).toHaveCount(0);
   await addManualFood(page, { name: 'Bagel', calories: '250', protein: '9', fat: '1.5', carbs: '48' });
-  await page.getByRole('main').getByRole('button', { name: 'Today', exact: true }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Back to today' }).click();
   await expect(page.getByText('Toast')).toBeVisible();
   await expect(page.getByText('Bagel')).toHaveCount(0);
 });

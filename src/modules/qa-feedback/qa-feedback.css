@@ -35,6 +35,7 @@
   --qa-safe-top: env(safe-area-inset-top, 0px);
   --qa-safe-bottom: env(safe-area-inset-bottom, 0px);
   --qa-tabbar: var(--tabbar-h, 0px);
+  --qa-sheet-gap: 44px; /* how much of the app stays visible above the sheet */
 }
 
 .qa-visually-hidden {
@@ -47,17 +48,42 @@
 }
 
 /* ---------- Panel ---------- */
-.qa-panel {
+/* Bottom sheet, not full screen: the app stays visible above it (OBS-591E6F). */
+.qa-scrim {
   position: fixed;
   inset: 0;
+  z-index: 54;
+  background: var(--qa-scrim);
+  animation: qa-fade 180ms ease;
+}
+.qa-panel {
+  position: fixed;
+  top: calc(var(--qa-safe-top) + var(--qa-sheet-gap));
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 55;
   display: flex;
   flex-direction: column;
+  max-width: calc(var(--qa-max) + 32px);
+  margin: 0 auto;
   background: var(--qa-bg);
   color: var(--qa-text);
   font-size: var(--qa-text-md);
   outline: none;
-  animation: qa-in 180ms ease;
+  border-radius: var(--qa-radius-lg) var(--qa-radius-lg) 0 0;
+  box-shadow: var(--qa-shadow-2);
+  overflow: hidden;
+  animation: qa-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.qa-panel-error {
+  top: 0;
+  border-radius: 0;
+}
+@keyframes qa-fade {
+  from {
+    opacity: 0;
+  }
 }
 .qa-panel-error {
   padding: calc(var(--qa-safe-top) + 24px) 16px;
@@ -65,18 +91,33 @@
 }
 @keyframes qa-in {
   from {
-    transform: translateY(16px);
+    transform: translateY(40px);
+    opacity: 0.6;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .qa-panel {
+  .qa-panel,
+  .qa-scrim {
     animation: none;
   }
 }
 .qa-header {
+  position: relative;
   background: var(--qa-surface);
   border-bottom: 1px solid var(--qa-border);
-  padding: calc(var(--qa-safe-top) + 8px) 16px 0;
+  padding: 14px 16px 0;
+}
+/* Grab handle: signals a sheet over the app. */
+.qa-header::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 36px;
+  height: 5px;
+  margin-left: -18px;
+  border-radius: 999px;
+  background: var(--qa-border-strong);
 }
 .qa-header-row {
   max-width: var(--qa-max);
@@ -456,10 +497,62 @@
   background: var(--qa-success-soft);
   color: #1f4d33;
 }
-.qa-type-ui,
-.qa-type-usability {
+.qa-type-ui {
   background: var(--qa-warning-soft);
   color: #713f12;
+}
+.qa-type-usability {
+  background: #ede9fe;
+  color: #4c1d95;
+}
+.qa-type-optimization {
+  background: #e0ecfb;
+  color: #1e3a8a;
+}
+.qa-type-other {
+  background: var(--qa-surface-2);
+  color: var(--qa-text-2);
+}
+/* Type is the badge to read first; status is a quieter outline (OBS-EF13DE). */
+.qa-badge-type {
+  font-size: var(--qa-text-sm);
+  padding: 2px 10px;
+}
+.qa-badge-status {
+  background: transparent;
+  border: 1px solid var(--qa-border-strong);
+  font-weight: 500;
+}
+/* Capture chips show each type's color once selected. */
+.qa-chip.qa-chip-bug[aria-pressed='true'] {
+  background: var(--qa-danger-soft);
+  border-color: #b91c1c;
+  color: #7f1d1d;
+}
+.qa-chip.qa-chip-ui[aria-pressed='true'] {
+  background: var(--qa-warning-soft);
+  border-color: #a16207;
+  color: #713f12;
+}
+.qa-chip.qa-chip-usability[aria-pressed='true'] {
+  background: #ede9fe;
+  border-color: #6d28d9;
+  color: #4c1d95;
+}
+.qa-chip.qa-chip-feature[aria-pressed='true'] {
+  background: var(--qa-success-soft);
+  border-color: #3f7d58;
+  color: #1f4d33;
+}
+.qa-chip.qa-chip-optimization[aria-pressed='true'] {
+  background: #e0ecfb;
+  border-color: #1d4ed8;
+  color: #1e3a8a;
+}
+.qa-chip.qa-chip-other[aria-pressed='true'] {
+  background: var(--qa-surface-2);
+  border-color: var(--qa-text-2);
+  color: var(--qa-text);
 }
 .qa-ai-box {
   display: flex;

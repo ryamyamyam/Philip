@@ -1,8 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { CalorieRing } from '../components/CalorieRing';
 import { Icon } from '../components/Icon';
 import { MacroBars } from '../components/MacroBars';
 import { BackupReminder } from '../components/BackupReminder';
+import { MoveEntryDialog } from '../components/MoveEntryDialog';
+import { SwipeRow } from '../components/SwipeRow';
+import { useToast } from '../components/Toast';
+import { deleteFoodEntry, moveFoodEntry, restoreFoodEntry } from '../db/repo';
 import { MEALS, type FoodEntry, type Meal } from '../db/types';
 import { useEntriesForDate, useProfile, useTargetPlans } from '../hooks/useData';
 import { useSwipe } from '../hooks/useSwipe';
@@ -58,7 +62,8 @@ export function TodayView() {
 
       <div className="stack">
         {date !== today && (
-          <button type="button" className="btn btn-ghost today-link" style={{ alignSelf: 'center' }} onClick={() => setDate(today)}>
+          <button type="button" className="btn btn-secondary today-link" onClick={() => setDate(today)}>
+            <Icon name={date > today ? 'chevronLeft' : 'chevronRight'} />
             {t('today.goToToday')}
           </button>
         )}
@@ -93,6 +98,19 @@ export function TodayView() {
 
 function MealCard({ meal, entries, onAdd }: { meal: Meal; entries: FoodEntry[]; onAdd: () => void }) {
   const { openSheet } = useUI();
+  const toast = useToast();
+  const [moving, setMoving] = useState<FoodEntry | null>(null);
+
+  const remove = async (e: FoodEntry) => {
+    const removed = await deleteFoodEntry(e.id);
+    if (removed) toast(t('today.deleted', { name: removed.name }), { label: t('common.undo'), run: () => void restoreFoodEntry(removed) });
+  };
+  const move = async (e: FoodEntry, target: { date: string; meal: Meal }) => {
+    setMoving(null);
+    const prev = await moveFoodEntry(e.id, target);
+    if (prev) toast(t('today.moved', { date: fmtDate(target.date, 'weekday') }), { label: t('common.undo'), run: () => void moveFoodEntry(e.id, prev) });
+  };
+
   const total = sumMacros(entries).calories;
   const mealName = t(`meal.${meal}`);
   return (
@@ -109,7 +127,22 @@ function MealCard({ meal, entries, onAdd }: { meal: Meal; entries: FoodEntry[]; 
       ) : (
         <ul className="list">
           {entries.map((e) => (
-            <li key={e.id} className="list-item">
+            <li key={e.id} className="list-item list-item-swipe">
+              <SwipeRow
+                label={t('today.entryActions', { name: e.name })}
+                actions={
+                  <>
+                    <button type="button" className="swipe-action swipe-action-move" onClick={() => setMoving(e)}>
+                      <Icon name="calendar" />
+                      <span>{t('today.move')}</span>
+                    </button>
+                    <button type="button" className="swipe-action swipe-action-delete" onClick={() => void remove(e)}>
+                      <Icon name="trash" />
+                      <span>{t('common.delete')}</span>
+                    </button>
+                  </>
+                }
+              >
               <button
                 type="button"
                 className="list-button"
@@ -129,18 +162,33 @@ function MealCard({ meal, entries, onAdd }: { meal: Meal; entries: FoodEntry[]; 
                     )}
                   </span>
                   <span className="list-meta entry-macros num">
-                    {e.grams != null && <span>{fmtG(e.grams)} g</span>}
-                    <span>P {fmtG(e.proteinG)}</span>
-                    <span>F {fmtG(e.fatG)}</span>
-                    <span>C {fmtG(e.carbsG)}</span>
+                    {e.grams != null && <span className="entry-grams">{fmtG(e.grams)} g</span>}
+                    <MacroChip k="p" value={e.proteinG} />
+                    <MacroChip k="f" value={e.fatG} />
+                    <MacroChip k="c" value={e.carbsG} />
                   </span>
                 </span>
                 <span className="list-value">{fmtKcal(e.calories)}</span>
               </button>
+              </SwipeRow>
             </li>
           ))}
         </ul>
       )}
+      {moving && <MoveEntryDialog entry={moving} onCancel={() => setMoving(null)} onMove={(target) => void move(moving, target)} />}
     </section>
+  );
+}
+
+const MACRO_LABEL = { p: 'macro.protein', f: 'macro.fat', c: 'macro.carbs' } as const;
+
+/** Compact macro value: letter + grams in a rounded square, one color per macro (OBS-352C94). */
+function MacroChip({ k, value }: { k: 'p' | 'f' | 'c'; value: number }) {
+  return (
+    <span className={`macro-chip macro-chip-${k}`}>
+      <span aria-hidden="true">{k.toUpperCase()}</span>
+      <span className="visually-hidden">{t(MACRO_LABEL[k])}</span> {fmtG(value)}
+      <span className="visually-hidden"> {t('common.g')}</span>
+    </span>
   );
 }

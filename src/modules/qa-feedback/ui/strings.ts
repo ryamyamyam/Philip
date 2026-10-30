@@ -45,7 +45,10 @@ export const AI_ERRORS: Record<AiErrorCode, string> = {
 };
 
 export const SPEECH_ERRORS: Record<TranscriptionErrorCode, string> = {
-  permission: 'Microphone access was denied. Allow it in your browser settings, or type instead (the keyboard’s mic key also works).',
+  permission:
+    'Microphone access is blocked, so voice can’t record. To turn it back on: on iPhone open Settings → Apps → Safari → Microphone and choose Ask or Allow (in Safari you can also use the aA menu → Website Settings), then close and reopen the app. Meanwhile, type below — the keyboard’s mic key also dictates.',
+  notStarted:
+    'The microphone didn’t start. If you tapped Don’t Allow earlier, allow the microphone (iPhone: Settings → Apps → Safari → Microphone), then close and reopen the app. You can type below in the meantime.',
   noSpeech: 'No speech was heard. Try again or type instead.',
   network: 'Voice input needs a connection. Type instead — your keyboard’s dictation key may still work.',
   audioCapture: 'No microphone was found.',

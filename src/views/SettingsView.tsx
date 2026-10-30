@@ -109,7 +109,7 @@ function DataSection() {
   };
 
   return (
-    <section className="card stack" aria-labelledby="data-h">
+    <section id="settings-data" className="card stack" aria-labelledby="data-h">
       <h2 id="data-h">{t('settings.data')}</h2>
       <p className="small muted">{t('settings.dataNote')}</p>
       <p className="small">

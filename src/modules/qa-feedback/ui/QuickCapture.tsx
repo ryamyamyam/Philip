@@ -4,12 +4,12 @@ import { structureObservation } from '../ai/analysis';
 import { AiError } from '../ai/provider';
 import { QaError, addAttachments, createObservation, getMetaValue, setMetaValue } from '../repository';
 import { webSpeechProvider, type TranscriptionErrorCode, type TranscriptionSession } from '../transcription';
-import type { AiObservationAnalysis, ObservationType, Priority, StructuredField } from '../types';
+import { OBSERVATION_TYPES, type AiObservationAnalysis, type ObservationType, type Priority, type StructuredField } from '../types';
 import { useQa } from './context';
 import { AiBadge, ListBlock, PrioritySelect, TextField, TypeSelect } from './fields';
 import { META_FAB_HIDDEN } from './QaFeedback';
 import { AddScreenshotButton, PendingScreenshots, imagesFromClipboard, screenFiles, toInputs, useLimits } from './Screenshots';
-import { AI_ERRORS, PRIORITY_LABELS, SPEECH_ERRORS, fileErrorMessage } from './strings';
+import { AI_ERRORS, PRIORITY_LABELS, SPEECH_ERRORS, TYPE_LABELS, fileErrorMessage } from './strings';
 
 type Details = Record<StructuredField, string>;
 const EMPTY: Details = { title: '', feature: '', description: '', actualBehavior: '', expectedBehavior: '', proposedSolution: '' };
@@ -249,9 +249,10 @@ export function QuickCapture() {
       </div>
 
       <div className="qa-chips" role="group" aria-label="Type (optional)">
-        {(['bug', 'ui', 'usability', 'feature', 'optimization'] as const).map((t) => (
-          <button key={t} type="button" className="qa-chip" aria-pressed={type === t} onClick={() => setType(type === t ? null : t)}>
-            {t === 'bug' ? 'Bug' : t === 'ui' ? 'UI' : t === 'usability' ? 'Usability' : t === 'feature' ? 'Feature' : 'Optimize'}
+        {/* Same labels and colors as the inbox badge, so the saved type is recognizable (OBS-EF13DE). */}
+        {OBSERVATION_TYPES.map((t) => (
+          <button key={t} type="button" className={`qa-chip qa-chip-${t}`} aria-pressed={type === t} onClick={() => setType(type === t ? null : t)}>
+            {TYPE_LABELS[t]}
           </button>
         ))}
       </div>

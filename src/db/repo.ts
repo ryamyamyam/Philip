@@ -43,6 +43,21 @@ export async function deleteFoodEntry(id: string, database: PhilipDB = db): Prom
   return existing;
 }
 
+/**
+ * Moves an entry to another day and/or meal, keeping its id and nutrition values.
+ * Returns where it was before (for undo), or undefined if it no longer exists.
+ */
+export async function moveFoodEntry(
+  id: string,
+  target: { date: YMD; meal: Meal },
+  database: PhilipDB = db,
+): Promise<{ date: YMD; meal: Meal } | undefined> {
+  const existing = await database.foodEntries.get(id);
+  if (!existing) return undefined;
+  await database.foodEntries.update(id, { date: target.date, meal: target.meal, updatedAt: Date.now() });
+  return { date: existing.date, meal: existing.meal };
+}
+
 /** Re-inserts a deleted entry (undo). */
 export async function restoreFoodEntry(entry: FoodEntry, database: PhilipDB = db): Promise<void> {
   await database.foodEntries.put(entry);

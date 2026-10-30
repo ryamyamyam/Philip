@@ -28,6 +28,13 @@
   --color-protein: #c2410c;
   --color-fat: #f59e0b;
   --color-carbs: #fb923c;
+  /* Macro chips: soft fill + dark text (≥ 4.5:1) per macro */
+  --color-protein-soft: #fbe3d6;
+  --color-protein-text: #8a2c0b;
+  --color-fat-soft: #fdf0c4;
+  --color-fat-text: #7a4a03;
+  --color-carbs-soft: #e3eefb;
+  --color-carbs-text: #1e4a7a;
   --color-scrim: rgb(28 25 23 / 0.4);
 
   /* Spacing — 4-point grid */

@@ -29,6 +29,7 @@ Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, b
 ## Known issues
 - QA voice capture uses the Web Speech API; not yet tested on a real iPhone home-screen install.
 - WebKit e2e not yet run (only Chromium mobile emulation in the build sandbox). Real-iPhone pass pending.
+- Swipe-left row actions (Today) and the bottom-sheet QA panel are tested with synthetic touch events in Chromium only; check on a real iPhone.
 - Gemini default model (`gemini-3.1-flash-lite`) not yet verified against a live key.
 - Export uses the Web Share sheet when available; if iOS rejects the share after the async DB read, it falls back to a download.
 

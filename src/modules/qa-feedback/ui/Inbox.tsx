@@ -156,9 +156,16 @@ export function Inbox() {
             <button type="button" className="qa-item-main" onClick={() => go({ name: 'detail', id: o.id })}>
               <span className="qa-item-title">{o.title}</span>
               <span className="qa-item-meta">
-                <span className={`qa-badge qa-type-${o.type}`}>{TYPE_LABELS[o.type]}</span>
+                {/* The one type chosen at capture, in that type's color (OBS-EF13DE). */}
+                <span className={`qa-badge qa-badge-type qa-type-${o.type}`}>
+                  <span className="qa-visually-hidden">Type: </span>
+                  {TYPE_LABELS[o.type]}
+                </span>
                 {o.priority && <span className={`qa-badge qa-pri-${o.priority}`}>{PRIORITY_LABELS[o.priority]}</span>}
-                <span className="qa-badge">{STATUS_LABELS[o.status]}</span>
+                <span className="qa-badge qa-badge-status">
+                  <span className="qa-visually-hidden">Status: </span>
+                  {STATUS_LABELS[o.status]}
+                </span>
                 {o.feature && <span className="qa-item-feature">{o.feature}</span>}
                 {o.attachmentCount > 0 && (
                   <span className="qa-item-shots" aria-label={`${o.attachmentCount} screenshots`}>

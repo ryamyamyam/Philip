@@ -10,6 +10,7 @@ import {
   duplicateFoodEntry,
   entriesForDate,
   logSavedFood,
+  moveFoodEntry,
   restoreFoodEntry,
   saveEntryAsFood,
   updateFoodEntry,
@@ -34,6 +35,22 @@ const food = (o: Partial<NewFoodEntry> = {}): NewFoodEntry => ({
 });
 
 describe('food entries', () => {
+  it('moves an entry to another day and meal without changing its values (OBS-3E7A73)', async () => {
+    const db = await freshDb();
+    const id = await addFoodEntry(food({ date: '2026-10-29', meal: 'lunch' }), db);
+    const before = await db.foodEntries.get(id);
+    const prev = await moveFoodEntry(id, { date: '2026-10-28', meal: 'dinner' }, db);
+    expect(prev).toEqual({ date: '2026-10-29', meal: 'lunch' });
+    expect(await entriesForDate('2026-10-29', db)).toHaveLength(0);
+    const [moved] = await entriesForDate('2026-10-28', db);
+    expect(moved).toMatchObject({ id, meal: 'dinner', name: before?.name, calories: before?.calories, proteinG: before?.proteinG });
+    expect(moved?.createdAt).toBe(before?.createdAt);
+    // Undo puts it back.
+    await moveFoodEntry(id, prev!, db);
+    expect((await db.foodEntries.get(id))?.date).toBe('2026-10-29');
+    expect(await moveFoodEntry('missing', { date: '2026-10-28', meal: 'lunch' }, db)).toBeUndefined();
+  });
+
   it('adds, edits, duplicates, deletes and restores', async () => {
     const db = await freshDb();
     const id = await addFoodEntry(food({ name: '  Chicken rice ' }), db);

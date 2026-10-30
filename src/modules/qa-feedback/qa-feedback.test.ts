@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { timing, webSpeechProvider, type TranscriptionErrorCode } from './transcription';
 import { QaFeedbackDB, shortRef } from './db';
 import {
   QaError,
@@ -342,5 +343,105 @@ describe('prompts', () => {
 describe('defaultTitle', () => {
   it('uses the first sentence', () => {
     expect(defaultTitle('Button is clipped. It happens on iPhone mini.')).toBe('Button is clipped');
+  });
+});
+
+/* ---------- OBS-748382: voice session can never get stuck ---------- */
+describe('web speech provider lifecycle', () => {
+  type Rec = {
+    onstart: (() => void) | null;
+    onend: (() => void) | null;
+    onerror: ((e: { error: string }) => void) | null;
+    onresult: unknown;
+    started: boolean;
+    aborted: boolean;
+  };
+  let last: Rec | null = null;
+  function install(behavior: 'stuck' | 'denied' | 'ok') {
+    class Fake implements Rec {
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: ((e: { error: string }) => void) | null = null;
+      onresult: unknown = null;
+      lang = '';
+      continuous = false;
+      interimResults = false;
+      started = false;
+      aborted = false;
+      constructor() {
+        last = this;
+      }
+      start() {
+        this.started = true;
+        if (behavior === 'ok') setTimeout(() => this.onstart?.(), 10);
+        if (behavior === 'denied') setTimeout(() => this.onerror?.({ error: 'not-allowed' }), 10); // no `end` follows
+      }
+      stop() {
+        if (behavior === 'ok') setTimeout(() => this.onend?.(), 10);
+      }
+      abort() {
+        this.aborted = true;
+      }
+    }
+    (globalThis as unknown as { window: unknown }).window = { webkitSpeechRecognition: Fake };
+  }
+  function run() {
+    const errors: TranscriptionErrorCode[] = [];
+    let ends = 0;
+    const session = webSpeechProvider.start(
+      { onText: () => undefined, onError: (c) => errors.push(c), onEnd: () => ends++ },
+      { lang: 'en-US' },
+    );
+    return { session, errors, ends: () => ends };
+  }
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (globalThis as unknown as { window?: unknown }).window;
+    last = null;
+  });
+
+  it('ends the session when permission is denied even if the recognizer never fires end', () => {
+    vi.useFakeTimers();
+    install('denied');
+    const r = run();
+    vi.advanceTimersByTime(20);
+    expect(r.errors).toEqual(['permission']);
+    expect(r.ends()).toBe(1);
+    expect(last?.aborted).toBe(true);
+  });
+
+  it('stop() ends a recognizer that never confirms, exactly once', () => {
+    vi.useFakeTimers();
+    install('stuck');
+    const r = run();
+    r.session.stop();
+    vi.advanceTimersByTime(timing.stopTimeoutMs + 10);
+    expect(r.ends()).toBe(1);
+    r.session.stop();
+    r.session.abort();
+    vi.advanceTimersByTime(timing.startTimeoutMs + 10);
+    expect(r.ends()).toBe(1);
+    expect(r.errors).toEqual([]);
+  });
+
+  it('reports notStarted when the microphone never starts', () => {
+    vi.useFakeTimers();
+    install('stuck');
+    const r = run();
+    vi.advanceTimersByTime(timing.startTimeoutMs + 10);
+    expect(r.errors).toEqual(['notStarted']);
+    expect(r.ends()).toBe(1);
+  });
+
+  it('a normal session is not cut short by the watchdogs', () => {
+    vi.useFakeTimers();
+    install('ok');
+    const r = run();
+    vi.advanceTimersByTime(timing.startTimeoutMs * 2);
+    expect(r.ends()).toBe(0);
+    r.session.stop();
+    vi.advanceTimersByTime(20);
+    expect(r.ends()).toBe(1);
+    expect(r.errors).toEqual([]);
   });
 });

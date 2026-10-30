@@ -23,7 +23,7 @@ const META_FAB_HIDDEN = 'floatingButtonHidden';
 
 /**
  * Mount once near the root of the host app. Renders a small floating capture button (optional)
- * and, when opened, the full-screen QA panel. Lazy-loads the panel so the host's startup cost
+ * and, when opened, the QA panel as a bottom sheet over the app. Lazy-loads the panel so the host's startup cost
  * is one tiny component.
  */
 export function QaFeedback({ config }: { config: QaFeedbackConfig }) {

@@ -77,6 +77,9 @@ test('quick capture without AI: save, screenshots, persistence, edit keeps origi
   await expect(item).toContainText('Bug');
   await expect(item.getByLabel('2 screenshots')).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/375-qa-inbox.png' });
+  // OBS-EF13DE: the inbox shows the one type chosen at capture, labeled the same as the capture chip.
+  await expect(item.locator('.qa-badge-type')).toHaveText('Type: Bug');
+  await expect(item.locator('.qa-badge-type')).toHaveClass(/qa-type-bug/);
 
   await item.getByRole('button').click();
   await expect(inbox.getByRole('list').locator('.qa-shot')).toHaveCount(2);
@@ -104,8 +107,8 @@ test('quick capture without AI: save, screenshots, persistence, edit keeps origi
 test('projects isolate observations; search and filters', async ({ page }) => {
   const panel = await openCapture(page);
   await capture(page, 'Export button does nothing on iOS', { type: 'Bug', feature: 'Settings' });
-  await capture(page, 'Add a dark mode', { type: 'Feature', feature: 'App' });
-  await capture(page, 'Macro bars are too thin to read', { type: 'UI', feature: 'Today' });
+  await capture(page, 'Add a dark mode', { type: 'Feature request', feature: 'App' });
+  await capture(page, 'Macro bars are too thin to read', { type: 'UI issue', feature: 'Today' });
 
   await panel.getByRole('button', { name: /^Inbox/ }).click();
   const list = panel.getByRole('list', { name: 'Observations' });
@@ -140,9 +143,9 @@ test('projects isolate observations; search and filters', async ({ page }) => {
 test('batch select → template prompt → edit protection → copy and .txt export', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const panel = await openCapture(page);
-  await capture(page, 'Ring overlaps the date', { feature: 'Today', type: 'UI' });
+  await capture(page, 'Ring overlaps the date', { feature: 'Today', type: 'UI issue' });
   await capture(page, 'Meal list jumps when adding food', { feature: 'today', type: 'Bug' });
-  await capture(page, 'Export should include notes', { feature: 'Settings', type: 'Feature' });
+  await capture(page, 'Export should include notes', { feature: 'Settings', type: 'Feature request' });
 
   await panel.getByRole('button', { name: /^Inbox/ }).click();
   await panel.getByRole('button', { name: 'Select visible' }).click();
@@ -341,8 +344,60 @@ test('denied microphone shows guidance and typing still works', async ({ page })
   await page.reload();
   const panel = await openCapture(page);
   await panel.getByRole('button', { name: 'Tap and describe what you noticed' }).click();
-  await expect(panel.getByRole('alert')).toContainText('Microphone access was denied');
+  await expect(panel.getByRole('alert')).toContainText('Microphone access is blocked');
+  await expect(panel.getByRole('button', { name: 'Tap and describe what you noticed' })).toBeVisible();
   await capture(page, 'Typed instead');
+});
+
+test('OBS-591E6F: the panel is a bottom sheet with the app visible above it', async ({ page }) => {
+  const panel = await openCapture(page);
+  const box = await panel.boundingBox();
+  expect(box!.y).toBeGreaterThan(30);
+  await expect(page.locator('.qa-scrim')).toBeVisible();
+  // Every type is offered at capture and the chosen one is what the inbox shows (OBS-EF13DE).
+  for (const label of ['Bug', 'UI issue', 'Usability', 'Feature request', 'Optimization', 'Other']) {
+    await expect(panel.getByRole('button', { name: label, exact: true })).toBeVisible();
+  }
+  await panel.getByRole('button', { name: 'Optimization', exact: true }).click();
+  await page.screenshot({ path: 'e2e/screenshots/375-qa-sheet.png' });
+  await panel.getByLabel('What did you notice?').fill('Inbox type should be obvious');
+  await panel.getByRole('button', { name: 'Save observation' }).click();
+  await panel.getByRole('button', { name: /^Inbox/ }).click();
+  const item = panel.getByRole('list', { name: 'Observations' }).getByRole('listitem');
+  await expect(item.locator('.qa-badge-type')).toHaveText('Type: Optimization');
+  await expect(item.locator('.qa-badge-type')).toHaveClass(/qa-type-optimization/);
+  await page.screenshot({ path: 'e2e/screenshots/375-qa-inbox-types.png' });
+});
+
+test('OBS-748382: a recognizer that never starts or ends can still be stopped', async ({ page }) => {
+  // What iOS does after "Don't Allow": start() is accepted but no events ever arrive.
+  await page.addInitScript(() => {
+    class Stuck {
+      onerror = null;
+      onend = null;
+      onresult = null;
+      onstart = null;
+      lang = '';
+      continuous = false;
+      interimResults = false;
+      start() {}
+      stop() {}
+      abort() {}
+    }
+    Object.assign(window, { SpeechRecognition: Stuck, webkitSpeechRecognition: Stuck });
+  });
+  await page.reload();
+  const panel = await openCapture(page);
+  await panel.getByRole('button', { name: 'Tap and describe what you noticed' }).click();
+  await panel.getByRole('button', { name: 'Listening… tap to stop' }).click();
+  // Stop always works: the session is ended even though the recognizer never confirms.
+  await expect(panel.getByRole('button', { name: 'Tap and describe what you noticed' })).toBeVisible({ timeout: 3000 });
+  await expect(panel.getByLabel('What did you notice?')).not.toHaveAttribute('readonly');
+  // Left alone, the start watchdog ends it with guidance instead of "listening" forever.
+  await panel.getByRole('button', { name: 'Tap and describe what you noticed' }).click();
+  await expect(panel.getByRole('alert')).toContainText('The microphone didn’t start', { timeout: 9000 });
+  await expect(panel.getByRole('button', { name: 'Tap and describe what you noticed' })).toBeVisible();
+  await capture(page, 'Typed after mic failure');
 });
 
 test('floating button can be hidden; existing app keeps working', async ({ page }) => {

@@ -37,6 +37,9 @@ export default function Panel() {
   const tab = view.name === 'detail' ? 'inbox' : view.name;
 
   return (
+    <>
+    {/* Dims the app behind the sheet. Tapping it does not close: that would lose an unsaved capture. */}
+    <div className="qa-scrim" aria-hidden="true" />
     <div ref={ref} className="qa-panel" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
       <header className="qa-header">
         <div className="qa-header-row">
@@ -79,6 +82,7 @@ export default function Panel() {
         {view.name === 'prompt' && <PromptBuilder />}
       </div>
     </div>
+    </>
   );
 }
 

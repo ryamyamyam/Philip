@@ -11,6 +11,7 @@ Personal nutrition tracker. Local-first PWA for iPhone: calories, protein, fat a
 - **Targets**: Mifflin–St Jeor calculator with safety limits, manual override, history-preserving plans, weekday plans
 - **History**: 7/30-day averages, SVG chart, weekly planned vs actual, optional adherence score
 - **Backup**: versioned JSON export/import (merge or replace), typed-confirmation delete-all
+- **QA & Feedback**: capture bugs and ideas by voice or text with screenshots, organize them, and generate Claude Code prompts (reusable module in `src/modules/qa-feedback`)
 
 ## Development
 

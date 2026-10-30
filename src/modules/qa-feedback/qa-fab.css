@@ -1,0 +1,63 @@
+/* Always-loaded styles: just the floating button and toast (the panel's CSS loads with the panel). */
+/* ---------- Floating button ---------- */
+.qa-fab {
+  /* A slim tab hugging the right edge: it sits in the page gutter, so it rarely covers content. */
+  position: fixed;
+  right: 0;
+  bottom: calc(var(--tabbar-h, 0px) + env(safe-area-inset-bottom, 0px) + 96px);
+  z-index: 50;
+  width: 30px;
+  height: 48px;
+  padding: 0 0 0 4px;
+  border-radius: 12px 0 0 12px;
+  border: 1px solid var(--color-border-strong, #d6d3d1);
+  border-right: none;
+  background: rgb(255 255 255 / 0.9);
+  color: var(--color-text-2, #57534e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-2, 0 8px 24px rgb(0 0 0 / 0.12));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+/* Extends the touch target to 44px wide without drawing over content. */
+.qa-fab::before {
+  content: '';
+  position: absolute;
+  inset: -4px 0 -4px -14px;
+}
+.qa-fab:active {
+  transform: scale(0.94);
+}
+.qa-fab svg,
+.qa-icon-btn svg,
+.qa-btn svg,
+.qa-mic svg,
+.qa-item-shots svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.qa-fab svg {
+  width: 20px;
+  height: 20px;
+}
+
+.qa-toast {
+  position: fixed;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  transform: translateX(-50%);
+  z-index: 70;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--color-text, #1c1917);
+  color: #fff;
+  font-size: var(--text-sm, 0.9rem);
+  box-shadow: var(--shadow-2, 0 8px 24px rgb(0 0 0 / 0.12));
+  pointer-events: none;
+}

@@ -11,6 +11,7 @@
 | 6 | History: daily log, 7/30-day averages, SVG chart, target comparisons | ✅ Done |
 | 7 | Adherence score (optional), weekday target planning, weekly planned vs actual | ✅ Done |
 | 8 | QA & polish | 🟡 In progress |
+| 9 | QA & Feedback Capture module (capture, screenshots, inbox, prompt builder, optional AI) | ✅ Done (needs real-iPhone voice test) |
 
 ## Stage 8 checklist
 
@@ -21,6 +22,7 @@
 - [ ] Real iPhone: install from Safari, offline launch, camera capture, share-sheet export, Files import, Dynamic Type at largest sizes, VoiceOver pass
 - [ ] Live Gemini free-tier key: success, invalid key, rate limit
 - [ ] Performance check on device (cold start, 1 year of entries)
+- [ ] QA & Feedback: voice capture in the installed iPhone app, screenshot from Photos, share-sheet .txt export, live Gemini structuring
 
 ## Later (not started)
 

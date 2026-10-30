@@ -8,6 +8,8 @@ import { UICtx, type SheetState, type UI } from './ui';
 import { TodayView } from './views/TodayView';
 import { SheetHost } from './views/SheetHost';
 import { OfflineBanner } from './components/OfflineBanner';
+import { QaFeedback } from './modules/qa-feedback';
+import { qaFeedbackConfig } from './qaFeedback.config';
 
 const HistoryView = lazy(() => import('./views/HistoryView'));
 const TargetsView = lazy(() => import('./views/TargetsView'));
@@ -58,6 +60,7 @@ export function App() {
             onAdd={() => setSheet({ kind: 'add', date: tab === 'today' ? date : todayYmd(), meal: defaultMealFor() })}
           />
           {sheet && <SheetHost sheet={sheet} />}
+          <QaFeedback config={qaFeedbackConfig} />
         </div>
       </ToastProvider>
     </UICtx.Provider>

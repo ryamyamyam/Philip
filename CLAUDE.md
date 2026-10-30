@@ -18,11 +18,16 @@ Stages 0–7 implemented; Stage 8 (QA) partially done. See docs/ROADMAP.md.
 - AI results are never saved without the review sheet (`src/views/photo/ReviewSheet.tsx`).
 - No `any`. Don't suppress TS errors. Keep components small; no UI libraries.
 - Touch targets ≥ 44px, labels wrap (no fixed text heights), tabular numerals for numbers.
+- `src/modules/qa-feedback/` is a portable module: it must not import from Philip code. Its strings live in `ui/strings.ts` (not `en.ts`) and its styles use `qa-` classes. Philip-specific wiring belongs in `src/qaFeedback.config.ts`.
 
 ## Commands
 `npm test` · `npm run build` · `npx playwright test --project=webkit-iphone` (or `chromium-mobile`)
 
+## QA & Feedback Capture
+Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, browser tests in `e2e/qa-feedback.spec.ts`). Data in the separate `qa-feedback` IndexedDB database, not in backups.
+
 ## Known issues
+- QA voice capture uses the Web Speech API; not yet tested on a real iPhone home-screen install.
 - WebKit e2e not yet run (only Chromium mobile emulation in the build sandbox). Real-iPhone pass pending.
 - Gemini default model (`gemini-3.1-flash-lite`) not yet verified against a live key.
 - Export uses the Web Share sheet when available; if iOS rejects the share after the async DB read, it falls back to a download.

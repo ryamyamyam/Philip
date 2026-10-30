@@ -19,6 +19,7 @@ import {
 import { fmtDateTime } from '../lib/format';
 import { isStandalone, type PersistState } from '../lib/pwa';
 import { AnalysisError } from '../services/foodAnalysis';
+import { openQaFeedback } from '../modules/qa-feedback';
 import { DEFAULT_GEMINI_MODEL, listGeminiModels, normalizeModel, SUGGESTED_GEMINI_MODELS, testGeminiKey } from '../services/foodAnalysis/gemini';
 
 export default function SettingsView() {
@@ -31,6 +32,7 @@ export default function SettingsView() {
         <DataSection />
         <GeminiSection />
         <UnitsSection />
+        <QaSection />
         <DangerSection />
         <p className="subtle">{t('settings.about')}</p>
         <p className="subtle">{t('settings.version', { version: __APP_VERSION__ })}</p>
@@ -358,6 +360,25 @@ function UnitsSection() {
             </button>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- QA & Feedback ---------------- */
+
+function QaSection() {
+  return (
+    <section className="card stack" aria-labelledby="qa-h">
+      <h2 id="qa-h">{t('settings.qa')}</h2>
+      <p className="small muted">{t('settings.qaNote')}</p>
+      <div className="row-wrap">
+        <button type="button" className="btn btn-secondary" onClick={() => openQaFeedback('capture')}>
+          {t('settings.qaCapture')}
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={() => openQaFeedback('inbox')}>
+          {t('settings.qaInbox')}
+        </button>
       </div>
     </section>
   );

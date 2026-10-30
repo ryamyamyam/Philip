@@ -33,6 +33,8 @@ src/
   i18n/                 en.ts strings + t() helper
   styles/               tokens.css, global.css, view styles
   sw-template.js        service worker; precache list injected at build (vite.config.ts)
+  qaFeedback.config.ts  connects the QA & Feedback module to Philip (app name, screen context, Gemini key)
+  modules/qa-feedback/  self-contained QA & Feedback Capture module (see its README.md)
 ```
 
 ## Data model (IndexedDB `philip`, Dexie v1)
@@ -95,6 +97,15 @@ Calories 40% (full ±10%, linear to 0 at ±35%), protein 35% (full ≥90%, 0 at 
 Claude handoff: copy prompt → user attaches the photo in the Claude app (optionally via the share sheet) → paste reply → same validator → same review sheet. Philip never calls Claude itself.
 
 Photos are never stored.
+
+## QA & Feedback Capture (`src/modules/qa-feedback`)
+
+A reusable, self-contained module for capturing observations (bugs, UI/usability issues, ideas) while using the app and turning selected ones into a Claude Code prompt. Details: `src/modules/qa-feedback/README.md`.
+
+- **Integration:** `<QaFeedback config={qaFeedbackConfig} />` in `App.tsx`, a "QA & Feedback" card in Settings, and `src/qaFeedback.config.ts`. The module imports nothing from Philip; Philip's config passes in the Gemini key (from `profile.geminiKey`) and the current screen.
+- **Storage:** its own IndexedDB database, `qa-feedback` (Dexie v1), with tables `projects`, `observations`, `attachments`, `files` (screenshot blobs), `prompts` and `meta`. Philip's `philip` database, its backups and "Delete all data" are untouched. Rolling back = removing the module and deleting that database.
+- **UI:** a slim floating tab on the right edge (the user can hide it) opens a full-screen panel with Capture, Inbox (search, filters, batch selection, detail) and Prompt (grouping, template or AI-assisted generation, edit, copy, .txt/.md export). The panel and its CSS are lazy-loaded.
+- **AI:** optional; the Gemini provider is used only after an explicit tap ("Structure with AI", "Analyze with AI", "Improve with AI"). Responses are validated, AI fields are marked, and AI never overwrites what the user typed.
 
 ## Offline / PWA
 

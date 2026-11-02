@@ -9,6 +9,7 @@ export const DEFAULT_DB_NAME = 'qa-feedback';
  * "delete all" are untouched, and so the module can be copied into another app as-is.
  *
  * Migrations: add `this.version(n).stores({...}).upgrade(...)` — never edit an existing version.
+ * v2 adds `archivedAt` / `archivedByPromptId` on observations (index on `archivedByPromptId`).
  * Rollback: the database can be deleted with `Dexie.delete(name)` without affecting the host.
  */
 export class QaFeedbackDB extends Dexie {
@@ -29,6 +30,19 @@ export class QaFeedbackDB extends Dexie {
       prompts: 'id, projectId, [projectId+generatedAt]',
       meta: 'key',
     });
+    // v2: archive observations after their prompt is copied/exported. Archive is separate from the
+    // workflow status, so unarchiving restores the item exactly as it was.
+    this.version(2)
+      .stores({ observations: 'id, projectId, [projectId+createdAt], status, updatedAt, archivedByPromptId' })
+      .upgrade(async (tx) => {
+        await tx
+          .table('observations')
+          .toCollection()
+          .modify((o: Partial<Observation>) => {
+            if (o.archivedAt === undefined) o.archivedAt = null;
+            if (o.archivedByPromptId === undefined) o.archivedByPromptId = null;
+          });
+      });
   }
 }
 

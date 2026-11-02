@@ -5,8 +5,12 @@
  *   "format": "philip-backup",
  *   "schemaVersion": 1,
  *   "exportedAt": "2026-10-28T21:15:00.000Z",
- *   "data": { "profile": {...} | null, "targetPlans": [...], "foodEntries": [...], "savedFoods": [...] }
+ *   "data": { "profile": {...} | null, "targetPlans": [...], "foodEntries": [...], "savedFoods": [...],
+ *             "weightEntries": [...] }
  * }
+ *
+ * QA round 2 added `weightEntries` and `profile.bodyFatPct` as OPTIONAL fields without bumping
+ * schemaVersion: older backups (without them) import unchanged, and older app builds ignore them.
  */
 import type { PhilipDB } from '../db/db';
 import { defaultProfile } from '../db/db';
@@ -22,6 +26,7 @@ import {
   type Sex,
   type TargetPlan,
   type Weekday,
+  type WeightEntry,
 } from '../db/types';
 import { isValidYmd } from './date';
 
@@ -33,6 +38,8 @@ export interface BackupData {
   targetPlans: TargetPlan[];
   foodEntries: FoodEntry[];
   savedFoods: SavedFood[];
+  /** Optional in files: backups made before QA round 2 don't have it. */
+  weightEntries: WeightEntry[];
 }
 
 export interface BackupFile {
@@ -58,7 +65,7 @@ export class BackupError extends Error {
 /* ---------------- Export ---------------- */
 
 export async function createBackup(database: PhilipDB, opts: { includeApiKey?: boolean; now?: Date } = {}): Promise<BackupFile> {
-  return database.transaction('r', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods], async () => {
+  return database.transaction('r', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries], async () => {
     const profile = (await database.profile.get('me')) ?? null;
     return {
       format: BACKUP_FORMAT,
@@ -69,6 +76,7 @@ export async function createBackup(database: PhilipDB, opts: { includeApiKey?: b
         targetPlans: await database.targetPlans.orderBy('effectiveFrom').toArray(),
         foodEntries: await database.foodEntries.orderBy('date').toArray(),
         savedFoods: await database.savedFoods.toArray(),
+        weightEntries: await database.weightEntries.orderBy('date').toArray(),
       },
     };
   });
@@ -201,6 +209,17 @@ function validatePlan(raw: unknown, i: number): TargetPlan {
   };
 }
 
+function validateWeight(raw: unknown, i: number): WeightEntry {
+  const v: V = new V(`weightEntries[${i}]`);
+  if (!isObj(raw)) v.fail('not an object');
+  return {
+    date: v.ymd(raw, 'date'),
+    weightKg: v.num(raw, 'weightKg', 20, 400),
+    createdAt: v.num(raw, 'createdAt', 0, 1e14),
+    updatedAt: v.num(raw, 'updatedAt', 0, 1e14),
+  };
+}
+
 function validateProfile(raw: unknown): Profile | null {
   if (raw == null) return null;
   const v: V = new V('profile');
@@ -213,6 +232,7 @@ function validateProfile(raw: unknown): Profile | null {
     birthDate: raw.birthDate == null ? null : v.ymd(raw, 'birthDate'),
     heightCm: v.numOrNull(raw, 'heightCm', 50, 260),
     weightKg: v.numOrNull(raw, 'weightKg', 20, 400),
+    bodyFatPct: v.numOrNull(raw, 'bodyFatPct', 3, 60),
     activityLevel: v.oneOfOrNull<ActivityLevel>(raw, 'activityLevel', ['sedentary', 'light', 'moderate', 'active', 'veryActive']),
     trainingDaysPerWeek: v.numOrNull(raw, 'trainingDaysPerWeek', 0, 7),
     goal: v.oneOfOrNull<Goal>(raw, 'goal', ['lose', 'maintain', 'gain']),
@@ -262,7 +282,11 @@ export function parseBackup(text: string): ParsedBackup {
   for (const k of ['targetPlans', 'foodEntries', 'savedFoods'] as const) {
     if (!Array.isArray(d[k])) throw new BackupError('invalid', `${k} is missing`);
   }
+  if (d.weightEntries != null && !Array.isArray(d.weightEntries)) throw new BackupError('invalid', 'weightEntries must be a list');
   const entries = dedupe((d.foodEntries as unknown[]).map(validateEntry));
+  // One weight per date: keep the first, count the rest as duplicates.
+  const weightsRaw = ((d.weightEntries as unknown[] | undefined) ?? []).map(validateWeight);
+  const weights = dedupe(weightsRaw.map((w) => ({ ...w, id: w.date })));
   const saved = dedupe((d.savedFoods as unknown[]).map(validateSaved));
   const plansRaw = (d.targetPlans as unknown[]).map(validatePlan);
   // Duplicate numeric plan IDs: keep the first, strip the id from later ones so they get new IDs.
@@ -283,9 +307,15 @@ export function parseBackup(text: string): ParsedBackup {
       format: BACKUP_FORMAT,
       schemaVersion: version,
       exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : '',
-      data: { profile: validateProfile(d.profile), targetPlans: plans, foodEntries: entries.items, savedFoods: saved.items },
+      data: {
+        profile: validateProfile(d.profile),
+        targetPlans: plans,
+        foodEntries: entries.items,
+        savedFoods: saved.items,
+        weightEntries: weights.items.map(({ id: _id, ...w }) => w),
+      },
     },
-    duplicatesSkipped: entries.skipped + saved.skipped + planDupes,
+    duplicatesSkipped: entries.skipped + saved.skipped + planDupes + weights.skipped,
   };
 }
 
@@ -298,6 +328,7 @@ export interface RestoreSummary {
   entriesUpdated: number;
   plansAdded: number;
   savedAdded: number;
+  weightsAdded: number;
 }
 
 const planKey = (p: TargetPlan) =>
@@ -312,20 +343,28 @@ const planKey = (p: TargetPlan) =>
  */
 export async function restoreBackup(database: PhilipDB, backup: BackupFile, mode: RestoreMode): Promise<RestoreSummary> {
   const { data } = backup;
-  return database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods], async () => {
+  return database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries], async () => {
     if (mode === 'replace') {
       const localKey = (await database.profile.get('me'))?.geminiKey ?? null;
-      await Promise.all([database.profile.clear(), database.targetPlans.clear(), database.foodEntries.clear(), database.savedFoods.clear()]);
+      await Promise.all([
+        database.profile.clear(),
+        database.targetPlans.clear(),
+        database.foodEntries.clear(),
+        database.savedFoods.clear(),
+        database.weightEntries.clear(),
+      ]);
       const profile = data.profile ?? defaultProfile();
       await database.profile.put({ ...profile, geminiKey: profile.geminiKey ?? localKey });
       await database.targetPlans.bulkAdd(data.targetPlans);
       await database.foodEntries.bulkAdd(data.foodEntries);
       await database.savedFoods.bulkAdd(data.savedFoods);
+      await database.weightEntries.bulkAdd(data.weightEntries);
       return {
         entriesAdded: data.foodEntries.length,
         entriesUpdated: 0,
         plansAdded: data.targetPlans.length,
         savedAdded: data.savedFoods.length,
+        weightsAdded: data.weightEntries.length,
       };
     }
 
@@ -365,16 +404,29 @@ export async function restoreBackup(database: PhilipDB, backup: BackupFile, mode
       .map(({ id: _id, ...rest }) => rest as TargetPlan);
     await database.targetPlans.bulkAdd(newPlans);
 
+    // Weight log: add missing dates; on the same date the newer updatedAt wins.
+    let weightsAdded = 0;
+    const weightWrites: WeightEntry[] = [];
+    for (const w of data.weightEntries) {
+      const local = await database.weightEntries.get(w.date);
+      if (!local) {
+        weightWrites.push(w);
+        weightsAdded++;
+      } else if (w.updatedAt > local.updatedAt) weightWrites.push(w);
+    }
+    await database.weightEntries.bulkPut(weightWrites);
+
     if (!(await database.profile.get('me')) && data.profile) await database.profile.put(data.profile);
 
-    return { entriesAdded, entriesUpdated, plansAdded: newPlans.length, savedAdded };
+    return { entriesAdded, entriesUpdated, plansAdded: newPlans.length, savedAdded, weightsAdded };
   });
 }
 
 /** Deletes every record. Used by "Delete all data". */
 export async function deleteAllData(database: PhilipDB): Promise<void> {
-  await database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.meta], async () => {
+  await database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.meta], async () => {
     await Promise.all([
+      database.weightEntries.clear(),
       database.profile.clear(),
       database.targetPlans.clear(),
       database.foodEntries.clear(),

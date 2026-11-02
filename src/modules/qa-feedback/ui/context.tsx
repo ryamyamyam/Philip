@@ -22,7 +22,13 @@ export interface QaUI {
   setSelection: (ids: string[]) => void;
   aiAvailable: boolean;
   aiLabel: string;
-  notify: (text: string) => void;
+  /** Short toast. An optional action (e.g. Undo) shows as a button and keeps the toast up longer. */
+  notify: (text: string, action?: ToastAction) => void;
+}
+
+export interface ToastAction {
+  label: string;
+  run: () => void | Promise<void>;
 }
 
 export const QaCtx = createContext<QaUI | null>(null);

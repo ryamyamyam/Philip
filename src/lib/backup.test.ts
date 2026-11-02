@@ -43,7 +43,7 @@ describe('backup round trip', () => {
     const text = JSON.stringify(await createBackup(a));
     // Merge into itself: nothing should change
     const s1 = await restoreBackup(a, parseBackup(text).file, 'merge');
-    expect(s1).toEqual({ entriesAdded: 0, entriesUpdated: 0, plansAdded: 0, savedAdded: 0 });
+    expect(s1).toEqual({ entriesAdded: 0, entriesUpdated: 0, plansAdded: 0, savedAdded: 0, weightsAdded: 0 });
     expect(await a.foodEntries.count()).toBe(2);
     expect(await a.targetPlans.count()).toBe(1);
 

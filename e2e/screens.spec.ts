@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, tab } from './helpers';
+import { fresh, noHorizontalScroll, openAdd, openMoreOptions, tab } from './helpers';
 
 /** Seeds realistic data straight into IndexedDB (same schema Dexie uses). */
 async function seed(page: Page) {
@@ -41,7 +41,7 @@ async function seed(page: Page) {
     db.close();
   });
   await page.reload();
-  // Seeded data with no backup triggers the backup pop-up (OBS-3AD584); dismiss it for the screenshots.
+  // Seeded data with no backup triggers the backup pop-up (OBS-3AD584) on Today; dismiss it for the screenshots.
   await page.getByRole('dialog', { name: 'Back up your food log' }).getByRole('button', { name: 'Later' }).click();
 }
 
@@ -59,19 +59,19 @@ for (const width of widths) {
         await noHorizontalScroll(page);
         await page.screenshot({ path: `e2e/screenshots/${width}${large ? '-xl' : ''}-${name}.png`, fullPage: true });
       };
-      await expect(page.getByRole('img', { name: /kcal/ }).first()).toBeVisible();
+      await expect(page.getByRole('region', { name: 'What’s left today' })).toBeVisible();
       await shot('today');
-      await tab(page, 'History').click();
-      await expect(page.getByRole('heading', { name: '7-day average' })).toBeVisible();
-      await shot('history');
-      await tab(page, 'Targets').click();
+      await tab(page, 'Meals').click();
+      await shot('meals');
+      await tab(page, 'Progress').click();
+      await expect(page.getByRole('heading', { name: 'Last 7 days' })).toBeVisible();
       await page.getByRole('button', { name: 'Calculate' }).waitFor();
-      await shot('targets');
+      await shot('progress');
       await tab(page, 'Settings').click();
       await shot('settings');
-      await tab(page, 'Today').click();
-      await page.getByRole('button', { name: 'Add food' }).first().click();
+      await openAdd(page, 'Lunch');
       await shot('add');
+      await openMoreOptions(page);
       await page.getByRole('button', { name: /Manual/ }).click();
       await shot('entry');
     });
@@ -80,22 +80,24 @@ for (const width of widths) {
 
 test('targets calculator end to end', async ({ page }) => {
   await fresh(page);
-  await tab(page, 'Targets').click();
-  await page.getByLabel('Sex').selectOption('male');
-  await page.getByLabel('Date of birth').fill('1996-05-10');
-  await page.getByLabel('Height — Feet').fill('5');
-  await page.getByLabel('Inches').fill('11');
-  await page.getByLabel('Weight (lb)').fill('180');
-  await page.getByLabel('Activity level').selectOption('moderate');
-  await page.getByLabel('Training days per week').selectOption('4');
-  await page.getByRole('radio', { name: 'Lose fat' }).click();
-  await page.getByLabel('Target weight (lb)').fill('170');
-  await page.getByLabel('Rate per week (lb)').fill('5');
+  await tab(page, 'Progress').click();
+  const calc = page.getByRole('region', { name: 'Calculator' });
+  await calc.getByLabel('Sex').selectOption('male');
+  await calc.getByLabel('Date of birth').fill('1996-05-10');
+  await calc.getByLabel('Height — Feet').fill('5');
+  await calc.getByLabel('Inches').fill('11');
+  await calc.getByLabel('Weight (lb)').fill('180');
+  await calc.getByLabel('Activity level').selectOption('moderate');
+  await calc.getByLabel('Training days per week').selectOption('4');
+  await calc.getByRole('radio', { name: 'Lose fat' }).click();
+  await calc.getByLabel('Target weight (lb)').fill('170');
+  await calc.getByLabel('Rate per week (lb)').fill('5');
   await page.getByRole('button', { name: 'Calculate' }).click();
   await expect(page.getByText(/Rate was capped/)).toBeVisible();
   await page.screenshot({ path: 'e2e/screenshots/375-targets-result.png', fullPage: true });
   await page.getByRole('button', { name: 'Use these targets' }).click();
+  await page.getByText('Weekly plan, adherence, history').click();
   await expect(page.getByRole('region', { name: 'Target history' }).getByText(/Calculated/)).toBeVisible();
   await tab(page, 'Today').click();
-  await expect(page.getByRole('img', { name: /kcal remaining of/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'What’s left today' }).getByText(/kcal left$/)).toBeVisible();
 });

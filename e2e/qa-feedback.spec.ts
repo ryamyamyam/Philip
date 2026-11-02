@@ -34,7 +34,7 @@ async function capture(page: Page, text: string, opts: { type?: string; feature?
 async function setGeminiKey(page: Page) {
   await tab(page, 'Settings').click();
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
-  await page.getByRole('region', { name: 'Photo analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
   await tab(page, 'Today').click();
 }
 
@@ -412,4 +412,57 @@ test('floating button can be hidden; existing app keeps working', async ({ page 
   await expect(page.getByRole('dialog', { name: 'QA & Feedback' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'QA & Feedback' })).toHaveCount(0);
+});
+
+test('OBS-CDDDEC: copying a prompt archives its observations (toast + Undo, Archived filter, Unarchive)', async ({ page, context, browserName }) => {
+  test.skip(browserName !== 'chromium', 'clipboard permissions only grantable in Chromium');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const panel = await openCapture(page);
+  await capture(page, 'Heading repeats the date', { feature: 'Today', type: 'UI issue' });
+  await capture(page, 'Swipe is flaky', { feature: 'Meals', type: 'Bug' });
+  await capture(page, 'Keep this one open', { feature: 'Settings', type: 'Other' });
+
+  await panel.getByRole('button', { name: /^Inbox/ }).click();
+  const list = panel.getByRole('list', { name: 'Observations' });
+  await list.getByRole('checkbox', { name: 'Select Heading repeats the date' }).check();
+  await list.getByRole('checkbox', { name: 'Select Swipe is flaky' }).check();
+  await panel.getByRole('button', { name: 'Build prompt from 2 selected' }).click();
+  await panel.getByRole('button', { name: 'Generate prompt' }).click();
+  await panel.getByRole('button', { name: 'Copy' }).click();
+
+  const toast = page.getByRole('status').filter({ hasText: '2 observations archived' });
+  await expect(toast).toBeVisible();
+  await page.screenshot({ path: 'e2e/screenshots/375-qa-archived-toast.png' });
+  // Undo restores both.
+  await toast.getByRole('button', { name: 'Undo' }).click();
+  await panel.getByRole('button', { name: /^Inbox/ }).click();
+  await expect(list.getByRole('listitem')).toHaveCount(3);
+
+  // Copy again → archived for real; hidden from the default Open filter.
+  await panel.getByRole('button', { name: /^Prompt/ }).click();
+  await panel.getByRole('button', { name: 'Generate prompt' }).click();
+  await panel.getByRole('button', { name: 'Copy' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '2 observations archived' })).toBeVisible();
+  await panel.getByRole('button', { name: /^Inbox/ }).click();
+  await expect(list.getByRole('listitem')).toHaveCount(1);
+  await expect(list).toContainText('Keep this one open');
+
+  // Archived filter shows them struck through and muted.
+  await panel.getByRole('button', { name: 'Filters' }).click();
+  await panel.getByLabel('Status').selectOption('archived');
+  await expect(list.getByRole('listitem')).toHaveCount(2);
+  const title = list.locator('.qa-item-archived .qa-item-title').first();
+  await expect(title).toHaveCSS('text-decoration-line', 'line-through');
+  await page.screenshot({ path: 'e2e/screenshots/375-qa-archived-inbox.png' });
+
+  // Unarchive from the detail screen.
+  await list.getByRole('button', { name: /Swipe is flaky/ }).click();
+  await expect(panel.getByText(/Archived .*after its prompt was copied or exported/)).toBeVisible();
+  await panel.getByRole('button', { name: 'Unarchive' }).click();
+  await expect(panel.getByRole('button', { name: 'Unarchive' })).toHaveCount(0);
+  await panel.getByRole('button', { name: '‹ Inbox' }).click();
+  await expect(list.getByRole('listitem')).toHaveCount(1); // still on the Archived filter
+  await panel.getByRole('button', { name: /^Filters/ }).click();
+  await panel.getByLabel('Status').selectOption('open');
+  await expect(list.getByRole('listitem')).toHaveCount(2);
 });

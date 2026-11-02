@@ -100,3 +100,34 @@ describe('gemini adapter', () => {
     expect(list).toEqual(['gemini-2.5-flash']);
   });
 });
+
+describe('gemini text path (OBS-A2F21F)', () => {
+  it('sends the typed text (no image) with the same JSON schema, and validates with the same parser', async () => {
+    const { analyzeTextWithGemini } = await import('./gemini');
+    const f = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => ok(candidate(JSON.stringify(goodJson))));
+    const r = await analyzeTextWithGemini({ apiKey: 'k', model: 'gemini-x', text: '1 banana', fetchImpl: f as unknown as typeof fetch });
+    expect(r.items[0]).toMatchObject({ name: 'Banana', calories: 105, proteinG: 1.3 });
+    const [url, init] = f.mock.calls[0]!;
+    expect(String(url)).toContain('/models/gemini-x:generateContent');
+    expect((init!.headers as Record<string, string>)['x-goog-api-key']).toBe('k');
+    const body = JSON.parse(String(init!.body));
+    expect(body.contents[0].parts).toHaveLength(1);
+    expect(body.contents[0].parts[0].inline_data).toBeUndefined();
+    expect(body.contents[0].parts[0].text).toContain('1 banana');
+    expect(body.contents[0].parts[0].text).toContain('"protein_g": number');
+    expect(body.generationConfig.responseSchema).toBeDefined();
+  });
+
+  it('rejects invalid model output exactly like the photo path', async () => {
+    const { analyzeTextWithGemini } = await import('./gemini');
+    const f = vi.fn(async () => ok(candidate('{"items":[{"name":"x"}]}')));
+    await expect(analyzeTextWithGemini({ apiKey: 'k', model: 'm', text: 'x', fetchImpl: f as unknown as typeof fetch })).rejects.toMatchObject({ code: 'invalidResponse' });
+  });
+
+  it('maps HTTP errors and refuses an empty key', async () => {
+    const { analyzeTextWithGemini } = await import('./gemini');
+    const f = vi.fn(async () => err(429, { error: { code: 429, message: 'quota', details: [{ retryDelay: '30s' }] } }));
+    await expect(analyzeTextWithGemini({ apiKey: 'k', model: 'm', text: 'x', fetchImpl: f as unknown as typeof fetch })).rejects.toMatchObject({ code: 'rateLimited', retryAfterSec: 30 });
+    await expect(analyzeTextWithGemini({ apiKey: ' ', model: 'm', text: 'x' })).rejects.toMatchObject({ code: 'noKey' });
+  });
+});

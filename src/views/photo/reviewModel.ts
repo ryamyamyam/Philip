@@ -3,6 +3,7 @@ import type { NewFoodEntry } from '../../db/repo';
 import type { AnalysisItem } from '../../services/foodAnalysis';
 import { LIMITS, parseDecimal, validateNumber, type FieldError } from '../../lib/numbers';
 import { round1 } from '../../lib/nutrition';
+import type { LocalFoodRow } from '../../lib/foodText';
 
 /** Editable form state for one AI-estimated item. Strings hold raw user input. */
 export interface ReviewItem {
@@ -18,13 +19,18 @@ export interface ReviewItem {
   original: EstimateItem | null;
   /** When set, editing grams rescales the macros proportionally. Cleared once a macro is edited by hand. */
   scaleBase: ({ grams: number } & Macros) | null;
+  /** Which AI produced this row (rows from different sends can mix). Null = use the sheet's provider. */
+  estimateSource?: { provider: FoodEstimate['provider']; model: string; analyzedAt: number } | null;
+  /** Parsed locally from typed text (no AI): saved as a manual entry without an estimate. */
+  local?: boolean;
 }
 
 let seq = 0;
 const nextKey = () => `item-${Date.now().toString(36)}-${seq++}`;
 
-export function fromAnalysis(items: AnalysisItem[]): ReviewItem[] {
+export function fromAnalysis(items: AnalysisItem[], estimateSource: ReviewItem['estimateSource'] = null): ReviewItem[] {
   return items.map((it) => ({
+    estimateSource,
     key: nextKey(),
     name: it.name,
     grams: it.grams == null ? '' : String(it.grams),
@@ -37,6 +43,26 @@ export function fromAnalysis(items: AnalysisItem[]): ReviewItem[] {
     original: { ...it },
     scaleBase: it.grams && it.grams > 0 ? { grams: it.grams, calories: it.calories, proteinG: it.proteinG, fatG: it.fatG, carbsG: it.carbsG } : null,
   }));
+}
+
+/** Rows parsed locally from typed text (OBS-BC1840 fallback). Macros stay empty unless a known food matched. */
+export function fromLocal(rows: LocalFoodRow[]): ReviewItem[] {
+  return rows.map((r) => ({
+    ...blankItem(),
+    name: r.name,
+    grams: r.grams == null ? '' : String(r.grams),
+    calories: r.macros ? String(r.macros.calories) : '',
+    proteinG: r.macros ? String(r.macros.proteinG) : '',
+    fatG: r.macros ? String(r.macros.fatG) : '',
+    carbsG: r.macros ? String(r.macros.carbsG) : '',
+    scaleBase: r.macros && r.grams && r.grams > 0 ? { grams: r.grams, ...r.macros } : null,
+    local: true,
+  }));
+}
+
+/** A blank row the user never typed into (dropped when new rows arrive from the text box). */
+export function isUntouchedBlank(it: ReviewItem): boolean {
+  return !it.original && !it.local && !it.name && !it.grams && !it.calories && !it.proteinG && !it.fatG && !it.carbsG;
 }
 
 export function blankItem(): ReviewItem {
@@ -91,6 +117,22 @@ export function toEntries(
   return items.map((it) => {
     const v = (s: string) => parseDecimal(s) ?? 0;
     const grams = parseDecimal(it.grams);
+    if (it.local) {
+      return {
+        date: ctx.date,
+        meal: ctx.meal,
+        name: it.name.trim(),
+        grams: grams == null || Number.isNaN(grams) ? null : grams,
+        calories: v(it.calories),
+        proteinG: v(it.proteinG),
+        fatG: v(it.fatG),
+        carbsG: v(it.carbsG),
+        source: 'manual' as const,
+        savedFoodId: null,
+        estimate: null,
+      };
+    }
+    const src = it.estimateSource ?? ctx;
     return {
       date: ctx.date,
       meal: ctx.meal,
@@ -103,8 +145,8 @@ export function toEntries(
       source: 'photo',
       savedFoodId: null,
       estimate: {
-        provider: ctx.provider,
-        model: ctx.model,
+        provider: src.provider,
+        model: src.model,
         items: allOriginals,
         originalValues: it.original
           ? {
@@ -116,7 +158,7 @@ export function toEntries(
               carbsG: it.original.carbsG,
             }
           : { name: '', grams: null, calories: 0, proteinG: 0, fatG: 0, carbsG: 0 },
-        analyzedAt: ctx.analyzedAt,
+        analyzedAt: src.analyzedAt,
       },
     };
   });

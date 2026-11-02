@@ -158,6 +158,8 @@ export async function createObservation(db: QaFeedbackDB, projectId: string, inp
     aiFields: (input.aiFields ?? []).filter((f) => STRUCTURED_FIELDS.includes(f)),
     attachmentCount: 0,
     promptIds: [],
+    archivedAt: null,
+    archivedByPromptId: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -399,6 +401,36 @@ export async function markPromptExported(db: QaFeedbackDB, projectId: string, id
   const p = await db.prompts.get(id);
   if (!p || p.projectId !== projectId) return;
   await db.prompts.update(id, { exportedAt: Date.now(), exportFormat: format });
+}
+
+/**
+ * Archives the observations included in a prompt once that prompt has been copied or exported.
+ * Already-archived observations are left alone (so re-copying doesn't re-stamp them).
+ * Returns the ids archived by this call (for "N observations archived" + Undo).
+ */
+export async function archiveForPrompt(db: QaFeedbackDB, projectId: string, promptId: string, now = Date.now()): Promise<string[]> {
+  return db.transaction('rw', [db.prompts, db.observations], async () => {
+    const p = await db.prompts.get(promptId);
+    if (!p || p.projectId !== projectId) return [];
+    const obs = await db.observations.bulkGet(p.observationIds);
+    const ids: string[] = [];
+    for (const o of obs) {
+      if (!o || o.projectId !== projectId || o.archivedAt) continue;
+      await db.observations.update(o.id, { archivedAt: now, archivedByPromptId: promptId });
+      ids.push(o.id);
+    }
+    return ids;
+  });
+}
+
+/** Clears the archive flag (detail screen "Unarchive", or Undo on the toast). Status is untouched. */
+export async function unarchiveObservations(db: QaFeedbackDB, projectId: string, ids: string[]): Promise<void> {
+  await db.transaction('rw', db.observations, async () => {
+    const obs = await db.observations.bulkGet(ids);
+    for (const o of obs) {
+      if (o && o.projectId === projectId && o.archivedAt) await db.observations.update(o.id, { archivedAt: null, archivedByPromptId: null });
+    }
+  });
 }
 
 export async function getPrompt(db: QaFeedbackDB, projectId: string, id: string): Promise<DevelopmentPrompt | undefined> {

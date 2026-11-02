@@ -11,7 +11,9 @@ import { t } from '../../i18n';
 import { fmtG, fmtKcal } from '../../lib/format';
 import { LIMITS, type FieldError } from '../../lib/numbers';
 import { useUI } from '../../ui';
-import { blankItem, editItem, reviewTotals, toEntries, validateItems, type ItemErrors, type ReviewItem } from './reviewModel';
+import { FoodTextBox } from '../../components/FoodTextBox';
+import { useTextFood } from './useTextFood';
+import { blankItem, editItem, isUntouchedBlank, reviewTotals, toEntries, validateItems, type ItemErrors, type ReviewItem } from './reviewModel';
 
 interface Props {
   date: YMD;
@@ -21,6 +23,7 @@ interface Props {
   model: string;
   notes: string[];
   analyzedAt: number;
+  notice?: string | null;
 }
 
 /** Mandatory review step: nothing from an AI estimate is saved until the user confirms here. */
@@ -33,6 +36,23 @@ export default function ReviewSheet(props: Props) {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [saving, setSaving] = useState(false);
   const totals = useMemo(() => reviewTotals(items), [items]);
+  const [notes, setNotes] = useState<string[]>(props.notes);
+  const [notice, setNotice] = useState<string | null>(props.notice ?? null);
+  const [busy, setBusy] = useState(false);
+  const textFood = useTextFood();
+
+  // Same text box as the add sheet: sending appends to this list (OBS-A2F21F).
+  const onText = async (text: string) => {
+    setBusy(true);
+    try {
+      const r = await textFood(text);
+      setItems((list) => [...list.filter((it) => !isUntouchedBlank(it)), ...r.items]);
+      setNotes((n) => [...n, ...r.notes]);
+      setNotice(r.notice);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const update = (key: string, field: Parameters<typeof editItem>[1], value: string) => {
     setItems((list) => list.map((it) => (it.key === key ? editItem(it, field, value) : it)));
@@ -55,7 +75,7 @@ export default function ReviewSheet(props: Props) {
 
   return (
     <Sheet
-      title={t('photo.title')}
+      title={t('review.title')}
       onClose={closeSheet}
       full
       canClose={() => {
@@ -78,16 +98,23 @@ export default function ReviewSheet(props: Props) {
       }
     >
       <div className="stack">
-        <div className="banner banner-warning review-warning" role="note">
-          <Icon name="warning" />
-          <strong>{t('photo.warning')}</strong>
-        </div>
+        {items.some((it) => it.original) && (
+          <div className="banner banner-warning review-warning" role="note">
+            <Icon name="warning" />
+            <strong>{t('photo.warning')}</strong>
+          </div>
+        )}
         <MealPicker value={meal} onChange={setMeal} />
-        {props.notes.length > 0 && (
+        {notice && (
+          <p className="banner banner-brand" role="status">
+            {notice}
+          </p>
+        )}
+        {notes.length > 0 && (
           <details className="card review-notes">
             <summary>{t('photo.notes')}</summary>
             <ul>
-              {props.notes.map((n, i) => (
+              {notes.map((n, i) => (
                 <li key={i}>{n}</li>
               ))}
             </ul>
@@ -108,6 +135,7 @@ export default function ReviewSheet(props: Props) {
         <button type="button" className="btn btn-secondary btn-block" onClick={() => setItems((l) => [...l, blankItem()])}>
           <Icon name="plus" /> {t('photo.addItem')}
         </button>
+        <FoodTextBox onSend={onText} busy={busy} />
       </div>
       {confirmDiscard && (
         <ConfirmDialog

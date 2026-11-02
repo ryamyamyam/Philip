@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addManualFood, fresh } from './helpers';
+import { addManualFood, backToTodayOnMeals, fresh, tab } from './helpers';
 
 /** Fires a horizontal touch drag on an element (Chromium touch emulation). */
 async function swipe(page: Page, selector: string, dx: number) {
@@ -26,19 +26,6 @@ test.beforeEach(async ({ page }) => {
   await fresh(page);
 });
 
-test('OBS-763014: on another day the heading names that day; the way back is a labeled button', async ({ page }) => {
-  await page.getByRole('button', { name: 'Next day' }).click();
-  await expect(page.getByRole('heading', { name: 'Tomorrow' })).toBeVisible();
-  const main = page.getByRole('main');
-  // No bare "Today" label under the date any more.
-  await expect(main.getByText('Today', { exact: true })).toHaveCount(0);
-  await page.locator('.date-nav').screenshot({ path: 'e2e/screenshots/375-tomorrow-header.png' });
-  await page.screenshot({ path: 'e2e/screenshots/375-tomorrow.png', clip: { x: 0, y: 0, width: 375, height: 200 } });
-  await main.getByRole('button', { name: 'Back to today' }).click();
-  await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
-  await expect(main.getByRole('button', { name: 'Back to today' })).toHaveCount(0);
-});
-
 test('OBS-352C94: P, F and C each sit in their own colored rounded square', async ({ page }) => {
   await addManualFood(page, { name: 'Chicken rice bowl', grams: '350', calories: '620', protein: '42', fat: '18', carbs: '70' });
   const row = page.locator('.meal-card .list-item').first();
@@ -61,6 +48,9 @@ test('OBS-3E7A73: swipe left to delete (with undo) or move an entry to another d
   await addManualFood(page, { name: 'Apple', calories: '95', protein: '0.5', fat: '0.3', carbs: '25', meal: 'Snacks' });
 
   // Swipe left reveals Move and Delete; the day does not change.
+  // Wait for the rows first: the swipe is a synthetic event on an element that must already exist
+  // (root cause of the round-1 flakiness — the live query hadn't rendered the row yet).
+  await expect(page.getByRole('region', { name: 'Lunch' }).getByText('Lunch salad')).toBeVisible();
   await swipe(page, '.meal-card[aria-label="Lunch"] .swipe-content', -160);
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   const actions = page.getByRole('group', { name: /Actions for “Lunch salad”/ });
@@ -83,9 +73,10 @@ test('OBS-3E7A73: swipe left to delete (with undo) or move an entry to another d
   await expect(page.getByText('Lunch salad')).toHaveCount(0);
   await page.getByRole('button', { name: 'Previous day' }).click();
   await expect(page.getByRole('region', { name: 'Dinner' }).getByText('Lunch salad')).toBeVisible();
-  await page.getByRole('main').getByRole('button', { name: 'Back to today' }).click();
+  await backToTodayOnMeals(page);
 
   // Swipe-delete with undo.
+  await expect(page.getByRole('region', { name: 'Snacks' }).getByText('Apple', { exact: true })).toBeVisible();
   await swipe(page, '.meal-card[aria-label="Snacks"] .swipe-content', -160);
   await page.getByRole('group', { name: /Actions for “Apple”/ }).getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText('Apple', { exact: true })).toHaveCount(0);
@@ -95,7 +86,7 @@ test('OBS-3E7A73: swipe left to delete (with undo) or move an entry to another d
   // A right swipe on a closed row still changes the day; tapping a row still opens it.
   await swipe(page, '.meal-card[aria-label="Snacks"] .swipe-content', 160);
   await expect(page.getByRole('heading', { name: 'Yesterday' })).toBeVisible();
-  await page.getByRole('main').getByRole('button', { name: 'Back to today' }).click();
+  await backToTodayOnMeals(page);
   await page.getByRole('button', { name: /Apple/ }).click();
   await expect(page.getByRole('dialog', { name: 'Edit food' })).toBeVisible();
 });
@@ -104,6 +95,7 @@ test('OBS-3AD584: backup reminder is a dismissable pop-up that explains why and 
   for (let i = 1; i <= 5; i++) {
     await addManualFood(page, { name: `Food ${i}`, calories: '100', protein: '5', fat: '2', carbs: '10' });
   }
+  await tab(page, 'Today').click();
   await page.reload();
   const pop = page.getByRole('dialog', { name: 'Back up your food log' });
   await expect(pop).toBeVisible();
@@ -124,6 +116,7 @@ test('OBS-3AD584: "Back up now" goes to the backup section in Settings', async (
   for (let i = 1; i <= 5; i++) {
     await addManualFood(page, { name: `Food ${i}`, calories: '100', protein: '5', fat: '2', carbs: '10' });
   }
+  await tab(page, 'Today').click();
   await page.reload();
   await page.getByRole('dialog', { name: 'Back up your food log' }).getByRole('button', { name: 'Back up now' }).click();
   await expect(page.getByRole('button', { name: 'Export backup' })).toBeInViewport();

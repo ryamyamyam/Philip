@@ -36,6 +36,23 @@ export function fmtDateTime(ms: number): string {
   return new Intl.DateTimeFormat(getLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ms));
 }
 
+/**
+ * Date heading that never repeats itself (UX-1):
+ *   today / ±1 day → "Today" | "Tomorrow" | "Yesterday"  +  "Sunday, November 1"
+ *   any other day   → "Tuesday"                          +  "November 3"
+ * Root cause of the old bug: the title used the short weekday format ("Tue, Nov 3") while the
+ * subtitle used the long one ("Tuesday, November 3"), so the date appeared twice.
+ */
+export function dayHeading(d: YMD, today: YMD): { title: string; subtitle: string } {
+  const date = parseYmd(d);
+  const relative = fmtRelativeDay(d, today);
+  if (relative) return { title: relative, subtitle: fmtDate(d, 'long') };
+  return {
+    title: new Intl.DateTimeFormat(getLocale(), { weekday: 'long' }).format(date),
+    subtitle: new Intl.DateTimeFormat(getLocale(), { month: 'long', day: 'numeric' }).format(date),
+  };
+}
+
 export function fmtRelativeDay(d: YMD, today: YMD): string | null {
   const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' });
   const diff = Math.round((parseYmd(d).getTime() - parseYmd(today).getTime()) / 86_400_000);

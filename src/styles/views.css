@@ -252,3 +252,68 @@
   border-radius: 50%;
   margin-right: var(--space-1);
 }
+
+/* Photo-first add sheet (OBS-BC1840) */
+.add-to-meal {
+  margin: 0;
+}
+.food-text {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+.food-text-input {
+  flex: 1;
+  min-height: var(--touch);
+  resize: none;
+  font: inherit;
+  line-height: var(--leading-normal);
+}
+.food-text-send {
+  flex: none;
+  width: var(--touch);
+  min-width: var(--touch);
+  padding: 0;
+}
+.food-text-send svg {
+  width: 22px;
+  height: 22px;
+}
+.spinner-sm {
+  width: 18px;
+  height: 18px;
+  border-width: 3px;
+}
+.add-more-link {
+  align-self: center;
+  min-height: var(--touch);
+  font-size: var(--text-sm);
+}
+.add-more-actions {
+  gap: var(--space-2);
+}
+
+/* Progress tab (OBS-F047E3) */
+.weight-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  align-items: end;
+}
+.weight-save {
+  grid-column: 1 / -1;
+}
+.week-kcal {
+  margin: 0;
+  font-size: var(--text-md);
+}
+.week-kcal strong {
+  font-size: var(--text-xl);
+}
+.more-targets summary {
+  min-height: var(--touch);
+  display: flex;
+  align-items: center;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}

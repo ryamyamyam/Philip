@@ -8,7 +8,7 @@ export type SheetState =
   | { kind: 'entry'; date: YMD; meal: Meal; entryId?: string }
   | { kind: 'photo'; date: YMD; meal: Meal; file: File }
   | { kind: 'handoff'; date: YMD; meal: Meal; file: File | null }
-  | { kind: 'review'; date: YMD; meal: Meal; items: ReviewItem[]; provider: 'gemini' | 'claude-handoff'; model: string; notes: string[]; analyzedAt: number }
+  | { kind: 'review'; date: YMD; meal: Meal; items: ReviewItem[]; provider: 'gemini' | 'claude-handoff'; model: string; notes: string[]; analyzedAt: number; notice?: string | null }
   | { kind: 'savedFood'; id: string }
   | { kind: 'myFoods'; date: YMD; meal: Meal };
 

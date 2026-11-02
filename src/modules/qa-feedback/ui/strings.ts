@@ -25,6 +25,17 @@ export const STATUS_LABELS: Record<ObservationStatus, string> = {
   dismissed: 'Dismissed',
 };
 
+/** Archive after a prompt is copied/exported (OBS-CDDDEC). */
+export const ARCHIVE_TEXT = {
+  filter: 'Archived',
+  badge: 'Archived',
+  archived: (n: number) => `${n} observation${n === 1 ? '' : 's'} archived`,
+  undo: 'Undo',
+  unarchive: 'Unarchive',
+  unarchived: 'Unarchived',
+  detailNote: (when: string) => `Archived ${when}, after its prompt was copied or exported.`,
+} as const;
+
 export const PRIORITY_LABELS: Record<Priority, string> = {
   low: 'Low',
   medium: 'Medium',

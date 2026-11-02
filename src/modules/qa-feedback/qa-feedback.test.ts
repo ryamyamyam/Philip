@@ -445,3 +445,73 @@ describe('web speech provider lifecycle', () => {
     expect(r.errors).toEqual([]);
   });
 });
+
+describe('archive after a prompt is copied/exported (OBS-CDDDEC)', () => {
+  it('archives the prompt’s observations, records the prompt, and is idempotent', async () => {
+    const { archiveForPrompt } = await import('./repository');
+    const { db, project } = await fresh();
+    const a = await createObservation(db, project.id, { originalText: 'first' });
+    const b = await createObservation(db, project.id, { originalText: 'second' });
+    const c = await createObservation(db, project.id, { originalText: 'not in prompt' });
+    expect(a.archivedAt).toBeNull();
+    const p = await savePrompt(db, project.id, { observationIds: [a.id, b.id], content: 'x', mode: 'template' });
+    const ids = await archiveForPrompt(db, project.id, p.id, 1000);
+    expect(ids.sort()).toEqual([a.id, b.id].sort());
+    expect(await db.observations.get(a.id)).toMatchObject({ archivedAt: 1000, archivedByPromptId: p.id, status: 'new' });
+    expect((await db.observations.get(c.id))?.archivedAt).toBeNull();
+    // Copying again archives nothing new (no second toast) and keeps the original stamp.
+    expect(await archiveForPrompt(db, project.id, p.id, 2000)).toEqual([]);
+    expect((await db.observations.get(a.id))?.archivedAt).toBe(1000);
+  });
+
+  it('refuses prompts from another project', async () => {
+    const { archiveForPrompt } = await import('./repository');
+    const { db, project } = await fresh();
+    const other = await createProject(db, { name: 'Other' });
+    const o = await createObservation(db, project.id, { originalText: 'x' });
+    const p = await savePrompt(db, project.id, { observationIds: [o.id], content: 'x', mode: 'template' });
+    expect(await archiveForPrompt(db, other.id, p.id)).toEqual([]);
+    expect((await db.observations.get(o.id))?.archivedAt).toBeNull();
+  });
+
+  it('archived items leave the Open filter, show under Archived and All, and unarchive restores them', async () => {
+    const { archiveForPrompt, unarchiveObservations } = await import('./repository');
+    const { db, project } = await fresh();
+    const a = await createObservation(db, project.id, { originalText: 'archived one' });
+    const b = await createObservation(db, project.id, { originalText: 'open one' });
+    const p = await savePrompt(db, project.id, { observationIds: [a.id], content: 'x', mode: 'template' });
+    await archiveForPrompt(db, project.id, p.id);
+    const titles = async (status: 'open' | 'archived' | 'all' | 'new') => (await queryObservations(db, project.id, { status })).map((o) => o.id);
+    expect(await titles('open')).toEqual([b.id]);
+    expect(await titles('new')).toEqual([b.id]);
+    expect(await titles('archived')).toEqual([a.id]);
+    expect((await titles('all')).sort()).toEqual([a.id, b.id].sort());
+    await unarchiveObservations(db, project.id, [a.id]);
+    expect(await db.observations.get(a.id)).toMatchObject({ archivedAt: null, archivedByPromptId: null, status: 'new' });
+    expect((await titles('open')).sort()).toEqual([a.id, b.id].sort());
+  });
+
+  it('qa-feedback Dexie v2 migration keeps v1 observations and adds null archive fields', async () => {
+    const { default: Dexie } = await import('dexie');
+    const name = `qa-mig-${Date.now()}-${n++}`;
+    const v1 = new Dexie(name);
+    v1.version(1).stores({
+      projects: 'id, appId, name',
+      observations: 'id, projectId, [projectId+createdAt], status, updatedAt',
+      attachments: 'id, observationId, projectId',
+      files: 'id',
+      prompts: 'id, projectId, [projectId+generatedAt]',
+      meta: 'key',
+    });
+    await v1.open();
+    await v1.table('projects').put({ id: 'p1', name: 'Philip', appId: 'philip', description: null, createdAt: 1 });
+    await v1.table('observations').put({ id: 'o1', projectId: 'p1', title: 'Old', status: 'planned', promptIds: ['x'], createdAt: 5, updatedAt: 5 });
+    v1.close();
+    const db = new QaFeedbackDB(name);
+    await db.open();
+    expect(db.verno).toBe(2);
+    expect(await db.observations.get('o1')).toMatchObject({ title: 'Old', status: 'planned', promptIds: ['x'], archivedAt: null, archivedByPromptId: null });
+    expect(await db.observations.where('archivedByPromptId').equals('x').count()).toBe(0);
+    db.close();
+  });
+});

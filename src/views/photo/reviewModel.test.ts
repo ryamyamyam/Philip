@@ -44,3 +44,29 @@ describe('review model', () => {
     expect(entries[0]!.estimate?.provider).toBe('gemini');
   });
 });
+
+describe('text-box rows (OBS-BC1840 / OBS-A2F21F)', () => {
+  it('local rows save as manual entries without an AI estimate; empty macros must be filled in', async () => {
+    const { fromLocal, isUntouchedBlank } = await import('./reviewModel');
+    const rows = fromLocal([
+      { name: 'rice', grams: 150, macros: null, matched: null },
+      { name: 'Egg', grams: 100, macros: { calories: 144, proteinG: 12.6, fatG: 9.6, carbsG: 0.8 }, matched: null },
+    ]);
+    expect(rows[0]).toMatchObject({ name: 'rice', grams: '150', calories: '', local: true });
+    expect(validateItems(rows).ok).toBe(false); // macros empty → user fills them in, no AI needed
+    const filled = [editItem(editItem(editItem(editItem(rows[0]!, 'calories', '195'), 'proteinG', '4'), 'fatG', '0.4'), 'carbsG', '43'), rows[1]!];
+    expect(validateItems(filled).ok).toBe(true);
+    const out = toEntries(filled, { date: '2026-11-01', meal: 'lunch', provider: 'gemini', model: 'm', analyzedAt: 1 });
+    expect(out.map((e) => [e.source, e.estimate])).toEqual([['manual', null], ['manual', null]]);
+    expect(out[1]).toMatchObject({ name: 'Egg', grams: 100, calories: 144 });
+    expect(isUntouchedBlank(blankItem())).toBe(true);
+    expect(isUntouchedBlank(rows[0]!)).toBe(false);
+  });
+
+  it('AI rows from different sends keep their own provider/model', () => {
+    const a = fromAnalysis(analysis.slice(0, 1), { provider: 'gemini', model: 'text-model', analyzedAt: 5 });
+    const out = toEntries(a, { date: '2026-11-01', meal: 'lunch', provider: 'claude-handoff', model: 'x', analyzedAt: 1 });
+    expect(out[0]!.source).toBe('photo');
+    expect(out[0]!.estimate).toMatchObject({ provider: 'gemini', model: 'text-model', analyzedAt: 5 });
+  });
+});

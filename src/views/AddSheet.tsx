@@ -11,6 +11,8 @@ import { fmtG, fmtKcal } from '../lib/format';
 import { frequentFoods, matchesQuery, recentFoods, savedToQuick, type QuickFood } from '../lib/recents';
 import { useUI } from '../ui';
 import { db } from '../db/db';
+import { FoodTextBox } from '../components/FoodTextBox';
+import { useTextFood } from './photo/useTextFood';
 
 type ListTab = 'recent' | 'frequent' | 'favorites';
 
@@ -23,6 +25,20 @@ export function AddSheet({ date, meal: initialMeal }: { date: YMD; meal: Meal })
   const entries = useRecentEntries();
   const saved = useSavedFoods();
   const searchId = useId();
+  const [more, setMore] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const textFood = useTextFood();
+
+  // Typed text → review list (OBS-A2F21F). AI optional: falls back to a local parse, never blocks saving.
+  const onText = async (text: string) => {
+    setBusy(true);
+    try {
+      const r = await textFood(text);
+      openSheet({ kind: 'review', date, meal, items: r.items, provider: 'gemini', model: r.model, notes: r.notes, analyzedAt: Date.now(), notice: r.notice });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const lists = useMemo(() => {
     if (!entries || !saved) return null;
@@ -82,15 +98,13 @@ export function AddSheet({ date, meal: initialMeal }: { date: YMD; meal: Meal })
   const list = searchResults ?? lists?.[tab] ?? [];
 
   return (
-    <Sheet title={t('add.title')} onClose={closeSheet} full>
+    <Sheet title={t('add.title')} onClose={closeSheet} full={more}>
       <div className="stack">
-        <MealPicker value={meal} onChange={setMeal} />
-
+        <p className="subtle add-to-meal">{t('add.toMeal', { meal: t(`meal.${meal}`) })}</p>
         <div className="add-actions">
           <label className="add-action">
             <Icon name="camera" />
             <span className="add-action-title">{t('add.camera')}</span>
-            <span className="add-action-hint">{t('add.cameraHint')}</span>
             <input
               type="file"
               accept="image/*"
@@ -99,17 +113,28 @@ export function AddSheet({ date, meal: initialMeal }: { date: YMD; meal: Meal })
               onChange={(e) => onPhoto(e.target.files?.[0])}
             />
           </label>
-          <button type="button" className="add-action" onClick={() => openSheet({ kind: 'entry', date, meal })}>
-            <Icon name="pencil" />
-            <span className="add-action-title">{t('add.manual')}</span>
-            <span className="add-action-hint">{t('add.manualHint')}</span>
+          <label className="add-action">
+            <Icon name="upload" />
+            <span className="add-action-title">{t('add.library')}</span>
+            <input type="file" accept="image/*" className="visually-hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
+          </label>
+        </div>
+        <FoodTextBox onSend={onText} busy={busy} />
+
+        <button type="button" className="btn btn-ghost add-more-link" aria-expanded={more} onClick={() => setMore((m) => !m)}>
+          {t('add.moreOptions')}
+        </button>
+        {more && (
+          <div className="stack add-more" role="region" aria-label={t('add.moreOptions')}>
+        <MealPicker value={meal} onChange={setMeal} />
+        <div className="row add-more-actions">
+          <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => openSheet({ kind: 'entry', date, meal })}>
+            <Icon name="pencil" /> {t('add.manual')}
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => openSheet({ kind: 'handoff', date, meal, file: null })}>
+            <Icon name="sparkle" /> {t('add.claude')}
           </button>
         </div>
-        <label className="btn btn-ghost" style={{ alignSelf: 'center' }}>
-          {t('add.library')}
-          <input type="file" accept="image/*" className="visually-hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
-        </label>
-
         <div className="field">
           <label className="visually-hidden" htmlFor={searchId}>
             {t('add.search')}
@@ -177,6 +202,8 @@ export function AddSheet({ date, meal: initialMeal }: { date: YMD; meal: Meal })
         <button type="button" className="btn btn-secondary btn-block" onClick={() => openSheet({ kind: 'myFoods', date, meal })}>
           <Icon name="bookmark" /> {t('add.myFoods')}
         </button>
+          </div>
+        )}
       </div>
     </Sheet>
   );

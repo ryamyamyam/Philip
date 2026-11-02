@@ -24,7 +24,8 @@ test('export, delete all, import round trip', async ({ page }, info) => {
   await expect(dlg.getByRole('button', { name: 'Delete' })).toBeDisabled();
   await dlg.getByRole('textbox').fill('DELETE');
   await dlg.getByRole('button', { name: 'Delete' }).click();
-  await tab(page, 'Today').click();
+  await tab(page, 'Meals').click();
+  await expect(page.getByRole('heading', { name: 'Breakfast' })).toBeVisible();
   await expect(page.getByText('Banana')).toHaveCount(0);
 
   // Invalid file is rejected without changes
@@ -40,6 +41,6 @@ test('export, delete all, import round trip', async ({ page }, info) => {
   await expect(restore).toContainText('1 food entries');
   await restore.getByRole('radio', { name: 'Replace' }).click();
   await restore.getByRole('button', { name: 'Restore' }).click();
-  await tab(page, 'Today').click();
+  await tab(page, 'Meals').click();
   await expect(page.getByText('Banana')).toBeVisible();
 });

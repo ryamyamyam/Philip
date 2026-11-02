@@ -7,6 +7,8 @@ import { shortRef } from '../db';
 import { moveObservation, planFromAi, planFromFeatures, resolveGroups, type GroupPlan } from '../prompt/grouping';
 import { buildDevelopmentPrompt } from '../prompt/template';
 import {
+  archiveForPrompt,
+  unarchiveObservations,
   getObservationsByIds,
   getPrompt,
   listAttachments,
@@ -19,10 +21,10 @@ import {
 import type { DevelopmentPrompt, Observation, ScreenshotAttachment } from '../types';
 import { Confirm } from './Confirm';
 import { useQa } from './context';
-import { AI_ERRORS, TYPE_LABELS, fmtWhen } from './strings';
+import { AI_ERRORS, ARCHIVE_TEXT, TYPE_LABELS, fmtWhen } from './strings';
 
 export function PromptBuilder() {
-  const { db, projectId, config, selection, setSelection, go, aiAvailable, aiLabel } = useQa();
+  const { db, projectId, config, selection, setSelection, go, aiAvailable, aiLabel, notify } = useQa();
   const project = useLiveQuery(() => db.projects.get(projectId), [db, projectId]);
   const selKey = selection.join(',');
   const loaded = useLiveQuery(async () => ({ key: selKey, rows: await getObservationsByIds(db, projectId, selection) }), [db, projectId, selKey]);
@@ -129,6 +131,11 @@ export function PromptBuilder() {
       window.clearTimeout(saveTimer.current);
       await updatePromptContent(db, projectId, prompt.id, content);
       await markPromptExported(db, projectId, prompt.id, format);
+      // OBS-CDDDEC: a copied/exported prompt archives the observations it included.
+      const archived = await archiveForPrompt(db, projectId, prompt.id);
+      if (archived.length) {
+        notify(ARCHIVE_TEXT.archived(archived.length), { label: ARCHIVE_TEXT.undo, run: () => unarchiveObservations(db, projectId, archived) });
+      }
     };
     if (format === 'clipboard') {
       const ok = await copyText(content);

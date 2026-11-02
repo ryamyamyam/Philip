@@ -1,18 +1,18 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { TabBar } from './components/TabBar';
 import { ToastProvider } from './components/Toast';
-import { useRoute } from './hooks/useRoute';
+import { useRoute, type Tab } from './hooks/useRoute';
 import { todayYmd } from './lib/date';
-import { defaultMealFor } from './lib/meals';
 import { UICtx, type SheetState, type UI } from './ui';
 import { TodayView } from './views/TodayView';
+// Eager, like Today: logging must work offline on first tap (no lazy chunk fetch).
+import MealsView from './views/MealsView';
 import { SheetHost } from './views/SheetHost';
 import { OfflineBanner } from './components/OfflineBanner';
 import { QaFeedback } from './modules/qa-feedback';
 import { qaFeedbackConfig } from './qaFeedback.config';
 
-const HistoryView = lazy(() => import('./views/HistoryView'));
-const TargetsView = lazy(() => import('./views/TargetsView'));
+const ProgressView = lazy(() => import('./views/ProgressView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 
 export function App() {
@@ -39,6 +39,14 @@ export function App() {
   }, []);
 
   const closeSheet = useCallback(() => setSheet(null), []);
+  // UX-2: tapping Today always shows Today *and* resets the date — even when already on that tab.
+  const onTab = useCallback(
+    (next: Tab) => {
+      if (next === 'today') setDate(todayYmd());
+      navigate(next);
+    },
+    [navigate],
+  );
   const ui: UI = useMemo(() => ({ date, setDate, openSheet: setSheet, closeSheet, navigate }), [date, closeSheet, navigate]);
 
   return (
@@ -48,17 +56,13 @@ export function App() {
           <OfflineBanner />
           <main>
             {tab === 'today' && <TodayView />}
+            {tab === 'meals' && <MealsView />}
             <Suspense fallback={null}>
-              {tab === 'history' && <HistoryView />}
-              {tab === 'targets' && <TargetsView />}
+              {tab === 'progress' && <ProgressView />}
               {tab === 'settings' && <SettingsView />}
             </Suspense>
           </main>
-          <TabBar
-            tab={tab}
-            onTab={navigate}
-            onAdd={() => setSheet({ kind: 'add', date: tab === 'today' ? date : todayYmd(), meal: defaultMealFor() })}
-          />
+          <TabBar tab={tab} onTab={onTab} />
           {sheet && <SheetHost sheet={sheet} />}
           <QaFeedback config={qaFeedbackConfig} />
         </div>

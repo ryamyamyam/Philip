@@ -4,8 +4,12 @@ import { OPEN_STATUSES, type Observation, type ObservationStatus, type Observati
 export interface ObservationFilter {
   keyword?: string;
   feature?: string;
-  /** 'open' = new/reviewed/planned/in progress. */
-  status?: ObservationStatus | 'open' | 'all';
+  /**
+   * 'open' = new/reviewed/planned/in progress and not archived (default).
+   * 'archived' = archived after their prompt was copied/exported, whatever their status.
+   * A specific status shows non-archived items with that status. 'all' shows everything.
+   */
+  status?: ObservationStatus | 'open' | 'archived' | 'all';
   priority?: Priority | 'none' | 'all';
   type?: ObservationType | 'all';
   /** Inclusive epoch-ms range on createdAt. */
@@ -28,7 +32,11 @@ function haystack(o: Observation): string {
 
 export function matchesFilter(o: Observation, f: ObservationFilter): boolean {
   if (f.status && f.status !== 'all') {
-    if (f.status === 'open' ? !OPEN_STATUSES.includes(o.status) : o.status !== f.status) return false;
+    const archived = !!o.archivedAt;
+    if (f.status === 'archived') {
+      if (!archived) return false;
+    } else if (archived) return false;
+    else if (f.status === 'open' ? !OPEN_STATUSES.includes(o.status) : o.status !== f.status) return false;
   }
   if (f.priority && f.priority !== 'all') {
     if (f.priority === 'none' ? o.priority !== null : o.priority !== f.priority) return false;

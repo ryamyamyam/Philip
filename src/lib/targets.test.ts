@@ -186,3 +186,39 @@ describe('review fixes', () => {
     expect(validateInputs({ ...base, ageYears: 101 })).toContain('age');
   });
 });
+
+describe('Katch–McArdle branch (OBS-F047E3)', () => {
+  it('uses 370 + 21.6 × lean mass when body fat is set', async () => {
+    const { katchMcArdle, leanMassKg } = await import('./targets');
+    expect(leanMassKg(80, 20)).toBeCloseTo(64, 6);
+    expect(katchMcArdle(80, 20)).toBeCloseTo(370 + 21.6 * 64, 6);
+    const r = calculateTargets({ ...base, bodyFatPct: 20 });
+    expect(r.reeMethod).toBe('katch');
+    expect(r.bmr).toBe(Math.round(370 + 21.6 * 64));
+    expect(r.tdee).toBe(Math.round((370 + 21.6 * 64) * 1.55));
+  });
+
+  it('keeps Mifflin–St Jeor when body fat is missing (null or undefined)', () => {
+    expect(calculateTargets(base).reeMethod).toBe('mifflin');
+    expect(calculateTargets({ ...base, bodyFatPct: null }).bmr).toBe(Math.round(mifflinStJeor('male', 80, 180, 30)));
+  });
+
+  it('validates body fat between 3 and 60 %', () => {
+    expect(validateInputs({ ...base, bodyFatPct: 2.9 })).toContain('bodyFat');
+    expect(validateInputs({ ...base, bodyFatPct: 61 })).toContain('bodyFat');
+    expect(validateInputs({ ...base, bodyFatPct: Number.NaN })).toContain('bodyFat');
+    expect(validateInputs({ ...base, bodyFatPct: 3 })).toEqual([]);
+    expect(validateInputs({ ...base, bodyFatPct: 60 })).toEqual([]);
+  });
+
+  it('safety rules still apply on the Katch branch: floor, rate cap, aggressive deficit vs the REE used', () => {
+    const tiny = calculateTargets({ ...base, sex: 'female', weightKg: 45, heightCm: 150, activityLevel: 'sedentary', bodyFatPct: 30, targetWeightKg: 42 });
+    expect(tiny.reeMethod).toBe('katch');
+    expect(tiny.calories).toBeGreaterThanOrEqual(1200);
+    expect(tiny.warnings.map((w) => w.code)).toContain('floor');
+    expect(tiny.needsReview).toBe(true);
+    const fast = calculateTargets({ ...base, bodyFatPct: 15, weeklyRateKg: 2 });
+    expect(fast.warnings).toContainEqual({ code: 'rateCapped', rateKg: 0.8 });
+    expect(fast.warnings.map((w) => w.code)).toContain('aggressiveDeficit');
+  });
+});

@@ -6,7 +6,7 @@ import { ensureDefaultProject, getMetaValue, setMetaValue } from '../repository'
 import { captureContext } from '../browser';
 import type { ObservationFilter } from '../search';
 import type { TechnicalContext } from '../types';
-import { QaCtx, type QaUI, type QaView } from './context';
+import { QaCtx, type QaUI, type QaView, type ToastAction } from './context';
 import '../qa-fab.css';
 
 const Panel = lazy(() => import('./Panel'));
@@ -36,7 +36,7 @@ export function QaFeedback({ config }: { config: QaFeedbackConfig }) {
   const [selection, setSelection] = useState<string[]>([]);
   const [aiAvailable, setAiAvailable] = useState(false);
   const [aiLabel, setAiLabel] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; action?: ToastAction } | null>(null);
   const [initError, setInitError] = useState(false);
   const toastTimer = useRef<number | undefined>(undefined);
   const fabHidden = useLiveQuery(() => getMetaValue<boolean>(db, META_FAB_HIDDEN), [db]);
@@ -91,10 +91,10 @@ export function QaFeedback({ config }: { config: QaFeedbackConfig }) {
     [db],
   );
 
-  const notify = useCallback((text: string) => {
+  const notify = useCallback((text: string, action?: ToastAction) => {
     window.clearTimeout(toastTimer.current);
-    setToast(text);
-    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+    setToast({ text, action });
+    toastTimer.current = window.setTimeout(() => setToast(null), action ? 6000 : 3500);
   }, []);
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
@@ -145,8 +145,21 @@ export function QaFeedback({ config }: { config: QaFeedbackConfig }) {
         </QaCtx.Provider>
       )}
       {toast && (
-        <div className="qa-toast" role="status" aria-live="polite">
-          {toast}
+        <div className={`qa-toast${toast.action ? ' qa-toast-action' : ''}`} role="status" aria-live="polite">
+          <span>{toast.text}</span>
+          {toast.action && (
+            <button
+              type="button"
+              className="qa-toast-btn"
+              onClick={() => {
+                const a = toast.action;
+                setToast(null);
+                void a?.run();
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
         </div>
       )}
     </>

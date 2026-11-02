@@ -6,15 +6,30 @@ import { addTargetPlan, updateProfile } from '../db/repo';
 import type { ActivityLevel, Goal, Macros, Profile, Sex, TargetPlan, Weekday } from '../db/types';
 import { useProfile, useTargetPlans } from '../hooks/useData';
 import { t, type StringKey } from '../i18n';
-import { ageOn, isValidYmd, todayYmd } from '../lib/date';
+import { addDays, ageOn, isValidYmd, todayYmd } from '../lib/date';
 import { fmtDate, fmtG, fmtKcal, fmtNum } from '../lib/format';
 import { CM_PER_IN, KG_PER_LB, parseDecimal, validateNumber, type FieldError } from '../lib/numbers';
 import { planForDate } from '../lib/nutrition';
-import { calculateTargets, manualTargetWarnings, REVIEW_CODES, validateInputs, type CalcInputs, type CalcResult, type CalcWarning } from '../lib/targets';
+import { BODY_FAT_RANGE, calculateTargets, manualTargetWarnings, REVIEW_CODES, validateInputs, type CalcInputs, type CalcResult, type CalcWarning } from '../lib/targets';
 
 type Mode = 'calculator' | 'manual';
 
 export default function TargetsView() {
+  return (
+    <div className="view">
+      <header className="view-header">
+        <h1>{t('targets.title')}</h1>
+      </header>
+      <TargetsSections />
+    </div>
+  );
+}
+
+/**
+ * The Targets screen's content, reused by the Progress tab (OBS-F047E3). `showCurrent=false` lets
+ * Progress show its own summary card; `compact` tucks the less-used sections behind one disclosure.
+ */
+export function TargetsSections({ showCurrent = true, compact = false }: { showCurrent?: boolean; compact?: boolean }) {
   const plans = useTargetPlans();
   const profile = useProfile();
   const today = todayYmd();
@@ -22,13 +37,16 @@ export default function TargetsView() {
   const [mode, setMode] = useState<Mode>('calculator');
   const [prefill, setPrefill] = useState<Macros | null>(null);
 
+  const extra = (
+    <>
+      {current && <WeeklyPlanning key={current.id} plan={current} />}
+      {profile && <AdherenceSettings profile={profile} />}
+      {plans && plans.length > 0 && <TargetHistory plans={plans} />}
+    </>
+  );
   return (
-    <div className="view">
-      <header className="view-header">
-        <h1>{t('targets.title')}</h1>
-      </header>
       <div className="stack">
-        <CurrentCard plan={current} />
+        {showCurrent && <CurrentCard plan={current} />}
         <div className="segmented" role="tablist" aria-label={t('targets.title')}>
           {(['calculator', 'manual'] as const).map((m) => (
             <button key={m} type="button" role="tab" aria-selected={mode === m} aria-pressed={mode === m} onClick={() => setMode(m)}>
@@ -48,15 +66,19 @@ export default function TargetsView() {
           ) : (
             <ManualForm key={prefill ? JSON.stringify(prefill) : 'blank'} initial={prefill ?? current ?? null} />
           ))}
-        {current && <WeeklyPlanning key={current.id} plan={current} />}
-        {profile && <AdherenceSettings profile={profile} />}
-        {plans && plans.length > 0 && <TargetHistory plans={plans} />}
+        {compact ? (
+          <details className="card more-targets">
+            <summary>{t('progress.moreTargets')}</summary>
+            <div className="stack">{extra}</div>
+          </details>
+        ) : (
+          extra
+        )}
       </div>
-    </div>
   );
 }
 
-function CurrentCard({ plan }: { plan: TargetPlan | null }) {
+export function CurrentCard({ plan }: { plan: TargetPlan | null }) {
   return (
     <section className="card stack-sm" aria-labelledby="cur-h">
       <h2 id="cur-h">{t('targets.current')}</h2>
@@ -100,6 +122,7 @@ interface CalcForm {
   heightFt: string;
   heightIn: string;
   weight: string;
+  bodyFat: string;
   activity: ActivityLevel | '';
   trainingDays: string;
   goal: Goal | '';
@@ -123,6 +146,7 @@ function formFromProfile(p: Profile): CalcForm {
     heightFt: totalIn != null ? String(Math.floor(Math.round(totalIn) / 12)) : '',
     heightIn: totalIn != null ? String(Math.round(totalIn) % 12) : '',
     weight: w(p.weightKg),
+    bodyFat: p.bodyFatPct != null ? r1(p.bodyFatPct) : '',
     activity: p.activityLevel ?? '',
     trainingDays: p.trainingDaysPerWeek != null ? String(p.trainingDaysPerWeek) : '3',
     goal: p.goal ?? '',
@@ -182,6 +206,9 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
       if (v.error) errs.heightCm = v.error;
     }
     if (weightKg == null) errs.weight = f.weight.trim() ? 'invalid' : 'required';
+    // Optional body fat → Katch–McArdle (OBS-F047E3).
+    const bf = validateNumber(f.bodyFat, { min: BODY_FAT_RANGE.min, max: BODY_FAT_RANGE.max, required: false });
+    if (bf.error) errs.bodyFat = bf.error;
     // Target weight and rate are hidden (and ignored) for Maintain.
     const usesGoalFields = f.goal === 'lose' || f.goal === 'gain';
     const target = usesGoalFields && f.targetWeight.trim() ? toKg(f.targetWeight) : null;
@@ -203,6 +230,7 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
       goal: f.goal,
       targetWeightKg: target,
       weeklyRateKg: rate,
+      bodyFatPct: bf.value,
     };
     const invalid = validateInputs(inputs);
     if (invalid.includes('age')) {
@@ -211,7 +239,7 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
     }
     if (invalid.length) {
       setProblem(t('targets.missing'));
-      const map: Record<string, keyof CalcForm> = { height: inches ? 'heightFt' : 'heightCm', weight: 'weight', targetWeight: 'targetWeight', rate: 'rate' };
+      const map: Record<string, keyof CalcForm> = { height: inches ? 'heightFt' : 'heightCm', weight: 'weight', targetWeight: 'targetWeight', rate: 'rate', bodyFat: 'bodyFat' };
       setErrors(Object.fromEntries(invalid.filter((k) => map[k]).map((k) => [map[k]!, 'invalid'])));
       return;
     }
@@ -226,6 +254,7 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
       birthDate: f.birthDate,
       heightCm: Math.round(inputs.heightCm * 10) / 10,
       weightKg: Math.round(inputs.weightKg * 10) / 10,
+      bodyFatPct: inputs.bodyFatPct ?? null,
       activityLevel: inputs.activityLevel,
       trainingDaysPerWeek: inputs.trainingDaysPerWeek,
       goal: inputs.goal,
@@ -281,12 +310,20 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
         ) : (
           <NumberField label={t('targets.heightCm')} value={f.heightCm} onChange={(v) => set('heightCm', v)} error={errors.heightCm} min={120} max={230} />
         )}
-      </div>
-      <div className="field">
-        <label className="field-label" htmlFor={ids.dob}>
-          {t('targets.birthDate')}
-        </label>
-        <input id={ids.dob} className="input" type="date" value={f.birthDate} max={todayYmd()} onChange={(e) => set('birthDate', e.target.value)} />
+        <NumberField
+          label={t('targets.bodyFat')}
+          value={f.bodyFat}
+          onChange={(v) => set('bodyFat', v)}
+          error={errors.bodyFat}
+          min={BODY_FAT_RANGE.min}
+          max={BODY_FAT_RANGE.max}
+        />
+        <div className="field">
+          <label className="field-label" htmlFor={ids.dob}>
+            {t('targets.birthDate')}
+          </label>
+          <input id={ids.dob} className="input" type="date" value={f.birthDate} max={todayYmd()} onChange={(e) => set('birthDate', e.target.value)} />
+        </div>
       </div>
       <div className="field">
         <label className="field-label" htmlFor={ids.act}>
@@ -353,7 +390,7 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
         <div className="stack result-block" aria-live="polite">
           <h3>{t('targets.result')}</h3>
           <dl className="kv num">
-            <dt>{t('targets.bmr')}</dt>
+            <dt>{t(result.res.reeMethod === 'katch' ? 'targets.bmrKatch' : 'targets.bmr')}</dt>
             <dd>{fmtKcal(result.res.bmr)} kcal</dd>
             <dt>{t('targets.tdee')}</dt>
             <dd>{fmtKcal(result.res.tdee)} kcal</dd>
@@ -382,6 +419,9 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
                 unit: wUnit,
               })}
             </p>
+          )}
+          {result.res.weeksToTarget != null && (
+            <p className="subtle">{t('progress.goalDate', { date: fmtDate(addDays(effectiveFrom, result.res.weeksToTarget * 7)) })}</p>
           )}
           {result.res.needsReview && (
             <div className="banner banner-danger" role="alert">

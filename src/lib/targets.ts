@@ -5,6 +5,7 @@
  *  1. Resting energy: Mifflin–St Jeor (1990)
  *       men:   10·kg + 6.25·cm − 5·age + 5
  *       women: 10·kg + 6.25·cm − 5·age − 161
+ *     or, when body fat % is known, Katch–McArdle: 370 + 21.6 · lean mass (kg).
  *  2. Maintenance ≈ resting energy × activity factor (1.2 … 1.9).
  *  3. Goal adjustment = weekly rate × ~7,700 kcal/kg ÷ 7. The 7,700 kcal/kg figure is a rough
  *     energy-equivalence approximation; real weight change is not linear and varies by person.
@@ -39,6 +40,9 @@ export const SAFETY = {
   maxAge: 100,
 } as const;
 
+/** Accepted body-fat range (%) for the Katch–McArdle branch. Input validation, not a safety rule. */
+export const BODY_FAT_RANGE = { min: 3, max: 60 } as const;
+
 export interface CalcInputs {
   sex: Sex;
   ageYears: number;
@@ -50,6 +54,8 @@ export interface CalcInputs {
   targetWeightKg: number | null;
   /** Requested magnitude of change per week (kg, positive). Null = sensible default. */
   weeklyRateKg: number | null;
+  /** Optional body fat %. When set, resting energy uses Katch–McArdle instead of Mifflin–St Jeor. */
+  bodyFatPct?: number | null;
 }
 
 export type CalcWarning =
@@ -66,6 +72,8 @@ export type CalcWarning =
 
 export interface CalcResult {
   bmr: number;
+  /** Which resting-energy equation produced `bmr`. */
+  reeMethod: 'mifflin' | 'katch';
   tdee: number;
   /** Signed daily kcal adjustment applied to maintenance. */
   adjustment: number;
@@ -85,7 +93,7 @@ export interface CalcResult {
   needsReview: boolean;
 }
 
-export type CalcInputError = 'age' | 'height' | 'weight' | 'trainingDays' | 'targetWeight' | 'rate';
+export type CalcInputError = 'age' | 'height' | 'weight' | 'trainingDays' | 'targetWeight' | 'rate' | 'bodyFat';
 
 export function validateInputs(i: CalcInputs): CalcInputError[] {
   const errs: CalcInputError[] = [];
@@ -98,11 +106,22 @@ export function validateInputs(i: CalcInputs): CalcInputError[] {
   if (i.weeklyRateKg != null && (!Number.isFinite(i.weeklyRateKg) || i.weeklyRateKg < 0 || i.weeklyRateKg > 5)) errs.push('rate');
   // A zero rate with a lose/gain goal is contradictory; ask instead of silently substituting.
   if (i.weeklyRateKg === 0 && i.goal !== 'maintain') errs.push('rate');
+  if (i.bodyFatPct != null && (!Number.isFinite(i.bodyFatPct) || i.bodyFatPct < BODY_FAT_RANGE.min || i.bodyFatPct > BODY_FAT_RANGE.max))
+    errs.push('bodyFat');
   return errs;
 }
 
 export function mifflinStJeor(sex: Sex, weightKg: number, heightCm: number, ageYears: number): number {
   return 10 * weightKg + 6.25 * heightCm - 5 * ageYears + (sex === 'male' ? 5 : -161);
+}
+
+/** Katch–McArdle resting energy: 370 + 21.6 × lean body mass (kg). */
+export function katchMcArdle(weightKg: number, bodyFatPct: number): number {
+  return 370 + 21.6 * leanMassKg(weightKg, bodyFatPct);
+}
+
+export function leanMassKg(weightKg: number, bodyFatPct: number): number {
+  return weightKg * (1 - bodyFatPct / 100);
 }
 
 export function bmi(weightKg: number, heightCm: number): number {
@@ -151,7 +170,8 @@ export function calculateTargets(i: CalcInputs): CalcResult {
   if (errors.length) throw new Error(`Invalid inputs: ${errors.join(', ')}`);
 
   const warnings: CalcWarning[] = [];
-  const bmr = mifflinStJeor(i.sex, i.weightKg, i.heightCm, i.ageYears);
+  const reeMethod = i.bodyFatPct != null ? 'katch' : 'mifflin';
+  const bmr = i.bodyFatPct != null ? katchMcArdle(i.weightKg, i.bodyFatPct) : mifflinStJeor(i.sex, i.weightKg, i.heightCm, i.ageYears);
   const tdee = bmr * ACTIVITY_FACTORS[i.activityLevel];
 
   // Goal sanity checks
@@ -207,6 +227,7 @@ export function calculateTargets(i: CalcInputs): CalcResult {
 
   return {
     bmr: Math.round(bmr),
+    reeMethod,
     tdee: Math.round(tdee),
     adjustment: Math.round(adjustment),
     projectedRateKg,

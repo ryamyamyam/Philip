@@ -864,3 +864,22 @@
   margin: 0;
   font-size: var(--qa-text-lg);
 }
+
+/* Archived after their prompt was copied/exported (OBS-CDDDEC) */
+.qa-item-archived .qa-item-title {
+  text-decoration: line-through;
+}
+.qa-item-archived .qa-item-main {
+  color: var(--qa-text-3, var(--color-text-3, #78716c));
+}
+.qa-item-archived .qa-item-main .qa-badge {
+  opacity: 0.75;
+}
+.qa-badge-archived {
+  background: var(--qa-surface-2);
+  color: var(--qa-text-2);
+}
+.qa-archived-note {
+  align-items: center;
+  justify-content: space-between;
+}

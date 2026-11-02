@@ -2,13 +2,13 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { structureObservation } from '../ai/analysis';
 import { AiError } from '../ai/provider';
-import { deleteObservation, getObservation, updateObservation, type ObservationChanges } from '../repository';
+import { deleteObservation, getObservation, unarchiveObservations, updateObservation, type ObservationChanges } from '../repository';
 import { STRUCTURED_FIELDS, type Observation, type StructuredField } from '../types';
 import { Confirm } from './Confirm';
 import { useQa } from './context';
 import { AiBadge, ListBlock, PrioritySelect, StatusSelect, TextField, TypeSelect } from './fields';
 import { SavedScreenshots } from './Screenshots';
-import { AI_ERRORS, PRIORITY_LABELS, TYPE_LABELS, fmtWhen } from './strings';
+import { AI_ERRORS, ARCHIVE_TEXT, PRIORITY_LABELS, TYPE_LABELS, fmtWhen } from './strings';
 
 type Draft = Pick<Observation, StructuredField | 'type' | 'priority' | 'status' | 'notes' | 'aiFields'> & { tags: string };
 
@@ -141,6 +141,21 @@ export function ObservationDetail({ id, guardRef }: { id: string; guardRef: Muta
           <span>Include in prompt</span>
         </label>
       </div>
+
+      {obs.archivedAt && (
+        <div className="qa-banner qa-archived-note" role="note">
+          <span>{ARCHIVE_TEXT.detailNote(fmtWhen(obs.archivedAt))}</span>
+          <button
+            type="button"
+            className="qa-btn qa-btn-small"
+            onClick={() => {
+              void unarchiveObservations(db, projectId, [obs.id]).then(() => notify(ARCHIVE_TEXT.unarchived));
+            }}
+          >
+            {ARCHIVE_TEXT.unarchive}
+          </button>
+        </div>
+      )}
 
       <TextField label="Title" value={draft.title} onChange={(v) => set('title', v)} ai={draft.aiFields.includes('title')} />
       <p className="qa-hint">

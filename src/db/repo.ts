@@ -1,6 +1,6 @@
 /** Data access functions. UI components call these instead of touching tables directly. */
 import { db, newId, defaultProfile, type PhilipDB } from './db';
-import type { FoodEntry, Macros, Meal, Profile, SavedFood, TargetPlan, YMD } from './types';
+import type { FoodEntry, Macros, Meal, Profile, SavedFood, TargetPlan, WeightEntry, YMD } from './types';
 import { roundMacros } from '../lib/nutrition';
 
 export type NewFoodEntry = Omit<FoodEntry, 'id' | 'createdAt' | 'updatedAt'>;
@@ -103,6 +103,32 @@ export async function getProfile(database: PhilipDB = db): Promise<Profile> {
 export async function updateProfile(changes: Partial<Omit<Profile, 'id'>>, database: PhilipDB = db): Promise<void> {
   const current = await getProfile(database);
   await database.profile.put({ ...current, ...changes, id: 'me' });
+}
+
+/* ---------- Weight log ---------- */
+
+/**
+ * Logs body weight for a date (default today). One entry per date: logging again overwrites it.
+ * When the date is the newest in the log, profile.weightKg is updated too so the calculator uses it.
+ */
+export async function logWeight(date: YMD, weightKg: number, database: PhilipDB = db): Promise<WeightEntry> {
+  const kg = Math.round(weightKg * 10) / 10;
+  return database.transaction('rw', database.weightEntries, database.profile, async () => {
+    const now = Date.now();
+    const existing = await database.weightEntries.get(date);
+    const entry: WeightEntry = { date, weightKg: kg, createdAt: existing?.createdAt ?? now, updatedAt: now };
+    await database.weightEntries.put(entry);
+    const newest = await database.weightEntries.orderBy('date').last();
+    if (newest?.date === date) {
+      const p = (await database.profile.get('me')) ?? defaultProfile();
+      await database.profile.put({ ...p, weightKg: kg, id: 'me' });
+    }
+    return entry;
+  });
+}
+
+export function allWeightEntries(database: PhilipDB = db): Promise<WeightEntry[]> {
+  return database.weightEntries.orderBy('date').toArray();
 }
 
 /* ---------- Saved foods ---------- */

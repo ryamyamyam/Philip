@@ -81,6 +81,10 @@ export interface Observation {
   aiFields: StructuredField[];
   attachmentCount: number;
   promptIds: string[];
+  /** Set when a prompt that included this observation was copied or exported (DB v2). Null = not archived. */
+  archivedAt: number | null;
+  /** The prompt whose copy/export archived it. */
+  archivedByPromptId: string | null;
   createdAt: number;
   updatedAt: number;
 }

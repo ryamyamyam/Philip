@@ -6,7 +6,7 @@
  * (not the URL, so it doesn't end up in logs or history).
  */
 import { extractJson, validateAnalysis } from './parse';
-import { FOOD_ANALYSIS_INSTRUCTIONS, GEMINI_RESPONSE_SCHEMA } from './prompt';
+import { FOOD_ANALYSIS_INSTRUCTIONS, foodTextPrompt, GEMINI_RESPONSE_SCHEMA } from './prompt';
 import { AnalysisError, type AnalysisResult } from './types';
 
 export const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
@@ -26,6 +26,24 @@ export interface GeminiRequest {
   fetchImpl?: FetchLike;
 }
 
+export interface GeminiTextRequest {
+  apiKey: string;
+  model: string;
+  text: string;
+  signal?: AbortSignal;
+  fetchImpl?: FetchLike;
+}
+
+type Part = { inline_data: { mime_type: string; data: string } } | { text: string };
+
+interface GenerateRequest {
+  apiKey: string;
+  model: string;
+  parts: Part[];
+  signal?: AbortSignal;
+  fetchImpl?: FetchLike;
+}
+
 const MODEL_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{1,80}$/;
 
 export function normalizeModel(model: string | null | undefined): string {
@@ -33,14 +51,9 @@ export function normalizeModel(model: string | null | undefined): string {
   return MODEL_RE.test(m) ? m : DEFAULT_GEMINI_MODEL;
 }
 
-function body(imageBase64: string, mimeType: string, withSchema: boolean) {
+function body(parts: Part[], withSchema: boolean) {
   return {
-    contents: [
-      {
-        role: 'user',
-        parts: [{ inline_data: { mime_type: mimeType, data: imageBase64 } }, { text: FOOD_ANALYSIS_INSTRUCTIONS }],
-      },
-    ],
+    contents: [{ role: 'user', parts }],
     generationConfig: {
       temperature: 0.2,
       responseMimeType: 'application/json',
@@ -80,7 +93,7 @@ export function mapHttpError(status: number, payload: GeminiErrorBody | null, he
   return new AnalysisError('invalidResponse', msg);
 }
 
-async function post(req: GeminiRequest, withSchema: boolean): Promise<Response> {
+async function post(req: GenerateRequest, withSchema: boolean): Promise<Response> {
   const f = req.fetchImpl ?? fetch;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(new DOMException('timeout', 'TimeoutError')), TIMEOUT_MS);
@@ -90,7 +103,7 @@ async function post(req: GeminiRequest, withSchema: boolean): Promise<Response> 
     return await f(`${GEMINI_ENDPOINT}/models/${encodeURIComponent(normalizeModel(req.model))}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': req.apiKey },
-      body: JSON.stringify(body(req.imageBase64, req.mimeType, withSchema)),
+      body: JSON.stringify(body(req.parts, withSchema)),
       signal: ctrl.signal,
       referrerPolicy: 'no-referrer',
     });
@@ -125,7 +138,18 @@ export function responseText(json: GeminiResponse): string {
   return text;
 }
 
-export async function analyzeWithGemini(req: GeminiRequest): Promise<AnalysisResult> {
+export function analyzeWithGemini(req: GeminiRequest): Promise<AnalysisResult> {
+  const { imageBase64, mimeType, ...rest } = req;
+  return generate({ ...rest, parts: [{ inline_data: { mime_type: mimeType, data: imageBase64 } }, { text: FOOD_ANALYSIS_INSTRUCTIONS }] });
+}
+
+/** Text path (OBS-A2F21F): same request, schema, error mapping and validator as the photo path. */
+export function analyzeTextWithGemini(req: GeminiTextRequest): Promise<AnalysisResult> {
+  const { text, ...rest } = req;
+  return generate({ ...rest, parts: [{ text: foodTextPrompt(text) }] });
+}
+
+async function generate(req: GenerateRequest): Promise<AnalysisResult> {
   if (!req.apiKey.trim()) throw new AnalysisError('noKey');
   let res = await post(req, true);
   if (res.status === 400) {

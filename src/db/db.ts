@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { FoodEntry, MetaRow, Profile, SavedFood, TargetPlan } from './types';
+import type { FoodEntry, MetaRow, Profile, SavedFood, TargetPlan, WeightEntry } from './types';
 
 export class PhilipDB extends Dexie {
   profile!: EntityTable<Profile, 'id'>;
@@ -7,6 +7,7 @@ export class PhilipDB extends Dexie {
   foodEntries!: EntityTable<FoodEntry, 'id'>;
   savedFoods!: EntityTable<SavedFood, 'id'>;
   meta!: EntityTable<MetaRow, 'key'>;
+  weightEntries!: EntityTable<WeightEntry, 'date'>;
 
   constructor(name = 'philip') {
     super(name);
@@ -17,6 +18,18 @@ export class PhilipDB extends Dexie {
       savedFoods: 'id, name, lastUsedAt, useCount',
       meta: 'key',
     });
+    // v2 (QA round 2): weight log keyed by date (one entry per day), and optional profile body fat.
+    // Every v1 table and record is kept as is.
+    this.version(2)
+      .stores({ weightEntries: 'date' })
+      .upgrade(async (tx) => {
+        await tx
+          .table('profile')
+          .toCollection()
+          .modify((p: Partial<Profile>) => {
+            if (p.bodyFatPct === undefined) p.bodyFatPct = null;
+          });
+      });
   }
 }
 
@@ -35,6 +48,7 @@ export function defaultProfile(): Profile {
     birthDate: null,
     heightCm: null,
     weightKg: null,
+    bodyFatPct: null,
     activityLevel: null,
     trainingDaysPerWeek: null,
     goal: null,

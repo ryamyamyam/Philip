@@ -28,6 +28,8 @@ export interface Profile {
   birthDate: YMD | null;
   heightCm: number | null;
   weightKg: number | null;
+  /** Optional body-fat percentage (3–60). When set, resting energy uses Katch–McArdle. Added in DB v2. */
+  bodyFatPct: number | null;
   activityLevel: ActivityLevel | null;
   trainingDaysPerWeek: number | null;
   goal: Goal | null;
@@ -96,6 +98,14 @@ export interface SavedFood extends Macros {
   lastUsedAt: number | null;
   favorite: boolean;
   createdAt: number;
+}
+
+/** One body-weight reading per local date (DB v2). Logging again for a date overwrites it. */
+export interface WeightEntry {
+  date: YMD;
+  weightKg: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface MetaRow {

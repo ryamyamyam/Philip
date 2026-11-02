@@ -1,7 +1,7 @@
 # Philip — working notes for Claude
 
 ## Current stage
-Stages 0–7 implemented; Stage 8 (QA) partially done. See docs/ROADMAP.md.
+Stages 0–7 implemented; Stage 8 (QA) partially done. QA round 2 (branch `qa-round-2`): 4-tab nav (Today · Meals · Progress · Settings), photo-first add sheet with a text box, weight log, Katch–McArdle, QA archive. See docs/ROADMAP.md.
 
 ## Stack & constraints
 - React 19 + TypeScript (strict) + Vite 7, plain CSS with tokens, Dexie 4 (IndexedDB) + `useLiveQuery`
@@ -29,8 +29,10 @@ Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, b
 ## Known issues
 - QA voice capture uses the Web Speech API; not yet tested on a real iPhone home-screen install.
 - WebKit e2e not yet run (only Chromium mobile emulation in the build sandbox). Real-iPhone pass pending.
-- Swipe-left row actions (Today) and the bottom-sheet QA panel are tested with synthetic touch events in Chromium only; check on a real iPhone.
+- Swipe-left row actions (Meals) and the bottom-sheet QA panel are tested with synthetic touch events in Chromium only; check on a real iPhone.
 - Gemini default model (`gemini-3.1-flash-lite`) not yet verified against a live key.
+- Meals food names are truncated to one line so four meals × two foods fit at 393×793 (default text size); larger Dynamic Type sizes scroll.
+- SW cache matching doesn't ignore `Vary`; if a host sends `Vary: Origin`, lazy chunks (Progress, Settings) can miss the cache offline. Today and Meals are bundled eagerly.
 - Export uses the Web Share sheet when available; if iOS rejects the share after the async DB read, it falls back to a download.
 
 ## Next task

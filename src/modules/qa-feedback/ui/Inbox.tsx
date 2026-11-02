@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { listFeatures, queryObservations, type ObservationFilter } from '../search';
 import { OBSERVATION_TYPES, PRIORITIES, STATUSES, type Observation } from '../types';
 import { useQa } from './context';
-import { PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS, fmtWhen } from './strings';
+import { ARCHIVE_TEXT, PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS, fmtWhen } from './strings';
 
 const PAGE = 50;
 
@@ -71,6 +71,7 @@ export function Inbox() {
         <div className="qa-filters" role="group" aria-label="Filters">
           <FilterSelect label="Status" value={filter.status ?? 'open'} onChange={(v) => update({ status: v as ObservationFilter['status'] })}>
             <option value="open">Open</option>
+            <option value="archived">{ARCHIVE_TEXT.filter}</option>
             <option value="all">All</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -149,7 +150,7 @@ export function Inbox() {
 
       <ul className="qa-list" aria-label="Observations">
         {visible.map((o) => (
-          <li key={o.id} className="qa-item">
+          <li key={o.id} className={`qa-item${o.archivedAt ? ' qa-item-archived' : ''}`}>
             <label className="qa-item-check">
               <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggle(o.id)} aria-label={`Select ${o.title}`} />
             </label>
@@ -166,6 +167,7 @@ export function Inbox() {
                   <span className="qa-visually-hidden">Status: </span>
                   {STATUS_LABELS[o.status]}
                 </span>
+                {o.archivedAt && <span className="qa-badge qa-badge-archived">{ARCHIVE_TEXT.badge}</span>}
                 {o.feature && <span className="qa-item-feature">{o.feature}</span>}
                 {o.attachmentCount > 0 && (
                   <span className="qa-item-shots" aria-label={`${o.attachmentCount} screenshots`}>

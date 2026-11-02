@@ -2,7 +2,7 @@
  * Food analysis entry point. The rest of the app depends only on this module and ./types,
  * so swapping Gemini for another provider means changing this file and adding an adapter.
  */
-import { analyzeWithGemini, normalizeModel } from './gemini';
+import { analyzeTextWithGemini, analyzeWithGemini, normalizeModel } from './gemini';
 import { prepareImage } from './image';
 import { AnalysisError, type AnalysisResult } from './types';
 
@@ -33,5 +33,13 @@ export async function analyzeFoodPhoto(file: Blob, opts: AnalyzeOptions): Promis
     mimeType: image.mimeType,
     signal: opts.signal,
   });
+  return { ...result, model };
+}
+
+/** Typed food text ("2 eggs, 150 g rice") → the same AnalysisResult shape as a photo. */
+export async function analyzeFoodText(text: string, opts: AnalyzeOptions): Promise<AnalysisResult & { model: string }> {
+  if (!opts.apiKey) throw new AnalysisError('noKey');
+  const model = normalizeModel(opts.model);
+  const result = await analyzeTextWithGemini({ apiKey: opts.apiKey, model, text, signal: opts.signal });
   return { ...result, model };
 }

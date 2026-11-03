@@ -16,7 +16,7 @@ import { fromAnalysis } from './photo/reviewModel';
 type State =
   | { status: 'loading' }
   | { status: 'done'; items: AnalysisItem[]; model: string }
-  | { status: 'error'; code: AnalysisErrorCode; model: string };
+  | { status: 'error'; code: AnalysisErrorCode; model: string; detail: string };
 
 const AFTER_KEY: Record<Remaining['status'], StringKey> = {
   left: 'today.kcal.left',
@@ -71,7 +71,9 @@ export default function SuggestSheet({ date }: { date: YMD }) {
       if (!ctrl.signal.aborted) setState({ status: 'done', items: r.items, model: r.model });
     } catch (e) {
       if (ctrl.signal.aborted) return;
-      setState({ status: 'error', code: e instanceof AnalysisError ? e.code : 'invalidResponse', model: p.geminiModel ?? '' });
+      const code = e instanceof AnalysisError ? e.code : 'invalidResponse';
+      const detail = e instanceof Error && e.message !== code ? e.message.slice(0, 300) : '';
+      setState({ status: 'error', code, model: p.geminiModel ?? '', detail });
     }
   }, []);
 
@@ -107,6 +109,12 @@ export default function SuggestSheet({ date }: { date: YMD }) {
               <Icon name={state.code === 'noKey' ? 'info' : 'warning'} />
               <span>{state.code === 'noKey' ? t('suggest.noKey') : t(`gemini.error.${state.code}`, { model: state.model })}</span>
             </div>
+            {state.detail && (
+              <details className="small subtle">
+                <summary>{t('suggest.errorDetail')}</summary>
+                <code className="error-detail">{state.detail}</code>
+              </details>
+            )}
             {state.code === 'noKey' ? (
               <button
                 type="button"

@@ -12,11 +12,17 @@ export async function fresh(page: Page) {
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 }
 
-/** Opens the Log food sheet from Today (Story 3). Keeps the selected date. */
+/** Opens the inline "Enter yourself" panel on Today (owner feedback, Nov 2026). Keeps the selected date. */
 export async function openAdd(page: Page) {
   if ((await tab(page, 'Today').getAttribute('aria-current')) !== 'page') await tab(page, 'Today').click();
-  await page.getByRole('main').getByRole('button', { name: 'Log food' }).click();
-  await expect(page.getByRole('dialog', { name: 'Add food' })).toBeVisible();
+  const btn = page.getByRole('main').getByRole('button', { name: 'Enter yourself' });
+  if ((await btn.getAttribute('aria-expanded')) !== 'true') await btn.click();
+  await expect(addPanel(page)).toBeVisible();
+}
+
+/** The inline add panel on Today. */
+export function addPanel(page: Page) {
+  return page.getByRole('region', { name: 'Add food' });
 }
 
 /** Picks a meal in the review sheet's meal picker. */
@@ -24,13 +30,13 @@ export async function pickMeal(page: Page, meal: string) {
   await page.getByRole('dialog').getByRole('radio', { name: meal }).click();
 }
 
-/** Log food → Enter it yourself → fill the one row → Save to {meal}. */
+/** Enter yourself → Type the numbers → fill the one row → Save to {meal}. */
 export async function addManualFood(
   page: Page,
   f: { name: string; grams?: string; calories: string; protein: string; fat: string; carbs: string; meal?: string },
 ) {
   await openAdd(page);
-  await page.getByRole('dialog', { name: 'Add food' }).getByRole('button', { name: 'Enter it yourself' }).click();
+  await addPanel(page).getByRole('button', { name: 'Type the numbers' }).click();
   const dlg = page.getByRole('dialog', { name: 'Review' });
   await pickMeal(page, f.meal ?? 'Breakfast');
   await dlg.getByLabel('Food name').fill(f.name);

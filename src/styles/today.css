@@ -534,3 +534,19 @@
 .today-card .today-macro-value {
   font-size: var(--text-sm);
 }
+
+/* Owner feedback (Nov 2026): three log buttons — Take photo · Choose photo · Enter yourself. */
+.log-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.log-actions .btn {
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+.log-type[aria-expanded='true'] {
+  border-color: var(--color-action);
+}
+.add-inline {
+  animation: fade-in 0.15s ease-out;
+}

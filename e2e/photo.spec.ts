@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addManualFood, fresh, openAdd, pickMeal, tab } from './helpers';
+import { addManualFood, addPanel, fresh, openAdd, pickMeal, tab } from './helpers';
 
 const PHOTO = 'public/icon-512.png';
 
@@ -195,11 +195,11 @@ const textReply = (items: { name: string; grams: number; calories: number; p: nu
 
 test('log sheet: photo buttons, text box, saved meals, manual — no Claude handoff button', async ({ page }) => {
   await openAdd(page);
-  const dlg = page.getByRole('dialog', { name: 'Add food' });
-  await expect(dlg.getByText('Take photo')).toBeVisible();
-  await expect(dlg.getByText('Choose photo')).toBeVisible();
+  const dlg = addPanel(page);
+  await expect(page.getByRole('main').getByText('Take photo')).toBeVisible();
+  await expect(page.getByRole('main').getByText('Choose photo')).toBeVisible();
   await expect(dlg.getByRole('textbox', { name: 'Describe what you ate' })).toBeVisible();
-  await expect(dlg.getByRole('button', { name: 'Enter it yourself' })).toBeVisible();
+  await expect(dlg.getByRole('button', { name: 'Type the numbers' })).toBeVisible();
   // The Claude handoff stays as a fallback only when photo analysis fails.
   await expect(dlg.getByRole('button', { name: /Claude app/ })).toHaveCount(0);
   await expect(dlg.getByRole('searchbox')).toHaveCount(0);

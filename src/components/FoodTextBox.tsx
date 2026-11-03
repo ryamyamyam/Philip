@@ -3,7 +3,7 @@ import { t } from '../i18n';
 import { Icon } from './Icon';
 
 /** One free-text box with a send button: "2 eggs, 150 g rice, 1 tbsp olive oil" (OBS-BC1840). */
-export function FoodTextBox({ onSend, busy = false }: { onSend: (text: string) => Promise<void> | void; busy?: boolean }) {
+export function FoodTextBox({ onSend, busy = false, autoFocus = false }: { onSend: (text: string) => Promise<void> | void; busy?: boolean; autoFocus?: boolean }) {
   const [text, setText] = useState('');
   const id = useId();
   const send = async () => {
@@ -27,6 +27,7 @@ export function FoodTextBox({ onSend, busy = false }: { onSend: (text: string) =
         id={id}
         className="input food-text-input"
         rows={2}
+        autoFocus={autoFocus}
         maxLength={2000}
         placeholder={t('add.textPlaceholder')}
         value={text}

@@ -71,7 +71,7 @@ for (const width of widths) {
       await shot('targets');
       await openAdd(page);
       await shot('add');
-      await page.getByRole('button', { name: 'Enter it yourself' }).click();
+      await page.getByRole('button', { name: 'Type the numbers' }).click();
       await shot('entry');
     });
   }

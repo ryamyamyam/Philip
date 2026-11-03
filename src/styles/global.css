@@ -675,3 +675,50 @@ button {
   font-size: var(--text-sm);
   text-align: center;
 }
+
+/* Owner feedback (Nov 2026) */
+.grid-span {
+  grid-column: 1 / -1;
+}
+.segmented-sm button {
+  min-height: 36px;
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-2);
+}
+.btn-sm {
+  min-height: 36px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+.month-suggest {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-md);
+}
+/* iOS Safari renders date inputs with their own width/height and centered text; normalize it. */
+.input-date {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+  line-height: calc(var(--touch) - 2 * var(--space-2) - 2px);
+}
+.input-date::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+.input-date::-webkit-datetime-edit {
+  padding: 0;
+}
+.error-detail {
+  display: block;
+  margin-top: var(--space-1);
+  word-break: break-word;
+  white-space: pre-wrap;
+}

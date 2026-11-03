@@ -17,11 +17,12 @@ import { useTextFood } from './photo/useTextFood';
 type ReviewState = Extract<SheetState, { kind: 'review' }>;
 
 /**
- * Log food (Story 3): photo, typed text, a saved meal, or by hand. Every path ends in the review
- * sheet, where the meal is chosen and the save is confirmed. No food database, no favorites.
+ * Typed food, saved meals and by-hand entry (owner feedback, Nov 2026). Shown inline on Today
+ * behind "Enter yourself", and inside the Add food sheet (Meals). Every path ends in the review
+ * sheet, where the meal is chosen and the save is confirmed.
  */
-export function AddSheet({ date, meal }: { date: YMD; meal: Meal }) {
-  const { closeSheet, openSheet } = useUI();
+export function AddPanel({ date, meal, autoFocus = false }: { date: YMD; meal: Meal; autoFocus?: boolean }) {
+  const { openSheet } = useUI();
   const toast = useToast();
   const meals = useSavedMeals();
   const [busy, setBusy] = useState(false);
@@ -42,16 +43,68 @@ export function AddSheet({ date, meal }: { date: YMD; meal: Meal }) {
     }
   };
 
-  const onPhoto = (file: File | undefined) => {
-    if (file) openSheet({ kind: 'photo', date, meal, file });
-  };
-
   const remove = async (m: SavedMeal) => {
     setDeleting(null);
     const removed = await deleteSavedMeal(m.id);
     if (removed) toast(t('meals.deleted', { name: removed.name }), { label: t('common.undo'), run: () => void restoreSavedMeal(removed) });
   };
 
+  return (
+    <div className="stack">
+      <FoodTextBox onSend={onText} busy={busy} autoFocus={autoFocus} />
+
+      {meals && meals.length > 0 && (
+        <section className="stack-sm" aria-labelledby="saved-meals-h">
+          <h3 id="saved-meals-h" className="section-title">
+            {t('meals.saved')}
+          </h3>
+          <ul className="card card-flush list">
+            {meals.map((m) => (
+              <li key={m.id} className="list-item">
+                <button
+                  type="button"
+                  className="list-button"
+                  aria-label={t('meals.use', { name: m.name })}
+                  onClick={() => review({ items: fromSavedMeal(m.items), savedMealId: m.id, title: m.name })}
+                >
+                  <span className="list-text">
+                    <span className="list-title">{m.name}</span>
+                    <span className="list-meta">{m.items.map((i) => i.name).join(', ')}</span>
+                  </span>
+                  <span className="list-value num">{fmtKcal(sumMacros(m.items).calories)}</span>
+                </button>
+                <button type="button" className="icon-btn" aria-label={t('meals.delete', { name: m.name })} onClick={() => setDeleting(m)}>
+                  <Icon name="trash" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <button type="button" className="btn btn-ghost btn-block" onClick={() => review({ items: [manualItem()] })}>
+        <Icon name="pencil" /> {t('add.manual')}
+      </button>
+      {deleting && (
+        <ConfirmDialog
+          title={t('meals.deleteConfirm', { name: deleting.name })}
+          body={<p>{t('meals.deleteBody')}</p>}
+          confirmLabel={t('common.delete')}
+          destructive
+          onConfirm={() => void remove(deleting)}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Add food sheet (still used by Meals): photo buttons + the same panel as Today. */
+export function AddSheet({ date, meal }: { date: YMD; meal: Meal }) {
+  const { closeSheet, openSheet } = useUI();
+  const onPhoto = (file: File | undefined) => {
+    if (file) openSheet({ kind: 'photo', date, meal, file });
+  };
   return (
     <Sheet title={t('add.title')} onClose={closeSheet}>
       <div className="stack">
@@ -67,51 +120,8 @@ export function AddSheet({ date, meal }: { date: YMD; meal: Meal }) {
             <input type="file" accept="image/*" className="visually-hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
           </label>
         </div>
-        <FoodTextBox onSend={onText} busy={busy} />
-
-        {meals && meals.length > 0 && (
-          <section className="stack-sm" aria-labelledby="saved-meals-h">
-            <h3 id="saved-meals-h" className="section-title">
-              {t('meals.saved')}
-            </h3>
-            <ul className="card card-flush list">
-              {meals.map((m) => (
-                <li key={m.id} className="list-item">
-                  <button
-                    type="button"
-                    className="list-button"
-                    aria-label={t('meals.use', { name: m.name })}
-                    onClick={() => review({ items: fromSavedMeal(m.items), savedMealId: m.id, title: m.name })}
-                  >
-                    <span className="list-text">
-                      <span className="list-title">{m.name}</span>
-                      <span className="list-meta">{m.items.map((i) => i.name).join(', ')}</span>
-                    </span>
-                    <span className="list-value num">{fmtKcal(sumMacros(m.items).calories)}</span>
-                  </button>
-                  <button type="button" className="icon-btn" aria-label={t('meals.delete', { name: m.name })} onClick={() => setDeleting(m)}>
-                    <Icon name="trash" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <button type="button" className="btn btn-ghost btn-block" onClick={() => review({ items: [manualItem()] })}>
-          <Icon name="pencil" /> {t('add.manual')}
-        </button>
+        <AddPanel date={date} meal={meal} />
       </div>
-      {deleting && (
-        <ConfirmDialog
-          title={t('meals.deleteConfirm', { name: deleting.name })}
-          body={<p>{t('meals.deleteBody')}</p>}
-          confirmLabel={t('common.delete')}
-          destructive
-          onConfirm={() => void remove(deleting)}
-          onCancel={() => setDeleting(null)}
-        />
-      )}
     </Sheet>
   );
 }

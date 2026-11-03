@@ -51,11 +51,21 @@ export function normalizeModel(model: string | null | undefined): string {
   return MODEL_RE.test(m) ? m : DEFAULT_GEMINI_MODEL;
 }
 
-function body(parts: Part[], withSchema: boolean) {
+/**
+ * Gemini 3+ models are tuned for the default temperature (1.0); Google advises against lowering it,
+ * since low values can make them loop until the output is cut off (→ unreadable JSON). Older models
+ * keep 0.2 for steadier numbers. Exported for tests.
+ */
+export function usesDefaultTemperature(model: string): boolean {
+  const m = normalizeModel(model).match(/^gemini-(\d+)/);
+  return m != null && Number(m[1]) >= 3;
+}
+
+function body(parts: Part[], withSchema: boolean, model: string) {
   return {
     contents: [{ role: 'user', parts }],
     generationConfig: {
-      temperature: 0.2,
+      ...(usesDefaultTemperature(model) ? {} : { temperature: 0.2 }),
       responseMimeType: 'application/json',
       ...(withSchema ? { responseSchema: GEMINI_RESPONSE_SCHEMA } : {}),
     },
@@ -103,7 +113,7 @@ async function post(req: GenerateRequest, withSchema: boolean): Promise<Response
     return await f(`${GEMINI_ENDPOINT}/models/${encodeURIComponent(normalizeModel(req.model))}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': req.apiKey },
-      body: JSON.stringify(body(req.parts, withSchema)),
+      body: JSON.stringify(body(req.parts, withSchema, req.model)),
       signal: ctrl.signal,
       referrerPolicy: 'no-referrer',
     });
@@ -152,7 +162,7 @@ export function analyzeTextWithGemini(req: GeminiTextRequest): Promise<AnalysisR
 /** Suggestions (Story 3): same request, schema, error mapping and validator; each item is one option. */
 export function suggestWithGemini(req: Omit<GeminiTextRequest, 'text'> & { left: SuggestTargets }): Promise<AnalysisResult> {
   const { left, ...rest } = req;
-  return generate({ ...rest, parts: [{ text: foodSuggestPrompt(left) }] });
+  return generateWithRetry({ ...rest, parts: [{ text: foodSuggestPrompt(left) }] });
 }
 
 async function generate(req: GenerateRequest): Promise<AnalysisResult> {
@@ -174,6 +184,19 @@ async function generate(req: GenerateRequest): Promise<AnalysisResult> {
     throw new AnalysisError('invalidResponse', 'Body is not JSON');
   })) as GeminiResponse;
   return validateAnalysis(extractJson(responseText(json)));
+}
+
+/**
+ * One automatic retry when the reply was unreadable (cut-off or malformed JSON). Free-tier
+ * replies occasionally truncate; a second try usually succeeds. Other errors are not retried.
+ */
+async function generateWithRetry(req: GenerateRequest): Promise<AnalysisResult> {
+  try {
+    return await generate(req);
+  } catch (e) {
+    if (e instanceof AnalysisError && e.code === 'invalidResponse' && !req.signal?.aborted) return generate(req);
+    throw e;
+  }
 }
 
 /** Verifies the key and model with a lightweight metadata call (no image, no generation quota). */

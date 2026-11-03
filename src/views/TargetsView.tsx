@@ -10,7 +10,7 @@ import { addDays, ageOn, isValidYmd, todayYmd } from '../lib/date';
 import { fmtDate, fmtG, fmtKcal, fmtNum } from '../lib/format';
 import { CM_PER_IN, KG_PER_LB, parseDecimal, validateNumber, type FieldError } from '../lib/numbers';
 import { planForDate } from '../lib/nutrition';
-import { BODY_FAT_RANGE, calculateTargets, manualTargetWarnings, REVIEW_CODES, validateInputs, type CalcInputs, type CalcResult, type CalcWarning } from '../lib/targets';
+import { BODY_FAT_RANGE, calculateTargets, manualTargetWarnings, resolveRate, REVIEW_CODES, validateInputs, type CalcInputs, type CalcResult, type CalcWarning } from '../lib/targets';
 
 type Mode = 'calculator' | 'manual';
 
@@ -134,6 +134,31 @@ const ACTIVITIES: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active',
 const GOALS: Goal[] = ['lose', 'maintain', 'gain'];
 
 const r1 = (n: number) => String(Math.round(n * 10) / 10);
+/** One month ≈ 30 days of weekly rate. */
+const WEEKS_PER_MONTH = 30 / 7;
+
+/** Converts the typed (unsaved) form values when the unit system flips, so nothing typed is lost. */
+function convertForm(f: CalcForm, toImperial: boolean): CalcForm {
+  const w = (s: string) => {
+    const v = parseDecimal(s);
+    if (v == null || Number.isNaN(v)) return s;
+    return r1(toImperial ? v / KG_PER_LB : v * KG_PER_LB);
+  };
+  let { heightCm, heightFt, heightIn } = f;
+  if (toImperial) {
+    const cm = parseDecimal(f.heightCm);
+    if (cm != null && !Number.isNaN(cm)) {
+      const totalIn = Math.round(cm / CM_PER_IN);
+      heightFt = String(Math.floor(totalIn / 12));
+      heightIn = String(totalIn % 12);
+    }
+  } else {
+    const ft = parseDecimal(f.heightFt);
+    const inch = parseDecimal(f.heightIn) ?? 0;
+    if (ft != null && !Number.isNaN(ft) && !Number.isNaN(inch)) heightCm = r1((ft * 12 + inch) * CM_PER_IN);
+  }
+  return { ...f, weight: w(f.weight), targetWeight: w(f.targetWeight), rate: w(f.rate), heightCm, heightFt, heightIn };
+}
 
 function formFromProfile(p: Profile): CalcForm {
   const lb = p.unitPrefs.weight === 'lb';
@@ -177,6 +202,17 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
       setResult(null);
     }
   }, [unitKey, profile]);
+
+  // Metric ⇄ imperial right here (owner feedback): converts what's typed, then saves the preference.
+  const setImperial = (imperial: boolean) => {
+    if (imperial === (lb && inches)) return;
+    const next = imperial ? { weight: 'lb' as const, height: 'in' as const } : { weight: 'kg' as const, height: 'cm' as const };
+    lastUnits.current = `${next.weight}-${next.height}`;
+    setF((s) => convertForm(s, imperial));
+    setErrors({});
+    setResult(null);
+    void updateProfile({ unitPrefs: { ...profile.unitPrefs, ...next } });
+  };
 
   const set = <K extends keyof CalcForm>(k: K, v: CalcForm[K]) => {
     setF((s) => ({ ...s, [k]: v }));
@@ -284,9 +320,37 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
 
   const wl = (kg: number) => fmtNum(lb ? kg / KG_PER_LB : kg, 1);
 
+  // 1-month target suggestion at the default (safe) weekly rate for the chosen goal.
+  const currentKg = toKg(f.weight);
+  const monthSuggestion =
+    currentKg != null && currentKg > 0 && (f.goal === 'lose' || f.goal === 'gain')
+      ? (() => {
+          const { rateKg } = resolveRate(f.goal, currentKg, null);
+          const sign = f.goal === 'lose' ? -1 : 1;
+          return { targetKg: currentKg + sign * rateKg * WEEKS_PER_MONTH, rateKg };
+        })()
+      : null;
+  const useMonthSuggestion = () => {
+    if (!monthSuggestion) return;
+    const conv = (kg: number) => r1(lb ? kg / KG_PER_LB : kg);
+    setF((s) => ({ ...s, targetWeight: conv(monthSuggestion.targetKg), rate: conv(monthSuggestion.rateKg) }));
+    setErrors((e) => ({ ...e, targetWeight: undefined, rate: undefined }));
+    setResult(null);
+  };
+
   return (
     <section className="card stack" aria-label={t('targets.calculator')}>
-      <p className="subtle">{t('targets.estimate')}</p>
+      <div className="row targets-units">
+        <p className="subtle" style={{ flex: 1 }}>{t('targets.estimate')}</p>
+        <div className="segmented segmented-sm" role="radiogroup" aria-label={t('targets.units')}>
+          <button type="button" role="radio" aria-checked={!(lb && inches)} onClick={() => setImperial(false)}>
+            {t('targets.units.metric')}
+          </button>
+          <button type="button" role="radio" aria-checked={lb && inches} onClick={() => setImperial(true)}>
+            {t('targets.units.imperial')}
+          </button>
+        </div>
+      </div>
       <div className="grid-2">
         <div className="field">
           <label className="field-label" htmlFor={ids.sex}>
@@ -301,15 +365,13 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
           </select>
         </div>
 
+        <div className="field">
+          <label className="field-label" htmlFor={ids.dob}>
+            {t('targets.birthDate')}
+          </label>
+          <input id={ids.dob} className="input input-date" type="date" value={f.birthDate} max={todayYmd()} onChange={(e) => set('birthDate', e.target.value)} />
+        </div>
         <NumberField label={t('targets.weight', { unit: wUnit })} value={f.weight} onChange={(v) => set('weight', v)} error={errors.weight} />
-        {inches ? (
-          <>
-            <NumberField label={`${t('targets.height')} — ${t('targets.heightFt')}`} value={f.heightFt} onChange={(v) => set('heightFt', v)} error={errors.heightFt} />
-            <NumberField label={t('targets.heightIn')} value={f.heightIn} onChange={(v) => set('heightIn', v)} />
-          </>
-        ) : (
-          <NumberField label={t('targets.heightCm')} value={f.heightCm} onChange={(v) => set('heightCm', v)} error={errors.heightCm} min={120} max={230} />
-        )}
         <NumberField
           label={t('targets.bodyFat')}
           value={f.bodyFat}
@@ -318,12 +380,16 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
           min={BODY_FAT_RANGE.min}
           max={BODY_FAT_RANGE.max}
         />
-        <div className="field">
-          <label className="field-label" htmlFor={ids.dob}>
-            {t('targets.birthDate')}
-          </label>
-          <input id={ids.dob} className="input" type="date" value={f.birthDate} max={todayYmd()} onChange={(e) => set('birthDate', e.target.value)} />
-        </div>
+        {inches ? (
+          <>
+            <NumberField label={`${t('targets.height')} — ${t('targets.heightFt')}`} value={f.heightFt} onChange={(v) => set('heightFt', v)} error={errors.heightFt} />
+            <NumberField label={t('targets.heightIn')} value={f.heightIn} onChange={(v) => set('heightIn', v)} />
+          </>
+        ) : (
+          <div className="grid-span">
+            <NumberField label={t('targets.heightCm')} value={f.heightCm} onChange={(v) => set('heightCm', v)} error={errors.heightCm} min={120} max={230} />
+          </div>
+        )}
       </div>
       <div className="field">
         <label className="field-label" htmlFor={ids.act}>
@@ -374,6 +440,16 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
             error={errors.rate}
             hint={t('targets.rateHint')}
           />
+          {monthSuggestion && (
+            <div className="grid-span month-suggest">
+              <span className="small">
+                {t('targets.monthSuggest', { weight: wl(monthSuggestion.targetKg), unit: wUnit, rate: wl(monthSuggestion.rateKg) })}
+              </span>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={useMonthSuggestion}>
+                {t('targets.monthSuggestUse')}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {problem && (

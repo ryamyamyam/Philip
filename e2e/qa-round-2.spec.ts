@@ -55,7 +55,7 @@ test.describe('393×793 (iPhone 15 Pro, default text)', () => {
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
     const card = page.getByRole('region', { name: 'What’s left today' });
     await expect(card).toBeInViewport({ ratio: 1 });
-    const photo = page.getByRole('main').locator('label.log-photo');
+    const photo = page.getByRole('main').locator('label.log-photo').first();
     await expect(photo).toBeInViewport({ ratio: 1 });
     const navTop = await page.getByRole('navigation', { name: 'Main' }).evaluate((n) => n.getBoundingClientRect().top);
     const photoBottom = await photo.evaluate((n) => n.getBoundingClientRect().bottom);
@@ -86,7 +86,7 @@ test.describe('393×793 (iPhone 15 Pro, default text)', () => {
       await openAdd(page);
       await page.waitForTimeout(300);
       await page.screenshot({ path: `e2e/screenshots/${width}-s3-log.png` });
-      await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+      await page.getByRole('main').getByRole('button', { name: 'Enter yourself' }).click();
       await tab(page, 'Progress').click();
       await page.getByRole('button', { name: 'Log weight' }).waitFor();
       await page.waitForTimeout(300);

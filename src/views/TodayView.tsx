@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { BackupReminder } from '../components/BackupReminder';
 import { DateNav } from '../components/DateNav';
 import { Icon } from '../components/Icon';
@@ -13,6 +13,7 @@ import { groupByMeal, planForDate, sumMacros, targetForDate } from '../lib/nutri
 import { adherenceScore } from '../lib/adherence';
 import { phaseFor } from '../lib/remaining';
 import { useUI } from '../ui';
+import { AddPanel } from './AddSheet';
 import { MealCard } from './MealsView';
 
 /**
@@ -35,6 +36,7 @@ export function TodayView() {
   );
   const isToday = date === todayYmd();
   const meal = defaultMealFor();
+  const [typing, setTyping] = useState(false);
 
   const swipe = useSwipe(
     () => setDate(addDays(date, 1)),
@@ -74,10 +76,35 @@ export function TodayView() {
               }}
             />
           </label>
-          <button type="button" className="btn btn-secondary log-more" onClick={() => openSheet({ kind: 'add', date, meal })}>
-            <Icon name="plus" /> {t('today.logFood')}
+          <label className="btn btn-secondary log-photo">
+            <Icon name="upload" />
+            <span>{t('add.library')}</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="visually-hidden"
+              onChange={(e) => {
+                onPhoto(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary log-type"
+            aria-expanded={typing}
+            aria-controls="today-type"
+            onClick={() => setTyping((v) => !v)}
+          >
+            <Icon name="pencil" />
+            <span>{t('today.enterYourself')}</span>
           </button>
         </div>
+        {typing && (
+          <section id="today-type" className="card add-inline" aria-label={t('add.title')}>
+            <AddPanel date={date} meal={meal} autoFocus />
+          </section>
+        )}
         {!isToday && <p className="subtle log-date-note">{t('today.loggingPast')}</p>}
 
         <section className="stack-sm" aria-label={t('today.logged')}>

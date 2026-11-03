@@ -152,3 +152,12 @@ describe('food suggestions (Story 3)', () => {
     await expect(suggestFoods({ calories: 1, proteinG: 1, fatG: 1, carbsG: 1 }, { apiKey: null, model: null })).rejects.toMatchObject({ code: 'noKey' });
   });
 });
+
+describe('usesDefaultTemperature (owner feedback, Nov 2026)', () => {
+  it('omits the low temperature for Gemini 3+ and keeps it for older models', async () => {
+    const { usesDefaultTemperature } = await import('./gemini');
+    expect(usesDefaultTemperature('gemini-3.1-flash-lite')).toBe(true);
+    expect(usesDefaultTemperature('gemini-3.5-flash-lite')).toBe(true);
+    expect(usesDefaultTemperature('gemini-2.5-flash')).toBe(false);
+  });
+});

@@ -25,6 +25,7 @@ Base branch for new work: `main`.
 - **Excluded:** `src/db/**`, `src/services/**`, `src/modules/qa-feedback/**`, other `src/lib/*`, `package.json`.
 - **Status:** Ready for owner review on device · **Branch:** `feat/T-009-design-system`
 - **Log:** 2026-11-03 Feature: phase 2 done in a clean Linux clone — tsc clean, 196/196 unit (+9), 59/59 Chromium-mobile e2e (no test changed). WebKit and a real iPhone not run.
+  2026-11-03 Owner feedback round (phase 2b): pixel font for all Today text (incl. Philip's line, date, food names, inputs; pixel type ≥ 15px); pixel icon set app-wide (`Icon.tsx`, same names); Take photo removed — one photo button without `capture` (iOS offers camera or library; supersedes the three-button part of D-017, to be recorded in D-022); calories show "N left" with "eaten/target" beside the meter; goal-hit chip removed (Philip's line says it); adherence score moved to the panel header; "What do I eat?" moved into Philip's dialog bar. e2e updated for the new copy/layout (food-logging, photo, qa-round-2, screens, owner-feedback-nov). tsc clean, 196/196 unit, 59/59 Chromium-mobile e2e. WebKit and a real iPhone not run.
 
 ### T-008 — Voice + emoji copy and docs refresh
 - **Role:** Feature (copy) + PM (docs)

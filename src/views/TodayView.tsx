@@ -4,7 +4,6 @@ import { DateNav } from '../components/DateNav';
 import { ActionButton, ActionFileButton } from '../components/ActionButton';
 import { AmbientScene } from '../components/AmbientScene';
 import { DeckActions } from '../components/ControlDeck';
-import { Icon } from '../components/Icon';
 import { TodayCard } from '../components/TodayCard';
 import { MEALS } from '../db/types';
 import { useEntriesForDate, useProfile, useTargetPlans } from '../hooks/useData';
@@ -62,21 +61,12 @@ export function TodayView() {
             phase={phase}
             adherence={score && score.status === 'scored' ? t('today.adherence', { score: `${score.score}/100` }) : null}
             onSetTargets={() => navigate('targets')}
+            onAsk={target && isToday ? () => openSheet({ kind: 'suggest', date }) : undefined}
           />
         )}
         <DeckActions label={t('deck.log')} className="log-actions">
-          <ActionFileButton
-            variant="primary"
-            size="lg"
-            icon="camera"
-            className="log-photo"
-            accept="image/*"
-            capture="environment"
-            onFile={onPhoto}
-          >
-            {t('add.camera')}
-          </ActionFileButton>
-          <ActionFileButton variant="secondary" size="lg" icon="upload" className="log-photo" accept="image/*" onFile={onPhoto}>
+          {/* One photo button (owner feedback, Nov 3): without `capture`, iOS offers Take Photo or Photo Library. */}
+          <ActionFileButton variant="primary" size="lg" icon="camera" className="log-photo" accept="image/*" onFile={onPhoto}>
             {t('add.library')}
           </ActionFileButton>
           <ActionButton
@@ -110,11 +100,6 @@ export function TodayView() {
           ))}
         </section>
 
-        {target && isToday && (
-          <button type="button" className="btn btn-ghost today-suggest" onClick={() => openSheet({ kind: 'suggest', date })}>
-            <Icon name="sparkle" /> {t('suggest.open')}
-          </button>
-        )}
       </div>
     </div>
   );

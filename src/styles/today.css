@@ -536,6 +536,14 @@
   padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--deck-actions-h) + var(--space-6));
 }
 
+/* Everything on Today speaks pixel (owner feedback, Nov 3): body text, dates, food names, inputs. */
+.view-today {
+  font-family: var(--font-display);
+}
+.view-today .num {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Hero display panel */
 .today-card.pm-hero {
   align-items: stretch;
@@ -557,8 +565,25 @@
   line-height: var(--leading-tight);
   overflow-wrap: anywhere;
 }
+.today-hero-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+}
+.today-hero-meter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
 .today-card .today-sub {
-  align-self: flex-end;
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+  white-space: nowrap;
 }
 
 /* Macro rows: chip · value / meter / eaten */
@@ -598,15 +623,6 @@
 .today-card .today-macro-eaten {
   grid-area: eaten;
   justify-self: end;
-}
-.today-badges {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
-}
-.today-badges .today-hit {
-  margin: 0;
 }
 
 /* Philip speaks: the dialog bar spans the panel's bottom edge */
@@ -713,4 +729,28 @@
 }
 .view-today .btn-primary:active:not(:disabled) {
   transform: translateY(var(--press-depth));
+}
+
+/* "What do I eat?" as the dialog bar's action */
+.today-card .today-hint .pm-dialog-action {
+  margin-top: var(--space-1);
+}
+.swipe-action svg {
+  width: var(--space-6);
+  height: var(--space-6);
+}
+
+/* Pixel type is never smaller than --text-sm (15px): small pixel letters blur (C reads as O). */
+.view-today .date-nav-title .subtle,
+.view-today .today-macro-eaten,
+.view-today .macro-chip,
+.view-today .entry-grams,
+.view-today .saved-meal-uses,
+.saved-meals .saved-meal-chip,
+.view-today .list-meta {
+  font-size: var(--text-sm);
+}
+/* Philip's line takes the full row; the action sits under it, right-aligned. */
+.today-card .today-hint .pm-dialog-text {
+  flex: 1 1 100%;
 }

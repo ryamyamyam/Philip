@@ -178,7 +178,7 @@ test('UX-3: card words and colors follow the phase (cut: left/over; bulk: to go/
   await seed(page, { perMeal: 2, goal: 'lose', kcal: 250 }); // 2,000 of 2,400
   const card = page.getByRole('region', { name: 'What’s left today' });
   const big = card.locator('.today-big');
-  await expect(big).toHaveText('400 kcal left');
+  await expect(big).toHaveText('400 left');
   await expect(big).toHaveClass(/tone-success/);
   await expect(card.getByRole('listitem').filter({ hasText: 'Protein' })).toContainText('30 g to go');
   await expect(card.getByRole('listitem').filter({ hasText: 'Protein' })).toContainText('120 / 150 g');
@@ -190,12 +190,12 @@ test('UX-3: card words and colors follow the phase (cut: left/over; bulk: to go/
 
   await fresh(page);
   await seed(page, { perMeal: 2, goal: 'lose', kcal: 350 }); // 2,800 of 2,400
-  await expect(big).toHaveText('400 kcal over');
+  await expect(big).toHaveText('400 over');
   await expect(big).toHaveClass(/tone-danger/);
 
   await fresh(page);
   await seed(page, { perMeal: 2, goal: 'gain', kcal: 250 });
-  await expect(big).toHaveText('400 kcal to go');
+  await expect(big).toHaveText('400 to go');
   await expect(big).toHaveClass(/tone-warning/);
   await expect(card.getByRole('listitem').filter({ hasText: 'Carbs' })).toContainText('40 g to go');
   await expect(card.getByRole('listitem').filter({ hasText: 'Fat' })).toHaveClass(/tone-success/);
@@ -214,7 +214,9 @@ test('Story 3: daily goal reached shows a calm celebration', async ({ page }) =>
   await fresh(page);
   await seed(page, { perMeal: 2, goal: 'lose', kcal: 290 }); // 2,320 of 2,400; protein 120 of 150 → not yet
   const card = page.getByRole('region', { name: 'What’s left today' });
+  // T-009: no separate chip — Philip's line says it.
   await expect(card.getByText('👑 Goal reached')).toHaveCount(0);
+  await expect(card.getByText('Good boy. Exactly as instructed. 👑')).toHaveCount(0);
   await page.evaluate(async () => {
     const pad = (n: number) => String(n).padStart(2, '0');
     const d = new Date();
@@ -229,7 +231,7 @@ test('Story 3: daily goal reached shows a calm celebration', async ({ page }) =>
     db.close();
   });
   await page.reload(); // raw IndexedDB writes aren't seen by Dexie live queries
-  await expect(card.getByText('👑 Goal reached')).toBeVisible();
+  await expect(card.getByText('👑 Goal reached')).toHaveCount(0);
   await expect(card.getByText('Good boy. Exactly as instructed. 👑')).toBeVisible();
 });
 

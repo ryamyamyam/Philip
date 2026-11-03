@@ -98,5 +98,5 @@ test('targets calculator end to end', async ({ page }) => {
   await page.getByText('Weekly plan, adherence, history').click();
   await expect(page.getByRole('region', { name: 'Target history' }).getByText(/Calculated/)).toBeVisible();
   await tab(page, 'Today').click();
-  await expect(page.getByRole('region', { name: 'What’s left today' }).getByText(/kcal left$/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'What’s left today' }).locator('.today-big')).toHaveText(/^[\d,]+ left$/);
 });

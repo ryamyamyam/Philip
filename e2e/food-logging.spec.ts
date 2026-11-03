@@ -6,12 +6,12 @@ test.beforeEach(async ({ page }) => fresh(page));
 test('manual logging updates the Today card and persists; edit, duplicate, delete + undo from Today', async ({ page }) => {
   await setManualTargets(page, { calories: '2200', protein: '160', fat: '70', carbs: '235' });
   const card = page.getByRole('region', { name: 'What’s left today' });
-  await expect(card.getByText('2,200 kcal left')).toBeVisible();
+  await expect(card.getByText('2,200 left')).toBeVisible();
 
   await addManualFood(page, { name: 'Greek yogurt', grams: '170', calories: '146.5', protein: '17.3', fat: '3.8', carbs: '7.9', meal: 'Breakfast' });
   // Today updates immediately, with a calm confirmation and Undo.
   await expect(page.getByRole('status').filter({ hasText: '147 kcal → Breakfast.' })).toBeVisible();
-  await expect(card.getByText('2,054 kcal left')).toBeVisible();
+  await expect(card.getByText('2,054 left')).toBeVisible();
   await expect(card.getByRole('listitem').filter({ hasText: 'Protein' })).toContainText('143 g to go');
   await expect(card.getByRole('listitem').filter({ hasText: 'Protein' })).toContainText('17 / 160 g');
 
@@ -38,7 +38,7 @@ test('manual logging updates the Today card and persists; edit, duplicate, delet
   await expect(breakfast.getByText('200 kcal')).toBeVisible();
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(breakfast.getByText('400 kcal')).toBeVisible();
-  await expect(card.getByText('1,800 kcal left')).toBeVisible();
+  await expect(card.getByText('1,800 left')).toBeVisible();
   await noHorizontalScroll(page);
 });
 
@@ -146,7 +146,8 @@ test('no My Foods, recents or favorites in the log sheet', async ({ page }) => {
   await addManualFood(page, { name: 'Protein shake', calories: '160', protein: '30', fat: '2', carbs: '6' });
   await openAdd(page);
   const dlg = addPanel(page);
-  await expect(page.getByRole('main').getByText('Take photo')).toBeVisible();
+  // T-009: one photo button (iOS offers camera or library from it).
+  await expect(page.getByRole('main').getByText('Take photo')).toHaveCount(0);
   await expect(page.getByRole('main').getByText('Choose photo')).toBeVisible();
   for (const gone of ['More options', 'My Foods', 'Recent', 'Frequent', 'Favorites', 'Log Protein shake']) {
     await expect(dlg.getByRole('button', { name: gone, exact: true })).toHaveCount(0);

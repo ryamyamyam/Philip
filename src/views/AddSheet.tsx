@@ -110,7 +110,7 @@ export function AddPanel({ date, meal, autoFocus = false }: { date: YMD; meal: M
   );
 }
 
-/** Add food sheet (still used by Meals): photo buttons + the same panel as Today. */
+/** Add food sheet (still used by Meals): one photo button (camera or library on iOS) + the same panel as Today. */
 export function AddSheet({ date, meal }: { date: YMD; meal: Meal }) {
   const { closeSheet, openSheet } = useUI();
   const onPhoto = (file: File | undefined) => {
@@ -122,11 +122,6 @@ export function AddSheet({ date, meal }: { date: YMD; meal: Meal }) {
         <div className="add-actions">
           <label className="add-action">
             <Icon name="camera" />
-            <span className="add-action-title">{t('add.camera')}</span>
-            <input type="file" accept="image/*" capture="environment" className="visually-hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
-          </label>
-          <label className="add-action">
-            <Icon name="upload" />
             <span className="add-action-title">{t('add.library')}</span>
             <input type="file" accept="image/*" className="visually-hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
           </label>

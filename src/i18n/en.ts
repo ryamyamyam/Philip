@@ -470,6 +470,11 @@ export const en = {
 
   // T-009 design system (D-022): short labels only
   'coach.speaker': 'Philip',
+  'today.kcalShort.left': '{kcal} left',
+  'today.kcalShort.over': '{kcal} over',
+  'today.kcalShort.toGo': '{kcal} to go',
+  'today.kcalShort.reached': '{kcal} over',
+  'today.kcalOfShort': '{consumed}/{target}',
   'deck.log': 'Log food',
 } as const;
 

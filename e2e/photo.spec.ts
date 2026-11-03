@@ -21,10 +21,10 @@ const reply = {
 
 test.beforeEach(async ({ page }) => fresh(page));
 
-/** Story 3: "Take photo" sits on Today — one tap from opening the app. */
+/** Story 3: the photo button sits on Today — one tap from opening the app (T-009: one button, no `capture`). */
 async function photoFromToday(page: Page) {
   if ((await tab(page, 'Today').getAttribute('aria-current')) !== 'page') await tab(page, 'Today').click();
-  await page.getByRole('main').locator('input[type=file][capture]').setInputFiles(PHOTO);
+  await page.getByRole('main').locator('label.log-photo input[type=file]').setInputFiles(PHOTO);
 }
 
 test('photo, Gemini, review, edit, confirm save', async ({ page }) => {
@@ -200,7 +200,7 @@ const textReply = (items: { name: string; grams: number; calories: number; p: nu
 test('log sheet: photo buttons, text box, saved meals, manual — no Claude handoff button', async ({ page }) => {
   await openAdd(page);
   const dlg = addPanel(page);
-  await expect(page.getByRole('main').getByText('Take photo')).toBeVisible();
+  await expect(page.getByRole('main').getByText('Take photo')).toHaveCount(0);
   await expect(page.getByRole('main').getByText('Choose photo')).toBeVisible();
   await expect(dlg.getByRole('textbox', { name: 'Describe what you ate' })).toBeVisible();
   await expect(dlg.getByRole('button', { name: 'Type the numbers' })).toBeVisible();
@@ -347,5 +347,5 @@ test('suggestions: without a key, point to Settings; with a key, options fit wha
   await expect(review.getByText('Estimate. Check the portions.')).toBeVisible(); // never saved without review
   await pickMeal(page, 'Snacks');
   await review.getByRole('button', { name: 'Save to Snacks' }).click();
-  await expect(page.getByRole('region', { name: 'What’s left today' }).getByText('1,850 kcal left')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'What’s left today' }).getByText('1,850 left')).toBeVisible();
 });

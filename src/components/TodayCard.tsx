@@ -15,6 +15,13 @@ const KCAL_KEY: Record<Remaining['status'], StringKey> = {
   toGo: 'today.kcal.toGo',
   reached: 'today.kcal.reached',
 };
+/** Big number on the panel: the CALORIES label already names the unit (owner feedback, Nov 3). */
+const KCAL_SHORT: Record<Remaining['status'], StringKey> = {
+  left: 'today.kcalShort.left',
+  over: 'today.kcalShort.over',
+  toGo: 'today.kcalShort.toGo',
+  reached: 'today.kcalShort.reached',
+};
 const KCAL_HINT: Record<Remaining['status'], StringKey> = {
   left: 'today.kcalHint.left',
   over: 'today.kcalHint.over',
@@ -47,12 +54,15 @@ export function TodayCard({
   phase,
   adherence,
   onSetTargets,
+  onAsk,
 }: {
   consumed: Macros;
   target: Macros | null;
   phase: Phase;
   adherence: string | null;
   onSetTargets: () => void;
+  /** "What do I eat?" lives in Philip's dialog bar when given (owner feedback, Nov 3). */
+  onAsk?: () => void;
 }) {
   if (!target) {
     return (
@@ -68,25 +78,32 @@ export function TodayCard({
   const r = remainingAll(phase, consumed, target);
   const hit = dayGoalHit(phase, consumed, target);
   const kcalText = t(KCAL_KEY[r.calories.status], { kcal: fmtKcal(r.calories.amount) });
+  const eatenText = t('today.eatenOf', { consumed: fmtKcal(consumed.calories), target: fmtKcal(target.calories) });
   return (
     <section className="card today-card pm-hero" aria-label={t('today.cardLabel')}>
       <div className="today-hero">
-        <span className="pm-pill">{t('macro.calories')}</span>
+        <div className="today-hero-head">
+          <span className="pm-pill">{t('macro.calories')}</span>
+          {adherence && <span className="pm-pill pm-pill-quiet adherence-pill num">{adherence}</span>}
+        </div>
         <p className={`today-big pm-display tone-${r.calories.tone}`} aria-live="polite">
-          <span className="num">{kcalText}</span>
+          <span className="num">{t(KCAL_SHORT[r.calories.status], { kcal: fmtKcal(r.calories.amount) })}</span>
         </p>
-        <Meter
-          size="hero"
-          label={t('macro.calories')}
-          value={consumed.calories}
-          max={target.calories}
-          mode={modeFor(r.calories)}
-          tone={r.calories.tone}
-          valueText={kcalText}
-        />
-        <p className="today-sub subtle num">
-          {t('today.eatenOf', { consumed: fmtKcal(consumed.calories), target: fmtKcal(target.calories) })}
-        </p>
+        <div className="today-hero-meter">
+          <Meter
+            size="hero"
+            label={t('macro.calories')}
+            value={consumed.calories}
+            max={target.calories}
+            mode={modeFor(r.calories)}
+            tone={r.calories.tone}
+            valueText={kcalText}
+          />
+          <p className="today-sub num">
+            <span aria-hidden="true">{t('today.kcalOfShort', { consumed: fmtKcal(consumed.calories), target: fmtKcal(target.calories) })}</span>
+            <span className="visually-hidden">{eatenText}</span>
+          </p>
+        </div>
       </div>
       <ul className="today-macros" aria-label={t('today.macrosLabel')}>
         {MACROS.map((m) => {
@@ -113,17 +130,11 @@ export function TodayCard({
           );
         })}
       </ul>
-      {(hit || adherence) && (
-        <div className="today-badges">
-          {hit && (
-            <span className="chip chip-success today-hit" role="status">
-              <Icon name="check" /> {t('today.goalHitChip')}
-            </span>
-          )}
-          {adherence && <span className="chip chip-brand adherence-pill num">{adherence}</span>}
-        </div>
-      )}
-      <DialogBar speaker={t('coach.speaker')} className="today-hint">
+      <DialogBar
+        speaker={t('coach.speaker')}
+        className="today-hint"
+        action={onAsk && { label: t('suggest.open'), onClick: onAsk }}
+      >
         {hit ? t('today.goalHit') : t(KCAL_HINT[r.calories.status])}
       </DialogBar>
     </section>

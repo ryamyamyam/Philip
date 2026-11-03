@@ -7,11 +7,9 @@ import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
 import {
   addFoodEntry,
-  addSavedFood,
   deleteFoodEntry,
   duplicateFoodEntry,
   restoreFoodEntry,
-  saveEntryAsFood,
   updateFoodEntry,
 } from '../db/repo';
 import type { Macros, Meal, YMD } from '../db/types';
@@ -43,7 +41,6 @@ export function EntrySheet({ date, meal, entryId }: Props) {
   const [dateValue, setDateValue] = useState<YMD>(date);
   const [values, setValues] = useState<MacroFormValues>(toFormValues({}));
   const [errors, setErrors] = useState<MacroFormErrors>({});
-  const [saveForLater, setSaveForLater] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   // Weight-linked scaling: when the base weight is known, changing grams rescales macros
@@ -91,8 +88,7 @@ export function EntrySheet({ date, meal, entryId }: Props) {
       if (editing && entryId) {
         await updateFoodEntry(entryId, { name: trimmed, meal: mealValue, date: dateValue, ...parsed });
       } else {
-        let savedFoodId: string | null = null;
-        if (saveForLater) savedFoodId = await addSavedFood({ name: trimmed, ...parsed });
+        const savedFoodId: string | null = null;
         await addFoodEntry({
           date: dateValue,
           meal: mealValue,
@@ -122,12 +118,6 @@ export function EntrySheet({ date, meal, entryId }: Props) {
     await duplicateFoodEntry(entryId);
     closeSheet();
     toast(t('today.duplicated'));
-  };
-
-  const saveToFoods = async () => {
-    if (!entryId) return;
-    await saveEntryAsFood(entryId);
-    toast(t('entry.savedToFoods'));
   };
 
   if (editing && entry === null) {
@@ -201,12 +191,6 @@ export function EntrySheet({ date, meal, entryId }: Props) {
             />
           </div>
         )}
-        {!editing && (
-          <label className="checkbox-row">
-            <input type="checkbox" checked={saveForLater} onChange={(e) => setSaveForLater(e.target.checked)} />
-            <span>{t('entry.saveForLater')}</span>
-          </label>
-        )}
         {/* Hidden submit lets the iOS keyboard "Go" key save. */}
         <button type="submit" hidden />
       </form>
@@ -216,11 +200,6 @@ export function EntrySheet({ date, meal, entryId }: Props) {
           <button type="button" className="btn btn-secondary btn-block" onClick={duplicate}>
             <Icon name="copy" /> {t('common.duplicate')}
           </button>
-          {!entry.savedFoodId && (
-            <button type="button" className="btn btn-secondary btn-block" onClick={saveToFoods}>
-              <Icon name="bookmark" /> {t('entry.saveToFoods')}
-            </button>
-          )}
           <button type="button" className="btn btn-danger-ghost btn-block" onClick={() => setConfirmDelete(true)}>
             <Icon name="trash" /> {t('common.delete')}
           </button>

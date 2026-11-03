@@ -4,6 +4,7 @@ export function Confirm({
   title,
   body,
   confirmLabel,
+  cancelLabel = 'Cancel',
   destructive,
   onConfirm,
   onCancel,
@@ -11,6 +12,7 @@ export function Confirm({
   title: string;
   body?: ReactNode;
   confirmLabel: string;
+  cancelLabel?: string;
   destructive?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -35,7 +37,7 @@ export function Confirm({
         {body && <div className="qa-muted">{body}</div>}
         <div className="qa-row qa-end">
           <button ref={cancelRef} type="button" className="qa-btn" onClick={onCancel}>
-            Cancel
+            {cancelLabel}
           </button>
           <button type="button" className={`qa-btn ${destructive ? 'qa-btn-danger' : 'qa-btn-primary'}`} onClick={onConfirm}>
             {confirmLabel}

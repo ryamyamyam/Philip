@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { FoodEntry, MetaRow, Profile, SavedFood, TargetPlan, WeightEntry } from './types';
+import type { FoodEntry, MetaRow, Profile, SavedFood, SavedMeal, TargetPlan, WeightEntry } from './types';
 
 export class PhilipDB extends Dexie {
   profile!: EntityTable<Profile, 'id'>;
@@ -8,6 +8,7 @@ export class PhilipDB extends Dexie {
   savedFoods!: EntityTable<SavedFood, 'id'>;
   meta!: EntityTable<MetaRow, 'key'>;
   weightEntries!: EntityTable<WeightEntry, 'date'>;
+  savedMeals!: EntityTable<SavedMeal, 'id'>;
 
   constructor(name = 'philip') {
     super(name);
@@ -30,6 +31,8 @@ export class PhilipDB extends Dexie {
             if (p.bodyFatPct === undefined) p.bodyFatPct = null;
           });
       });
+    // v3 (Story 3): saved meals — named combinations of foods. Purely additive; no record changes.
+    this.version(3).stores({ savedMeals: 'id, name, lastUsedAt' });
   }
 }
 

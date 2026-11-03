@@ -7,9 +7,9 @@ import { createGeminiProvider, type QaFeedbackConfig } from './modules/qa-feedba
 
 const TAB_NAMES: Record<string, string> = {
   today: 'Today',
-  history: 'History',
-  targets: 'Targets',
+  progress: 'Progress',
   settings: 'Settings',
+  targets: 'Settings › Targets',
 };
 
 export const qaFeedbackConfig: QaFeedbackConfig = {
@@ -28,6 +28,8 @@ export const qaFeedbackConfig: QaFeedbackConfig = {
       return { apiKey: p.geminiKey, model: normalizeModel(p.geminiModel ?? DEFAULT_GEMINI_MODEL) };
     },
   }),
+  // Story 3: no floating button over the nutrition screens. QA opens from Settings → QA & Feedback.
+  floatingButton: false,
   getContext: () => {
     const tab = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0] || 'today';
     const sheet = document.querySelector('.sheet[role="dialog"] h2')?.textContent?.trim();

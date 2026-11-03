@@ -5,7 +5,7 @@ Local-first single-page PWA. No server: everything runs in the browser and is st
 ```
 src/
   main.tsx              boot: open DB, set locale, render, request persistent storage, register SW
-  App.tsx               shell: hash routing (4 tabs: Today · Meals · Progress · Settings), shared selected date, sheet host, toasts
+  App.tsx               shell: hash routing (3 tabs: Today · Progress · Settings, plus the Settings › Targets page), shared selected date, sheet host, toasts
   ui.tsx                UI context (date, openSheet, navigate) + SheetState union
   db/
     types.ts            persisted types (metric units)
@@ -31,7 +31,7 @@ src/
     image.ts            in-browser resize to ≤1024px JPEG
     prompt.ts           shared prompt + JSON shape + Gemini response schema
     parse.ts            JSON extraction + strict validation (used by Gemini and Claude handoff)
-  views/                screens and sheets (Today, Meals, Progress, Settings, Add, Entry, photo/*);
+  views/                screens and sheets (Today, Progress, Settings, TargetsPage, Add (log), Entry (edit), Suggest, photo/*); MealsView is no longer routed;
                         TargetsView.tsx now only supplies the calculator sections reused by Progress
   components/           small shared UI (Sheet, ConfirmDialog, CalorieRing, MacroBars, …)
   i18n/                 en.ts strings + t() helper
@@ -45,14 +45,17 @@ src/
 
 | Tab | Route | Content |
 |---|---|---|
-| Today | `#/today` | Date heading + one card: kcal left / over / to go, plus P/F/C (`lib/remaining.ts`) |
-| Meals | `#/meals` | Four meals for the selected date, 2 foods each then “+N more”; each card’s + opens the add sheet |
-| Progress | `#/progress` | Targets + goal date, weight log & chart, 7-day intake vs target, compact calculator |
-| Settings | `#/settings` | unchanged |
+| Today | `#/today` | First screen. Date heading (‹ › and picker for past days) + one card: kcal eaten/left with a bar, P/F/C eaten / target / left with bars (`lib/remaining.ts`); **Take photo** (primary) and **Log food**; the day's foods grouped by meal (tap to edit, swipe to move/delete); optional “What should I eat?” |
+| Progress | `#/progress` | Weight only: on track / ahead / behind (`lib/weight.ts#weightProgress`), actual-vs-plan chart, weigh-in form, collapsed history with delete + Undo |
+| Settings | `#/settings` | Targets & body stats link, data, Gemini, units, QA & Feedback, danger zone |
+| (page) | `#/targets` | Settings › Targets & body stats: current targets, calculator, manual, weekly plan, adherence, history. Tab bar highlights Settings. |
 
-Old routes redirect with `history.replaceState`: `#/history` → `#/meals`, `#/targets` → `#/progress`. Today and Meals share the selected date; tapping the Today tab always resets it to today.
+Old routes redirect with `history.replaceState`: `#/history` and `#/meals` → `#/today`. Tapping the Today tab always resets the date to today.
 
-## Data model (IndexedDB `philip`, Dexie v2)
+### Logging flow (Story 3)
+Today → Take photo → analyzing (PhotoSheet) → **Review** → Save to {meal}. Log food opens a small sheet: Take photo, Choose photo, a text box, saved meals, Enter it yourself. Every path ends in the Review sheet (meal picker, compact rows: name + grams, nutrition rescales with grams, “Edit nutrition” for direct macro edits, add/remove rows, optional “Also save as a meal”). Saving shows “N kcal logged to {meal}” with Undo. My Foods / recents / favorites and the Claude handoff button were removed from the log sheet (the handoff remains on photo-analysis errors); saved foods stay in the database and backups and still prefill typed text without a key.
+
+## Data model (IndexedDB `philip`, Dexie v3)
 
 | Table | Key | Notes |
 |---|---|---|
@@ -61,9 +64,10 @@ Old routes redirect with `history.replaceState`: `#/history` → `#/meals`, `#/t
 | `foodEntries` | `id` (UUID), index `date` | `source: manual\|photo\|saved`; `estimate` keeps original AI values |
 | `savedFoods` | `id` (UUID) | `useCount`, `lastUsedAt`, `favorite` |
 | `meta` | `key` | `lastBackupAt`, `backupReminderSnoozedAt`, `storagePersisted` |
+| `savedMeals` (v3) | `id` (UUID), indexes `name`, `lastUsedAt` | `{id, name, items: {name, grams, calories, proteinG, fatG, carbsG}[], useCount, lastUsedAt, createdAt, updatedAt}`. Saving with an existing name (case-insensitive) replaces its foods. Logging copies the foods into entries via the Review sheet (source `manual`). |
 | `weightEntries` (v2) | `date` | `{date, weightKg, createdAt, updatedAt}`; one per local date, logging again overwrites. Logging the newest date also updates `profile.weightKg`. |
 
-Migrations: v1 → v2 adds `weightEntries` and sets `profile.bodyFatPct = null`; every v1 record is kept (covered by `src/db/migration.test.ts`).
+Migrations: v1 → v2 adds `weightEntries` and sets `profile.bodyFatPct = null`; v2 → v3 adds the empty `savedMeals` table (no record changes). Every record is kept (covered by `src/db/migration.test.ts`).
 
 Rules:
 - Entry dates are local `YYYY-MM-DD`; a meal at 11:55 PM stays on that day.
@@ -83,12 +87,13 @@ Rules:
     "targetPlans": [ "TargetPlan" ],
     "foodEntries": [ "FoodEntry" ],
     "savedFoods": [ "SavedFood" ],
-    "weightEntries": [ "WeightEntry — optional" ]
+    "weightEntries": [ "WeightEntry — optional" ],
+    "savedMeals": [ "SavedMeal — optional" ]
   }
 }
 ```
 
-`weightEntries` and `profile.bodyFatPct` were added in QA round 2 as **optional** fields without bumping `schemaVersion`: backups made before then import unchanged (empty weight log, `bodyFatPct = null`), and older app builds ignore the new fields.
+`weightEntries` and `profile.bodyFatPct` were added in QA round 2 as **optional** fields without bumping `schemaVersion`: backups made before then import unchanged (empty weight log, `bodyFatPct = null`), and older app builds ignore the new fields. `savedMeals` (Story 3) follows the same rule: optional, `schemaVersion` still 1; merge adds missing ids and the newer `updatedAt` wins.
 
 Import is validated completely before touching the database (types, ranges, dates, enums, schema version, duplicate IDs). Restore runs in one transaction:
 - **Merge**: keep local data, add missing records; on ID conflict the newer `updatedAt`/`lastUsedAt` wins; local profile kept.
@@ -138,8 +143,8 @@ A reusable, self-contained module for capturing observations (bugs, UI/usability
 
 - **Integration:** `<QaFeedback config={qaFeedbackConfig} />` in `App.tsx`, a "QA & Feedback" card in Settings, and `src/qaFeedback.config.ts`. The module imports nothing from Philip; Philip's config passes in the Gemini key (from `profile.geminiKey`) and the current screen.
 - **Storage:** its own IndexedDB database, `qa-feedback` (Dexie v2: observations gain `archivedAt` / `archivedByPromptId`), with tables `projects`, `observations`, `attachments`, `files` (screenshot blobs), `prompts` and `meta`. Philip's `philip` database, its backups and "Delete all data" are untouched. Rolling back = removing the module and deleting that database.
-- **UI:** a slim floating tab on the right edge (the user can hide it) opens a bottom-sheet panel (the app stays visible above it) with Capture, Inbox (search, filters, batch selection, detail) and Prompt (grouping, template or AI-assisted generation, edit, copy, .txt/.md export). The panel and its CSS are lazy-loaded.
-- **Archive:** copying or exporting a prompt archives the observations it included (`archiveForPrompt`), with a “N observations archived” toast + Undo. Archived items leave the default Open filter, appear under “Archived” (struck through, muted), and the detail screen has Unarchive. Archive is separate from status.
+- **UI:** Philip sets `floatingButton: false` (Story 3), so the panel opens from Settings › QA & Feedback (“Write feedback”, “Feedback list”). It opens a bottom-sheet panel (the app stays visible above it) with Capture, Inbox (search, filters, batch selection, detail) and Prompt (grouping, template or AI-assisted generation, edit, copy, .txt/.md export). The panel and its CSS are lazy-loaded.
+- **Archive (Story 3):** right after a prompt is generated (template or AI), the builder asks “Do you want to archive the suggestions included in this prompt?” Archive → `archiveForPrompt` + “N observations archived” toast with Undo, and they leave the selection; Keep active → nothing changes. Copy/export no longer archive. The inbox has Active | Archived; Archived is grouped by the day archived (struck through, muted), and the detail screen has Unarchive. Archive is separate from status.
 - **AI:** optional; the Gemini provider is used only after an explicit tap ("Structure with AI", "Analyze with AI", "Improve with AI"). Responses are validated, AI fields are marked, and AI never overwrites what the user typed.
 
 ## Offline / PWA

@@ -52,3 +52,24 @@ describe('UX-3 remaining / over / to go', () => {
     expect(r.carbsG.amount).toBe(180);
   });
 });
+
+describe('Story 3: progress bars and daily goal', () => {
+  it('clamps progress to 0–1 and handles a zero target', async () => {
+    const { progressFraction } = await import('./remaining');
+    expect(progressFraction(1200, 2400)).toBe(0.5);
+    expect(progressFraction(3000, 2400)).toBe(1);
+    expect(progressFraction(-5, 2400)).toBe(0);
+    expect(progressFraction(10, 0)).toBe(0);
+  });
+  it('goal hit: protein reached and calories in the zone for the phase', async () => {
+    const { dayGoalHit } = await import('./remaining');
+    const near = { calories: 2300, proteinG: 150, fatG: 60, carbsG: 250 };
+    expect(dayGoalHit('cut', near, target)).toBe(true);
+    expect(dayGoalHit('cut', { ...near, proteinG: 120 }, target)).toBe(false);
+    expect(dayGoalHit('cut', { ...near, calories: 2500 }, target)).toBe(false); // over
+    expect(dayGoalHit('cut', { ...near, calories: 1800 }, target)).toBe(false); // too far under
+    expect(dayGoalHit('bulk', near, target)).toBe(false);
+    expect(dayGoalHit('bulk', { ...near, calories: 2450 }, target)).toBe(true);
+    expect(dayGoalHit('maintain', near, { ...target, calories: 0 })).toBe(false);
+  });
+});

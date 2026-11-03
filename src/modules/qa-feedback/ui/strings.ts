@@ -33,8 +33,22 @@ export const ARCHIVE_TEXT = {
   undo: 'Undo',
   unarchive: 'Unarchive',
   unarchived: 'Unarchived',
-  detailNote: (when: string) => `Archived ${when}, after its prompt was copied or exported.`,
+  detailNote: (when: string) => `Archived ${when}, after a prompt was generated from it.`,
+  askTitle: 'Do you want to archive the suggestions included in this prompt?',
+  askBody: (n: number) =>
+    `${n} suggestion${n === 1 ? '' : 's'} will leave the active list. You can still review ${n === 1 ? 'it' : 'them'} under Archived, by date.`,
+  askConfirm: 'Archive',
+  askCancel: 'Keep active',
+  active: 'Active',
+  archivedOn: (day: string) => `Archived ${day}`,
+  emptyActive: 'Nothing waiting. Capture a bug or idea first.',
+  emptyArchived: 'Nothing archived yet.',
 } as const;
+
+/** Day heading for grouping archived observations. */
+export function fmtDay(ms: number): string {
+  return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(ms));
+}
 
 export const PRIORITY_LABELS: Record<Priority, string> = {
   low: 'Low',

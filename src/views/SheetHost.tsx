@@ -7,7 +7,9 @@ import { MyFoodsSheet } from './MyFoodsSheet';
 
 const PhotoSheet = lazy(() => import('./photo/PhotoSheet'));
 const HandoffSheet = lazy(() => import('./photo/HandoffSheet'));
-const ReviewSheet = lazy(() => import('./photo/ReviewSheet'));
+// Eager: manual and saved-meal logging go through the review sheet and must work offline on first tap.
+import ReviewSheet from './photo/ReviewSheet';
+const SuggestSheet = lazy(() => import('./SuggestSheet'));
 
 export function SheetHost({ sheet }: { sheet: SheetState }) {
   switch (sheet.kind) {
@@ -31,11 +33,13 @@ export function SheetHost({ sheet }: { sheet: SheetState }) {
           <HandoffSheet date={sheet.date} meal={sheet.meal} file={sheet.file} />
         </Suspense>
       );
-    case 'review':
+    case 'suggest':
       return (
         <Suspense fallback={null}>
-          <ReviewSheet {...sheet} />
+          <SuggestSheet date={sheet.date} />
         </Suspense>
       );
+    case 'review':
+      return <ReviewSheet {...sheet} />;
   }
 }

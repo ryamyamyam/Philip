@@ -6,7 +6,7 @@
  * (not the URL, so it doesn't end up in logs or history).
  */
 import { extractJson, validateAnalysis } from './parse';
-import { FOOD_ANALYSIS_INSTRUCTIONS, foodTextPrompt, GEMINI_RESPONSE_SCHEMA } from './prompt';
+import { FOOD_ANALYSIS_INSTRUCTIONS, foodSuggestPrompt, foodTextPrompt, GEMINI_RESPONSE_SCHEMA, type SuggestTargets } from './prompt';
 import { AnalysisError, type AnalysisResult } from './types';
 
 export const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
@@ -147,6 +147,12 @@ export function analyzeWithGemini(req: GeminiRequest): Promise<AnalysisResult> {
 export function analyzeTextWithGemini(req: GeminiTextRequest): Promise<AnalysisResult> {
   const { text, ...rest } = req;
   return generate({ ...rest, parts: [{ text: foodTextPrompt(text) }] });
+}
+
+/** Suggestions (Story 3): same request, schema, error mapping and validator; each item is one option. */
+export function suggestWithGemini(req: Omit<GeminiTextRequest, 'text'> & { left: SuggestTargets }): Promise<AnalysisResult> {
+  const { left, ...rest } = req;
+  return generate({ ...rest, parts: [{ text: foodSuggestPrompt(left) }] });
 }
 
 async function generate(req: GenerateRequest): Promise<AnalysisResult> {

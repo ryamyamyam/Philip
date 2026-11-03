@@ -12,38 +12,46 @@ export async function fresh(page: Page) {
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 }
 
-/** Opens the add sheet from a meal card on the Meals tab (UX-5/UX-6). Keeps the selected date. */
-export async function openAdd(page: Page, meal = 'Breakfast') {
-  if ((await tab(page, 'Meals').getAttribute('aria-current')) !== 'page') await tab(page, 'Meals').click();
-  await page.getByRole('main').getByRole('button', { name: `Add to ${meal}` }).click();
+/** Opens the Log food sheet from Today (Story 3). Keeps the selected date. */
+export async function openAdd(page: Page) {
+  if ((await tab(page, 'Today').getAttribute('aria-current')) !== 'page') await tab(page, 'Today').click();
+  await page.getByRole('main').getByRole('button', { name: 'Log food' }).click();
   await expect(page.getByRole('dialog', { name: 'Add food' })).toBeVisible();
 }
 
-/** "More options" → the hidden manual form / My Foods / recents / Claude handoff (OBS-BC1840). */
-export async function openMoreOptions(page: Page) {
-  await page.getByRole('dialog', { name: 'Add food' }).getByRole('button', { name: 'More options' }).click();
+/** Picks a meal in the review sheet's meal picker. */
+export async function pickMeal(page: Page, meal: string) {
+  await page.getByRole('dialog').getByRole('radio', { name: meal }).click();
 }
 
+/** Log food → Enter it yourself → fill the one row → Save to {meal}. */
 export async function addManualFood(
   page: Page,
   f: { name: string; grams?: string; calories: string; protein: string; fat: string; carbs: string; meal?: string },
 ) {
-  await openAdd(page, f.meal ?? 'Breakfast');
-  await openMoreOptions(page);
-  await page.getByRole('button', { name: /Manual/ }).click();
-  const dlg = page.getByRole('dialog', { name: 'Add food' });
+  await openAdd(page);
+  await page.getByRole('dialog', { name: 'Add food' }).getByRole('button', { name: 'Enter it yourself' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Review' });
+  await pickMeal(page, f.meal ?? 'Breakfast');
   await dlg.getByLabel('Food name').fill(f.name);
   if (f.grams) await dlg.getByLabel('Weight (g)').fill(f.grams);
   await dlg.getByLabel('Calories (kcal)').fill(f.calories);
   await dlg.getByLabel('Protein (g)').fill(f.protein);
   await dlg.getByLabel('Fat (g)').fill(f.fat);
   await dlg.getByLabel('Carbs (g)').fill(f.carbs);
-  await dlg.getByRole('button', { name: 'Save', exact: true }).click();
+  await dlg.getByRole('button', { name: `Save to ${f.meal ?? 'Breakfast'}` }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
+/** Settings › Targets & body stats (Story 3). */
+export async function openTargets(page: Page) {
+  await tab(page, 'Settings').click();
+  await page.getByRole('button', { name: 'Change targets or body stats' }).click();
+  await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
+}
+
 export async function setManualTargets(page: Page, m: { calories: string; protein: string; fat: string; carbs: string }) {
-  await tab(page, 'Progress').click();
+  await openTargets(page);
   await page.getByRole('tab', { name: 'Manual' }).click();
   const form = page.getByRole('region', { name: 'Manual' });
   await form.getByLabel('Calories (kcal)').fill(m.calories);
@@ -59,11 +67,10 @@ export async function noHorizontalScroll(page: Page) {
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
-/** UX-2: the Today tab always resets the date to today. Then back to Meals (same shared date). */
-export async function backToTodayOnMeals(page: Page) {
+/** UX-2: the Today tab always resets the date to today. */
+export async function backToToday(page: Page) {
   await tab(page, 'Today').click();
-  await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
-  await tab(page, 'Meals').click();
+  await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible();
 }
 
 /** Marks a backup as just made, so the backup pop-up (OBS-3AD584) stays out of the way of seeded screens. */
@@ -89,6 +96,6 @@ export function pageToday(page: Page): Promise<string> {
   });
 }
 
-export function tab(page: Page, name: 'Today' | 'Meals' | 'Progress' | 'Settings') {
+export function tab(page: Page, name: 'Today' | 'Progress' | 'Settings') {
   return page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true });
 }

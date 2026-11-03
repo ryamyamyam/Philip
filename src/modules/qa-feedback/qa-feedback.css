@@ -883,3 +883,40 @@
   align-items: center;
   justify-content: space-between;
 }
+
+/* Active | Archived switch and archive-day headings (Story 3) */
+.qa-segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--qa-surface-2, rgba(0, 0, 0, 0.05));
+}
+.qa-segmented button {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+}
+.qa-segmented button[aria-selected='true'] {
+  background: var(--qa-surface, #fff);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.qa-day {
+  list-style: none;
+  border-top: 1px solid var(--qa-border);
+  padding: 12px 4px 4px;
+}
+.qa-day:first-child {
+  border-top: none;
+}
+.qa-day-heading {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  opacity: 0.75;
+}

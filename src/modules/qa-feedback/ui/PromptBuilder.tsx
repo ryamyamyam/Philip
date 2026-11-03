@@ -41,6 +41,8 @@ export function PromptBuilder() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [exportMsg, setExportMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pendingReplace, setPendingReplace] = useState<null | (() => void)>(null);
+  /** Prompt id whose observations we're asking to archive (asked right after each successful generation). */
+  const [askArchive, setAskArchive] = useState<{ promptId: string; count: number } | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
   const editorId = useId();
 
@@ -85,14 +87,31 @@ export function PromptBuilder() {
     const mode = useBatch ? 'ai' : 'template';
     const metadata = useBatch ? { provider: useBatch.provider, model: useBatch.model, recovered: useBatch.recovered.length } : null;
     const ids = observations.map((o) => o.id);
+    let promptId: string;
     if (prompt && prompt.observationIds.join(',') === ids.join(',')) {
       await regeneratePrompt(db, projectId, prompt.id, { content: text, mode, metadata });
       setPrompt((await getPrompt(db, projectId, prompt.id)) ?? null);
+      promptId = prompt.id;
     } else {
-      setPrompt(await savePrompt(db, projectId, { observationIds: ids, content: text, mode, metadata }));
+      const saved = await savePrompt(db, projectId, { observationIds: ids, content: text, mode, metadata });
+      setPrompt(saved);
+      promptId = saved.id;
     }
     setContent(text);
     setExportMsg(null);
+    // Story 3: ask right after generation; never archive just because something was selected or opened.
+    const active = observations.filter((o) => !o.archivedAt).length;
+    if (active > 0) setAskArchive({ promptId, count: active });
+  };
+
+  const archiveIncluded = async (promptId: string) => {
+    setAskArchive(null);
+    const archived = await archiveForPrompt(db, projectId, promptId);
+    // Archived items leave the active list, so they leave the selection too. The prompt stays open.
+    setSelection(selection.filter((id) => !archived.includes(id)));
+    if (archived.length) {
+      notify(ARCHIVE_TEXT.archived(archived.length), { label: ARCHIVE_TEXT.undo, run: () => unarchiveObservations(db, projectId, archived) });
+    }
   };
 
   /** Never overwrites the user's edits without asking. */
@@ -131,11 +150,7 @@ export function PromptBuilder() {
       window.clearTimeout(saveTimer.current);
       await updatePromptContent(db, projectId, prompt.id, content);
       await markPromptExported(db, projectId, prompt.id, format);
-      // OBS-CDDDEC: a copied/exported prompt archives the observations it included.
-      const archived = await archiveForPrompt(db, projectId, prompt.id);
-      if (archived.length) {
-        notify(ARCHIVE_TEXT.archived(archived.length), { label: ARCHIVE_TEXT.undo, run: () => unarchiveObservations(db, projectId, archived) });
-      }
+      // Story 3: archiving is decided right after generation (askArchive), not on copy/export.
     };
     if (format === 'clipboard') {
       const ok = await copyText(content);
@@ -321,6 +336,17 @@ export function PromptBuilder() {
             ))}
           </ul>
         </details>
+      )}
+
+      {askArchive && (
+        <Confirm
+          title={ARCHIVE_TEXT.askTitle}
+          body={ARCHIVE_TEXT.askBody(askArchive.count)}
+          confirmLabel={ARCHIVE_TEXT.askConfirm}
+          cancelLabel={ARCHIVE_TEXT.askCancel}
+          onCancel={() => setAskArchive(null)}
+          onConfirm={() => void archiveIncluded(askArchive.promptId)}
+        />
       )}
 
       {pendingReplace && (

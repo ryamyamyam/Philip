@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, markBackedUp, openAdd, pageToday, tab } from './helpers';
+import { fresh, markBackedUp, openAdd, openTargets, pageToday, tab } from './helpers';
 
 /**
- * QA round 2: navigation, UX-1 heading, UX-2 Today reset, UX-3 Today card, UX-4 no scrolling,
- * F047E3 Progress (weight log), screenshots at 375 and 393.
+ * QA round 2 + Story 3: navigation (Today · Progress · Settings), UX-1 heading, UX-2 Today reset,
+ * Today card, the primary log action above the fold, Progress (weight vs plan), screenshots.
  */
 
 /** Seeds a target plan and up to `perMeal` foods per meal for today (directly into IndexedDB). */
@@ -49,69 +49,71 @@ const fits = (page: Page) => page.evaluate(() => ({ scroll: document.scrollingEl
 test.describe('393×793 (iPhone 15 Pro, default text)', () => {
   test.use({ viewport: { width: 393, height: 793 } });
 
-  test('UX-4: Today and Meals fit without scrolling (2 foods per meal, tab bar visible)', async ({ page }) => {
+  test('Story 3: card and the photo action are above the fold, with the tab bar visible', async ({ page }) => {
     await fresh(page);
     await seed(page, { perMeal: 2 });
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
-    await expect(page.getByRole('region', { name: 'What’s left today' })).toBeVisible();
-    let m = await fits(page);
-    expect(m.scroll).toBeLessThanOrEqual(m.inner);
-    await tab(page, 'Meals').click();
-    await expect(page.getByRole('main').getByRole('region', { name: 'Snacks' }).getByRole('listitem')).toHaveCount(2);
-    m = await fits(page);
-    expect(m.scroll).toBeLessThanOrEqual(m.inner);
+    const card = page.getByRole('region', { name: 'What’s left today' });
+    await expect(card).toBeInViewport({ ratio: 1 });
+    const photo = page.getByRole('main').locator('label.log-photo');
+    await expect(photo).toBeInViewport({ ratio: 1 });
+    const navTop = await page.getByRole('navigation', { name: 'Main' }).evaluate((n) => n.getBoundingClientRect().top);
+    const photoBottom = await photo.evaluate((n) => n.getBoundingClientRect().bottom);
+    expect(photoBottom).toBeLessThanOrEqual(navTop);
+    // Every logged food is listed by meal below (no "+N more").
+    await expect(page.getByRole('main').getByRole('region', { name: 'Snacks' }).locator('.list-item-swipe')).toHaveCount(2);
   });
 
-  test('UX-4: more than 2 foods → first 2 then "+N more", which expands in place', async ({ page }) => {
+  test('Story 3: Today lists all foods of a meal and opens edit on tap', async ({ page }) => {
     await fresh(page);
     await seed(page, { perMeal: 4 });
-    await tab(page, 'Meals').click();
     const lunch = page.getByRole('main').getByRole('region', { name: 'Lunch' });
-    await expect(lunch.locator('.list-item-swipe')).toHaveCount(2);
-    await lunch.getByRole('button', { name: '+2 more' }).click();
     await expect(lunch.locator('.list-item-swipe')).toHaveCount(4);
     await expect(lunch.getByRole('button', { name: /more$/ })).toHaveCount(0);
-    // Tap-to-edit still works on an expanded row.
+    await expect(lunch.getByRole('button', { name: /Add to/ })).toHaveCount(0);
     await lunch.locator('.list-item-swipe').nth(3).getByRole('button').first().click();
     await expect(page.getByRole('dialog', { name: 'Edit food' })).toBeVisible();
   });
 
   for (const width of [375, 393]) {
-    test(`screenshots @${width}: Today, Meals, Progress, add flow`, async ({ page }) => {
+    test(`screenshots @${width}: Today, log sheet, Progress`, async ({ page }) => {
       await page.setViewportSize({ width, height: width === 393 ? 793 : 812 });
       await fresh(page);
       await seed(page, { perMeal: 2, goal: 'lose' });
       await page.waitForTimeout(300);
-      await page.screenshot({ path: `e2e/screenshots/${width}-r2-today.png` });
-      await tab(page, 'Meals').click();
+      await page.screenshot({ path: `e2e/screenshots/${width}-s3-today.png` });
+      await page.screenshot({ path: `e2e/screenshots/${width}-s3-today-full.png`, fullPage: true });
+      await openAdd(page);
       await page.waitForTimeout(300);
-      await page.screenshot({ path: `e2e/screenshots/${width}-r2-meals.png` });
-      await openAdd(page, 'Lunch');
-      await page.waitForTimeout(300);
-      await page.screenshot({ path: `e2e/screenshots/${width}-r2-add.png` });
-      await page.getByRole('dialog', { name: 'Add food' }).getByRole('button', { name: 'More options' }).click();
-      await page.waitForTimeout(300);
-      await page.screenshot({ path: `e2e/screenshots/${width}-r2-add-more.png` });
+      await page.screenshot({ path: `e2e/screenshots/${width}-s3-log.png` });
       await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
       await tab(page, 'Progress').click();
       await page.getByRole('button', { name: 'Log weight' }).waitFor();
       await page.waitForTimeout(300);
-      await page.screenshot({ path: `e2e/screenshots/${width}-r2-progress.png`, fullPage: true });
+      await page.screenshot({ path: `e2e/screenshots/${width}-s3-progress.png`, fullPage: true });
     });
   }
 });
 
-test('Nav: four tabs, no + button; old #/history and #/targets redirect', async ({ page }) => {
+test('Nav (Story 3): Today · Progress · Settings; opens on Today; #/meals and #/history go to Today; #/targets is under Settings', async ({ page }) => {
   await fresh(page);
   const nav = page.getByRole('navigation', { name: 'Main' });
-  await expect(nav.getByRole('button')).toHaveText(['Today', 'Meals', 'Progress', 'Settings']);
-  await expect(page.getByRole('button', { name: 'Add food' })).toHaveCount(0);
-  await page.goto('./#/history');
-  await expect(tab(page, 'Meals')).toHaveAttribute('aria-current', 'page');
-  expect(page.url()).toMatch(/#\/meals$/);
+  await expect(nav.getByRole('button')).toHaveText(['Today', 'Progress', 'Settings']);
+  await expect(tab(page, 'Today')).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible();
+  for (const old of ['meals', 'history']) {
+    await page.goto(`./#/${old}`);
+    await expect(tab(page, 'Today')).toHaveAttribute('aria-current', 'page');
+    expect(page.url()).toMatch(/#\/today$/);
+  }
   await page.goto('./#/targets');
-  await expect(tab(page, 'Progress')).toHaveAttribute('aria-current', 'page');
-  expect(page.url()).toMatch(/#\/progress$/);
+  await expect(tab(page, 'Settings')).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to Settings' }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+  // No floating QA button over the nutrition screens.
+  await tab(page, 'Today').click();
+  await expect(page.getByRole('button', { name: 'Capture feedback' })).toHaveCount(0);
 });
 
 test('UX-1: heading text on today, ±1 and +2 days (never repeats the date)', async ({ page }) => {
@@ -136,7 +138,7 @@ test('UX-1: heading text on today, ±1 and +2 days (never repeats the date)', as
     await expect(head.getByRole('heading')).toHaveText(title);
     await expect(head.locator('.subtle')).toHaveText(sub);
   };
-  for (const where of ['Today', 'Meals'] as const) {
+  for (const where of ['Today'] as const) {
     await tab(page, where).click();
     await check('Today', expected.today);
     await page.getByRole('button', { name: 'Next day' }).click();
@@ -154,7 +156,7 @@ test('UX-1: heading text on today, ±1 and +2 days (never repeats the date)', as
   }
 });
 
-test('UX-2: tapping Today resets the date — from Meals and when already on Today; no "Back to today" button', async ({ page }) => {
+test('UX-2: tapping Today resets the date — from another tab and when already on Today; no "Back to today" button', async ({ page }) => {
   await fresh(page);
   await page.getByRole('button', { name: 'Next day' }).click();
   await page.getByRole('button', { name: 'Next day' }).click();
@@ -163,13 +165,11 @@ test('UX-2: tapping Today resets the date — from Meals and when already on Tod
   // Already on Today: tapping it again resets.
   await tab(page, 'Today').click();
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
-  // Meals shares the date; going back via the Today tab resets it too.
-  await tab(page, 'Meals').click();
+  // From another tab, the Today tab resets too.
   await page.getByRole('button', { name: 'Previous day' }).click();
   await expect(page.getByRole('heading', { name: 'Yesterday' })).toBeVisible();
+  await tab(page, 'Progress').click();
   await tab(page, 'Today').click();
-  await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
-  await tab(page, 'Meals').click();
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
 });
 
@@ -181,6 +181,9 @@ test('UX-3: card words and colors follow the phase (cut: left/over; bulk: to go/
   await expect(big).toHaveText('400 kcal left');
   await expect(big).toHaveClass(/tone-success/);
   await expect(card.getByRole('listitem').filter({ hasText: 'Protein' })).toContainText('30 g to go');
+  await expect(card.getByRole('listitem').filter({ hasText: 'Protein' })).toContainText('120 / 150 g');
+  await expect(card.getByText('2,000 of 2,400 kcal eaten')).toBeVisible();
+  await expect(card.getByRole('progressbar', { name: 'Calories' })).toHaveAttribute('aria-valuenow', '83');
   await expect(card.getByRole('listitem').filter({ hasText: 'Protein' })).toHaveClass(/tone-warning/);
   await expect(card.getByRole('listitem').filter({ hasText: 'Fat' })).toContainText('2 g over');
   await expect(card.getByRole('listitem').filter({ hasText: 'Fat' })).toHaveClass(/tone-danger/);
@@ -198,13 +201,36 @@ test('UX-3: card words and colors follow the phase (cut: left/over; bulk: to go/
   await expect(card.getByRole('listitem').filter({ hasText: 'Fat' })).toHaveClass(/tone-success/);
 });
 
-test('UX-3: no target → one call to action that goes to Progress', async ({ page }) => {
+test('UX-3: no target → one call to action that opens Settings › Targets', async ({ page }) => {
   await fresh(page);
   const card = page.getByRole('region', { name: 'What’s left today' });
   await expect(card.getByText('No target. No plan.')).toBeVisible();
   await card.getByRole('button', { name: 'Set targets. Now.' }).click();
-  await expect(tab(page, 'Progress')).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible();
+  await expect(tab(page, 'Settings')).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
+});
+
+test('Story 3: daily goal reached shows a calm celebration', async ({ page }) => {
+  await fresh(page);
+  await seed(page, { perMeal: 2, goal: 'lose', kcal: 290 }); // 2,320 of 2,400; protein 120 of 150 → not yet
+  const card = page.getByRole('region', { name: 'What’s left today' });
+  await expect(card.getByText('Daily goal reached')).toHaveCount(0);
+  await page.evaluate(async () => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const d = new Date();
+    const ymd = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const db: IDBDatabase = await new Promise((res) => {
+      const r = indexedDB.open('philip');
+      r.onsuccess = () => res(r.result);
+    });
+    const tx = db.transaction('foodEntries', 'readwrite');
+    tx.objectStore('foodEntries').put({ id: 'whey', date: ymd, meal: 'snack', name: 'Whey', grams: 30, calories: 40, proteinG: 30, fatG: 0, carbsG: 0, source: 'manual', savedFoodId: null, estimate: null, createdAt: 99, updatedAt: 99 });
+    await new Promise((r) => (tx.oncomplete = r));
+    db.close();
+  });
+  await page.reload(); // raw IndexedDB writes aren't seen by Dexie live queries
+  await expect(card.getByText('Daily goal reached')).toBeVisible();
+  await expect(card.getByText('Goal hit. That’s how it’s done.')).toBeVisible();
 });
 
 test('F047E3: log weight (kg), one entry per date (overwrites), chart shows actual vs plan', async ({ page }) => {
@@ -214,7 +240,7 @@ test('F047E3: log weight (kg), one entry per date (overwrites), chart shows actu
   await tab(page, 'Settings').click();
   await page.getByRole('radiogroup', { name: 'Body weight' }).getByRole('radio', { name: 'kg' }).click();
   await page.getByRole('radiogroup', { name: 'Height' }).getByRole('radio', { name: 'cm' }).click();
-  await tab(page, 'Progress').click();
+  await openTargets(page);
   const calc = page.getByRole('region', { name: 'Calculator' });
   await calc.getByLabel('Sex').selectOption('male');
   await calc.getByLabel('Date of birth').fill('1998-03-01');
@@ -230,12 +256,15 @@ test('F047E3: log weight (kg), one entry per date (overwrites), chart shows actu
   await expect(page.getByText(/Goal weight around/)).toBeVisible();
   await page.getByRole('button', { name: 'Use these targets' }).click();
 
+  await tab(page, 'Progress').click();
   const weight = page.getByRole('region', { name: 'Weight log' });
-  await weight.getByLabel('Weight (kg)').fill('79.6');
-  await weight.getByRole('button', { name: 'Log weight' }).click();
+  const form = page.getByRole('region', { name: 'Log weight' });
+  await expect(weight.getByText('Log your weight a few times this week')).toBeVisible();
+  await form.getByLabel('Weight (kg)').fill('79.6');
+  await form.getByRole('button', { name: 'Log weight' }).click();
   await expect(page.getByText('79.6 kg logged.')).toBeVisible();
-  await weight.getByLabel('Weight (kg)').fill('79.4');
-  await weight.getByRole('button', { name: 'Log weight' }).click();
+  await form.getByLabel('Weight (kg)').fill('79.4');
+  await form.getByRole('button', { name: 'Log weight' }).click();
   const today = await pageToday(page);
   const count = await page.evaluate(
     (date) =>
@@ -250,11 +279,22 @@ test('F047E3: log weight (kg), one entry per date (overwrites), chart shows actu
     today,
   );
   expect(count).toEqual([1, 79.4]);
-  await expect(weight.getByText(/Last: 79\.4 kg/)).toBeVisible();
+  // Plan starts at 80 kg today → 79.4 is 0.6 kg below: ahead on a cut.
+  await expect(weight.getByRole('status')).toHaveText('Ahead of plan by 0.6 kg.');
+  await expect(weight.getByText('Plan for today: 80 kg')).toBeVisible();
   const chart = weight.getByRole('img', { name: /Weight in kg, actual against plan/ });
   await expect(chart).toBeVisible();
   await expect(chart.locator('circle')).toHaveCount(1);
   await expect(chart.locator('path[stroke-dasharray]')).toHaveCount(1);
   await expect(weight.getByText(/On plan: 76 kg around/)).toBeVisible();
-  await weight.screenshot({ path: 'e2e/screenshots/375-r2-weight.png' });
+  await weight.screenshot({ path: 'e2e/screenshots/375-s3-weight.png' });
+
+  // History: delete a weigh-in, then undo.
+  await page.getByText('Weight history').click();
+  await page.getByRole('button', { name: /Delete weigh-in from/ }).click();
+  await expect(chart.locator('circle')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(chart.locator('circle')).toHaveCount(1);
+  // Configuration stays out of Progress.
+  await expect(page.getByRole('region', { name: 'Calculator' })).toHaveCount(0);
 });

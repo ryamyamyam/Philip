@@ -70,3 +70,28 @@ describe('text-box rows (OBS-BC1840 / OBS-A2F21F)', () => {
     expect(out[0]!.estimate).toMatchObject({ provider: 'gemini', model: 'text-model', analyzedAt: 5 });
   });
 });
+
+describe('saved meals and manual rows (Story 3)', () => {
+  it('saved-meal rows rescale per food when grams change and save as manual entries', async () => {
+    const { fromSavedMeal, toMealItems, manualItem, isUntouchedBlank } = await import('./reviewModel');
+    const rows = fromSavedMeal([
+      { name: 'Oatmeal', grams: 50, calories: 190, proteinG: 6.5, fatG: 3.5, carbsG: 33 },
+      { name: 'Milk', grams: 200, calories: 128, proteinG: 6.6, fatG: 7, carbsG: 9.6 },
+      { name: 'Eggs', grams: 100, calories: 143, proteinG: 12.6, fatG: 9.5, carbsG: 0.7 },
+    ]);
+    expect(reviewTotals(rows).calories).toBe(461);
+    const edited = rows.map((r) => (r.name === 'Oatmeal' ? editItem(r, 'grams', '75') : r));
+    expect(edited[0]).toMatchObject({ calories: '285', proteinG: '9.8', carbsG: '49.5' });
+    expect(reviewTotals(edited)).toMatchObject({ calories: 556, proteinG: 29 });
+    const out = toEntries(edited, { date: '2026-11-02', meal: 'breakfast', provider: 'gemini', model: '', analyzedAt: 1 });
+    expect(out.every((e) => e.source === 'manual' && e.estimate === null)).toBe(true);
+    expect(out[0]).toMatchObject({ name: 'Oatmeal', grams: 75, calories: 285 });
+    expect(toMealItems(edited)[0]).toEqual({ name: 'Oatmeal', grams: 75, calories: 285, proteinG: 9.8, fatG: 5.3, carbsG: 49.5 });
+    // A hand-added row in a photo review is the user's own entry, not an AI estimate.
+    const m = manualItem();
+    expect(isUntouchedBlank(m)).toBe(true);
+    const filled = (['name', 'calories', 'proteinG', 'fatG', 'carbsG'] as const).reduce((it, k) => editItem(it, k, k === 'name' ? 'Banana' : '1'), m);
+    const [e] = toEntries([filled], { date: '2026-11-02', meal: 'snack', provider: 'gemini', model: 'g', analyzedAt: 1 });
+    expect(e).toMatchObject({ source: 'manual', estimate: null, name: 'Banana' });
+  });
+});

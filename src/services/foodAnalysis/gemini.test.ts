@@ -131,3 +131,24 @@ describe('gemini text path (OBS-A2F21F)', () => {
     await expect(analyzeTextWithGemini({ apiKey: ' ', model: 'm', text: 'x' })).rejects.toMatchObject({ code: 'noKey' });
   });
 });
+
+describe('food suggestions (Story 3)', () => {
+  it('sends what is left (rounded, never negative) and validates the reply like an analysis', async () => {
+    const { suggestWithGemini } = await import('./gemini');
+    const f = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => ok(candidate(JSON.stringify(goodJson))));
+    const r = await suggestWithGemini({ apiKey: 'k', model: 'gemini-x', left: { calories: 612.4, proteinG: 41.6, fatG: -3, carbsG: 70 }, fetchImpl: f as unknown as typeof fetch });
+    expect(r.items[0]).toMatchObject({ name: 'Banana', calories: 105 });
+    const text: string = JSON.parse(String(f.mock.calls[0]![1]!.body)).contents[0].parts[0].text;
+    expect(text).toContain('Calories: 612 kcal');
+    expect(text).toContain('Protein: 42 g');
+    expect(text).toContain('Fat: 0 g');
+    expect(text).not.toContain('inline_data');
+  });
+  it('rejects malformed suggestions and requires a key', async () => {
+    const { suggestWithGemini } = await import('./gemini');
+    const { suggestFoods } = await import('./index');
+    const f = vi.fn(async () => ok(candidate(JSON.stringify({ items: [{ name: 'x' }] }))));
+    await expect(suggestWithGemini({ apiKey: 'k', model: 'm', left: { calories: 1, proteinG: 1, fatG: 1, carbsG: 1 }, fetchImpl: f as unknown as typeof fetch })).rejects.toBeInstanceOf(AnalysisError);
+    await expect(suggestFoods({ calories: 1, proteinG: 1, fatG: 1, carbsG: 1 }, { apiKey: null, model: null })).rejects.toMatchObject({ code: 'noKey' });
+  });
+});

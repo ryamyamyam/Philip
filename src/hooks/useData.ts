@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import type { FoodEntry, Profile, SavedFood, TargetPlan, WeightEntry, YMD } from '../db/types';
-import { getMeta, META } from '../db/repo';
+import type { FoodEntry, Profile, SavedFood, SavedMeal, TargetPlan, WeightEntry, YMD } from '../db/types';
+import { allSavedMeals, getMeta, META } from '../db/repo';
 
 export function useEntriesForDate(date: YMD): FoodEntry[] | undefined {
   return useLiveQuery(() => db.foodEntries.where('date').equals(date).toArray(), [date]);
@@ -42,4 +42,8 @@ export function useRecentEntries(limit = 300): FoodEntry[] | undefined {
 
 export function useWeightEntries(): WeightEntry[] | undefined {
   return useLiveQuery(() => db.weightEntries.orderBy('date').toArray(), []);
+}
+
+export function useSavedMeals(): SavedMeal[] | undefined {
+  return useLiveQuery(() => allSavedMeals(), []);
 }

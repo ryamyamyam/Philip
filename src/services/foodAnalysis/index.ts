@@ -2,7 +2,8 @@
  * Food analysis entry point. The rest of the app depends only on this module and ./types,
  * so swapping Gemini for another provider means changing this file and adding an adapter.
  */
-import { analyzeTextWithGemini, analyzeWithGemini, normalizeModel } from './gemini';
+import { analyzeTextWithGemini, analyzeWithGemini, normalizeModel, suggestWithGemini } from './gemini';
+import type { SuggestTargets } from './prompt';
 import { prepareImage } from './image';
 import { AnalysisError, type AnalysisResult } from './types';
 
@@ -41,5 +42,13 @@ export async function analyzeFoodText(text: string, opts: AnalyzeOptions): Promi
   if (!opts.apiKey) throw new AnalysisError('noKey');
   const model = normalizeModel(opts.model);
   const result = await analyzeTextWithGemini({ apiKey: opts.apiKey, model, text, signal: opts.signal });
+  return { ...result, model };
+}
+
+/** "What should I eat?" — options for what is left today. Results must still go through review before saving. */
+export async function suggestFoods(left: SuggestTargets, opts: AnalyzeOptions): Promise<AnalysisResult & { model: string }> {
+  if (!opts.apiKey) throw new AnalysisError('noKey');
+  const model = normalizeModel(opts.model);
+  const result = await suggestWithGemini({ apiKey: opts.apiKey, model, left, signal: opts.signal });
   return { ...result, model };
 }

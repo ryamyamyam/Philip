@@ -17,7 +17,7 @@ import { useUI } from '../ui';
 /** Foods shown per meal before "+N more" (UX-4: the tab fits on one iPhone screen). */
 export const MEAL_PREVIEW = 2;
 
-/** Meals tab: the four meals for the selected date. Logging starts from each card's + (UX-5/UX-6). */
+/** Former Meals tab (round 2). Not routed since Story 3 — Today lists the day's meals. Kept, not deleted. */
 export default function MealsView() {
   const { date, setDate, openSheet } = useUI();
   const entries = useEntriesForDate(date);
@@ -38,7 +38,11 @@ export default function MealsView() {
   );
 }
 
-function MealCard({ meal, entries, onAdd }: { meal: Meal; entries: FoodEntry[]; onAdd: () => void }) {
+/**
+ * One meal's foods with swipe Move/Delete and tap-to-edit. Used by Today (Story 3: no "+" and no
+ * "+N more" there — `onAdd` and `collapse` are optional) and by the old Meals tab.
+ */
+export function MealCard({ meal, entries, onAdd, collapse = true }: { meal: Meal; entries: FoodEntry[]; onAdd?: () => void; collapse?: boolean }) {
   const { openSheet } = useUI();
   const toast = useToast();
   const [moving, setMoving] = useState<FoodEntry | null>(null);
@@ -56,16 +60,18 @@ function MealCard({ meal, entries, onAdd }: { meal: Meal; entries: FoodEntry[]; 
 
   const total = sumMacros(entries).calories;
   const mealName = t(`meal.${meal}`);
-  const hidden = expanded ? 0 : Math.max(0, entries.length - MEAL_PREVIEW);
+  const hidden = expanded || !collapse ? 0 : Math.max(0, entries.length - MEAL_PREVIEW);
   const shown = hidden ? entries.slice(0, MEAL_PREVIEW) : entries;
   return (
     <section className="card card-flush meal-card" aria-label={mealName}>
       <div className="meal-head">
         <h2>{mealName}</h2>
         {entries.length > 0 && <span className="meal-total num">{t('today.mealTotal', { kcal: fmtKcal(total) })}</span>}
-        <button type="button" className="icon-btn" onClick={onAdd} aria-label={t('today.addToMeal', { meal: mealName })}>
-          <Icon name="plus" />
-        </button>
+        {onAdd && (
+          <button type="button" className="icon-btn" onClick={onAdd} aria-label={t('today.addToMeal', { meal: mealName })}>
+            <Icon name="plus" />
+          </button>
+        )}
       </div>
       {entries.length === 0 ? (
         <p className="meal-empty">{t('today.emptyMeal')}</p>

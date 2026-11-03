@@ -64,3 +64,33 @@ describe('F047E3 expected weight curve', () => {
     expect(latestWeight([], undefined)).toBeNull();
   });
 });
+
+describe('Story 3: am I on track?', () => {
+  const w = (date: string, weightKg: number) => ({ date, weightKg, createdAt: 1, updatedAt: 1 });
+  const bulk = { startDate: '2026-10-01', startKg: 70, rateKg: 0.25, targetKg: 75 };
+
+  it('weekly trend needs 2+ weigh-ins over 7+ days in the last 4 weeks', async () => {
+    const { weeklyTrend } = await import('./weight');
+    expect(weeklyTrend([w('2026-10-30', 70)], '2026-11-02')).toBeNull();
+    expect(weeklyTrend([w('2026-10-30', 70), w('2026-11-02', 70.2)], '2026-11-02')).toBeNull();
+    expect(weeklyTrend([w('2026-10-19', 70), w('2026-10-26', 70.25), w('2026-11-02', 70.5)], '2026-11-02')).toBe(0.25);
+    // Old entries outside the window are ignored.
+    expect(weeklyTrend([w('2026-08-01', 60), w('2026-10-19', 70), w('2026-11-02', 70.5)], '2026-11-02')).toBe(0.25);
+  });
+
+  it('on track / ahead / behind relative to the plan direction; reached; needs data', async () => {
+    const { weightProgress } = await import('./weight');
+    // Plan on 2026-10-29 (4 weeks in): 71.0 kg.
+    expect(weightProgress([w('2026-10-29', 71.2)], bulk, '2026-10-29')).toMatchObject({ status: 'onTrack', diffKg: 0.2, expectedTodayKg: 71 });
+    expect(weightProgress([w('2026-10-29', 72)], bulk, '2026-10-29').status).toBe('ahead');
+    expect(weightProgress([w('2026-10-29', 70)], bulk, '2026-10-29').status).toBe('behind');
+    expect(weightProgress([w('2026-10-29', 75.1)], bulk, '2026-10-29').status).toBe('reached');
+    const cut = { startDate: '2026-10-01', startKg: 80, rateKg: -0.5, targetKg: 76 };
+    expect(weightProgress([w('2026-10-29', 77.3)], cut, '2026-10-29').status).toBe('ahead'); // plan 78
+    expect(weightProgress([w('2026-10-29', 79)], cut, '2026-10-29').status).toBe('behind');
+    const maintain = { startDate: '2026-10-01', startKg: 70, rateKg: 0, targetKg: null };
+    expect(weightProgress([w('2026-10-29', 71)], maintain, '2026-10-29').status).toBe('off');
+    expect(weightProgress([], bulk, '2026-10-29').status).toBe('needMore');
+    expect(weightProgress([w('2026-10-29', 71)], null, '2026-10-29')).toMatchObject({ status: 'needMore', expectedTodayKg: null });
+  });
+});

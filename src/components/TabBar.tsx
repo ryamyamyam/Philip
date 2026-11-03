@@ -1,10 +1,10 @@
-import { TABS, type Tab } from '../hooks/useRoute';
+import { TAB_FOR, TABS, type Tab } from '../hooks/useRoute';
 import { t } from '../i18n';
 import { Icon, type IconName } from './Icon';
 
-const ICONS: Record<Tab, IconName> = { today: 'today', meals: 'meals', progress: 'progress', settings: 'settings' };
+const ICONS: Partial<Record<Tab, IconName>> = { today: 'today', progress: 'progress', settings: 'settings' };
 
-/** Four tabs: Today · Meals · Progress · Settings. Logging lives on the Meals cards (UX-5/UX-6). */
+/** Three tabs: Today · Progress · Settings (Story 3). Logging starts on Today. */
 export function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   return (
     <nav className="tabbar" aria-label={t('nav.main')}>
@@ -14,10 +14,10 @@ export function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
             key={id}
             type="button"
             className="tab"
-            aria-current={tab === id ? 'page' : undefined}
+            aria-current={TAB_FOR[tab] === id ? 'page' : undefined}
             onClick={() => onTab(id)}
           >
-            <Icon name={ICONS[id]} />
+            <Icon name={ICONS[id] ?? 'today'} />
             <span>{t(`nav.${id}`)}</span>
           </button>
         ))}

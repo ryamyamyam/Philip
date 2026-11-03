@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
 
-export type Tab = 'today' | 'meals' | 'progress' | 'settings';
-export const TABS: readonly Tab[] = ['today', 'meals', 'progress', 'settings'];
+/** Routes: the three tabs plus `targets`, a sub-page of Settings (Story 3). */
+export type Tab = 'today' | 'progress' | 'settings' | 'targets';
+/** Tabs shown in the tab bar (Story 3: Today · Progress · Settings). */
+export const TABS: readonly Tab[] = ['today', 'progress', 'settings'];
+const ROUTES: readonly Tab[] = [...TABS, 'targets'];
+/** Which tab is highlighted for a route. */
+export const TAB_FOR: Readonly<Record<Tab, Tab>> = { today: 'today', progress: 'progress', settings: 'settings', targets: 'settings' };
 
-/** Old routes from before QA round 2 (History → Meals, Targets → Progress). */
-export const ROUTE_REDIRECTS: Readonly<Record<string, Tab>> = { history: 'meals', targets: 'progress' };
+/** Old routes: History (pre round 2) and Meals (round 2) are now part of Today. */
+export const ROUTE_REDIRECTS: Readonly<Record<string, Tab>> = { history: 'today', meals: 'today' };
 
 /** Resolves a location hash to a tab, following the old-route redirects. Pure; exported for tests. */
 export function resolveHash(hash: string): { tab: Tab; redirected: boolean } {
   const h = hash.replace(/^#\/?/, '').split(/[/?]/)[0] ?? '';
-  if ((TABS as readonly string[]).includes(h)) return { tab: h as Tab, redirected: false };
+  if ((ROUTES as readonly string[]).includes(h)) return { tab: h as Tab, redirected: false };
   const to = ROUTE_REDIRECTS[h];
   if (to) return { tab: to, redirected: true };
   return { tab: 'today', redirected: false };

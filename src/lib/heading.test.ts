@@ -18,13 +18,13 @@ describe('UX-1 date heading never repeats itself', () => {
 });
 
 describe('navigation routes', () => {
-  it('maps the four tabs and redirects the old History/Targets routes', () => {
+  it('maps the three tabs + Targets page and redirects the old History/Meals routes', () => {
     expect(resolveHash('#/today')).toEqual({ tab: 'today', redirected: false });
-    expect(resolveHash('#/meals')).toEqual({ tab: 'meals', redirected: false });
+    expect(resolveHash('#/meals')).toEqual({ tab: 'today', redirected: true });
     expect(resolveHash('#/progress')).toEqual({ tab: 'progress', redirected: false });
     expect(resolveHash('#/settings')).toEqual({ tab: 'settings', redirected: false });
-    expect(resolveHash('#/history')).toEqual({ tab: 'meals', redirected: true });
-    expect(resolveHash('#/targets')).toEqual({ tab: 'progress', redirected: true });
+    expect(resolveHash('#/history')).toEqual({ tab: 'today', redirected: true });
+    expect(resolveHash('#/targets')).toEqual({ tab: 'targets', redirected: false });
     expect(resolveHash('')).toEqual({ tab: 'today', redirected: false });
     expect(resolveHash('#/nope')).toEqual({ tab: 'today', redirected: false });
   });

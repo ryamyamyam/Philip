@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { db } from '../db/db';
 import { META, setMeta, updateProfile } from '../db/repo';
-import { useLastBackupAt, useMeta, useProfile } from '../hooks/useData';
+import { useLastBackupAt, useMeta, useProfile, useTargetPlans } from '../hooks/useData';
 import { t } from '../i18n';
 import {
   BackupError,
@@ -16,7 +16,10 @@ import {
   type ParsedBackup,
   type RestoreMode,
 } from '../lib/backup';
-import { fmtDateTime } from '../lib/format';
+import { fmtDateTime, fmtG, fmtKcal } from '../lib/format';
+import { todayYmd } from '../lib/date';
+import { planForDate } from '../lib/nutrition';
+import { useUI } from '../ui';
 import { isStandalone, type PersistState } from '../lib/pwa';
 import { AnalysisError } from '../services/foodAnalysis';
 import { openQaFeedback } from '../modules/qa-feedback';
@@ -29,6 +32,7 @@ export default function SettingsView() {
         <h1>{t('settings.title')}</h1>
       </header>
       <div className="stack">
+        <TargetsLink />
         <DataSection />
         <GeminiSection />
         <UnitsSection />
@@ -38,6 +42,27 @@ export default function SettingsView() {
         <p className="subtle">{t('settings.version', { version: __APP_VERSION__ })}</p>
       </div>
     </div>
+  );
+}
+
+/* ---------------- Targets (Story 3: moved here from Progress) ---------------- */
+
+function TargetsLink() {
+  const { navigate } = useUI();
+  const plans = useTargetPlans();
+  const current = plans ? planForDate(plans, todayYmd()) : null;
+  return (
+    <section className="card stack-sm" aria-labelledby="targets-h">
+      <h2 id="targets-h">{t('targets.pageTitle')}</h2>
+      <p className="subtle num">
+        {current
+          ? t('settings.targetsSummary', { kcal: fmtKcal(current.calories), p: fmtG(current.proteinG), f: fmtG(current.fatG), c: fmtG(current.carbsG) })
+          : t('targets.none')}
+      </p>
+      <button type="button" className="btn btn-secondary btn-block" onClick={() => navigate('targets')}>
+        {t('settings.targetsOpen')}
+      </button>
+    </section>
   );
 }
 

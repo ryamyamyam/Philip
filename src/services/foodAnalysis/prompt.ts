@@ -112,3 +112,36 @@ export const GEMINI_RESPONSE_SCHEMA = {
   required: ['items', 'total', 'uncertainties'],
   propertyOrdering: ['items', 'total', 'uncertainties'],
 } as const;
+
+/**
+ * "What should I eat?" (Story 3). Same JSON shape as an analysis — each item is one option — so
+ * the reply goes through the same validator. Numbers come from the app, never from free text.
+ */
+export interface SuggestTargets {
+  calories: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+}
+
+export function foodSuggestPrompt(left: SuggestTargets): string {
+  const r = (n: number) => Math.max(0, Math.round(n));
+  return `You are a practical sports nutritionist. Suggest 3 different, simple, common foods or small meals the user could eat next to get closer to today's targets.
+
+What is left for today (negative or zero means already reached; do not push past calorie limits):
+- Calories: ${r(left.calories)} kcal
+- Protein: ${r(left.proteinG)} g
+- Fat: ${r(left.fatG)} g
+- Carbohydrates: ${r(left.carbsG)} g
+
+Rules:
+1. Each item is ONE option (not parts of one meal). Prefer options that close the protein gap first, then fit the remaining calories.
+2. Give a concrete amount in grams in "grams", and the nutrition for exactly that amount using standard food composition values (e.g. USDA FoodData Central). Calories should be close to 4 × protein + 4 × carbs + 9 × fat.
+3. "name" is the food (no amount). "description" is one short sentence: the amount in household terms and how it fits what is left.
+4. Never exceed the remaining calories. If almost nothing is left, suggest small, high-protein, low-calorie options.
+5. No supplements, no extreme or restrictive diets, no medical claims.
+6. Set "confidence" to "high" for well-known foods, otherwise "medium".
+7. Use metric units. Numbers must be plain numbers. "total" must equal the sum of the items. "uncertainties" may be empty.
+- Respond with JSON only, matching this shape exactly, with no markdown and no extra commentary:
+${FOOD_JSON_SHAPE}`;
+}

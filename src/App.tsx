@@ -5,8 +5,6 @@ import { useRoute, type Tab } from './hooks/useRoute';
 import { todayYmd } from './lib/date';
 import { UICtx, type SheetState, type UI } from './ui';
 import { TodayView } from './views/TodayView';
-// Eager, like Today: logging must work offline on first tap (no lazy chunk fetch).
-import MealsView from './views/MealsView';
 import { SheetHost } from './views/SheetHost';
 import { OfflineBanner } from './components/OfflineBanner';
 import { QaFeedback } from './modules/qa-feedback';
@@ -14,6 +12,7 @@ import { qaFeedbackConfig } from './qaFeedback.config';
 
 const ProgressView = lazy(() => import('./views/ProgressView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
+const TargetsPage = lazy(() => import('./views/TargetsPage'));
 
 export function App() {
   const [tab, navigate] = useRoute();
@@ -56,10 +55,10 @@ export function App() {
           <OfflineBanner />
           <main>
             {tab === 'today' && <TodayView />}
-            {tab === 'meals' && <MealsView />}
             <Suspense fallback={null}>
               {tab === 'progress' && <ProgressView />}
               {tab === 'settings' && <SettingsView />}
+              {tab === 'targets' && <TargetsPage />}
             </Suspense>
           </main>
           <TabBar tab={tab} onTab={onTab} />

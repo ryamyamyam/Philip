@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, openAdd, openMoreOptions, tab } from './helpers';
+import { fresh, noHorizontalScroll, openAdd, openTargets, tab } from './helpers';
 
 /** Seeds realistic data straight into IndexedDB (same schema Dexie uses). */
 async function seed(page: Page) {
@@ -61,18 +61,17 @@ for (const width of widths) {
       };
       await expect(page.getByRole('region', { name: 'What’s left today' })).toBeVisible();
       await shot('today');
-      await tab(page, 'Meals').click();
-      await shot('meals');
       await tab(page, 'Progress').click();
-      await expect(page.getByRole('heading', { name: 'Last 7 days' })).toBeVisible();
-      await page.getByRole('button', { name: 'Calculate' }).waitFor();
+      await page.getByRole('button', { name: 'Log weight' }).waitFor();
       await shot('progress');
       await tab(page, 'Settings').click();
       await shot('settings');
-      await openAdd(page, 'Lunch');
+      await openTargets(page);
+      await page.getByRole('button', { name: 'Calculate' }).waitFor();
+      await shot('targets');
+      await openAdd(page);
       await shot('add');
-      await openMoreOptions(page);
-      await page.getByRole('button', { name: /Manual/ }).click();
+      await page.getByRole('button', { name: 'Enter it yourself' }).click();
       await shot('entry');
     });
   }
@@ -80,7 +79,7 @@ for (const width of widths) {
 
 test('targets calculator end to end', async ({ page }) => {
   await fresh(page);
-  await tab(page, 'Progress').click();
+  await openTargets(page);
   const calc = page.getByRole('region', { name: 'Calculator' });
   await calc.getByLabel('Sex').selectOption('male');
   await calc.getByLabel('Date of birth').fill('1996-05-10');

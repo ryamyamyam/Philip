@@ -447,3 +447,90 @@
   flex-wrap: nowrap;
   overflow: hidden;
 }
+
+/* ---------- Story 3: Today dashboard ---------- */
+.today-track {
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-track);
+  overflow: hidden;
+  margin: var(--space-1) 0;
+}
+.today-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.today-fill-p {
+  background: var(--color-protein);
+}
+.today-fill-f {
+  background: var(--color-fat);
+}
+.today-fill-c {
+  background: var(--color-carbs);
+}
+.tone-bg-success {
+  background: var(--color-success);
+}
+.tone-bg-danger {
+  background: var(--color-danger);
+}
+.tone-bg-warning {
+  background: var(--color-warning);
+}
+.today-card > .today-track {
+  height: 10px;
+  margin-top: var(--space-2);
+}
+.today-macro .today-track {
+  height: 6px;
+}
+.today-macro-eaten {
+  font-size: var(--text-xs);
+}
+.today-hit {
+  align-self: center;
+  margin-top: var(--space-2);
+}
+.today-hit svg {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.12em;
+}
+
+/* Primary logging action: photo first, everything else one tap away. */
+.log-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.log-actions .btn {
+  min-height: 56px;
+  font-size: var(--text-md);
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
+}
+.log-photo {
+  cursor: pointer;
+}
+.log-photo:focus-within {
+  outline: 3px solid var(--color-action);
+  outline-offset: 2px;
+}
+.log-date-note {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-sm);
+}
+.today-empty {
+  text-align: center;
+  margin: var(--space-2) 0;
+}
+.today-suggest {
+  align-self: center;
+}
+.today-card .today-macro-value {
+  font-size: var(--text-sm);
+}

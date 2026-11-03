@@ -60,3 +60,23 @@ export function remainingAll(phase: Phase, consumed: Macros, target: Macros): Re
     carbsG: remainingFor('carbsG', phase, consumed.carbsG, target.carbsG),
   };
 }
+
+/** Share of a target eaten, clamped to 0–1, for progress bars. */
+export function progressFraction(consumed: number, target: number): number {
+  if (!(target > 0)) return 0;
+  return Math.max(0, Math.min(1, consumed / target));
+}
+
+/**
+ * "Daily goal hit" (Story 3: celebrate reaching the day's goal, calmly).
+ * Protein reached, and calories in the goal zone for the phase:
+ *  - cut / maintain: at least 90% of the target and not over it;
+ *  - bulk: target reached.
+ */
+export function dayGoalHit(phase: Phase, consumed: Macros, target: Macros): boolean {
+  if (!(target.calories > 0)) return false;
+  const r = remainingAll(phase, consumed, target);
+  if (r.proteinG.status !== 'reached') return false;
+  if (phase === 'bulk') return r.calories.status === 'reached';
+  return r.calories.status === 'left' && consumed.calories >= target.calories * 0.9;
+}

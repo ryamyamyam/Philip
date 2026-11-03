@@ -8,7 +8,22 @@ export type SheetState =
   | { kind: 'entry'; date: YMD; meal: Meal; entryId?: string }
   | { kind: 'photo'; date: YMD; meal: Meal; file: File }
   | { kind: 'handoff'; date: YMD; meal: Meal; file: File | null }
-  | { kind: 'review'; date: YMD; meal: Meal; items: ReviewItem[]; provider: 'gemini' | 'claude-handoff'; model: string; notes: string[]; analyzedAt: number; notice?: string | null }
+  | {
+      kind: 'review';
+      date: YMD;
+      meal: Meal;
+      items: ReviewItem[];
+      provider: 'gemini' | 'claude-handoff';
+      model: string;
+      notes: string[];
+      analyzedAt: number;
+      notice?: string | null;
+      /** Set when logging a saved meal (Story 3): usage is bumped on save. */
+      savedMealId?: string | null;
+      /** Sheet title override (e.g. the saved meal's name). */
+      title?: string | null;
+    }
+  | { kind: 'suggest'; date: YMD }
   | { kind: 'savedFood'; id: string }
   | { kind: 'myFoods'; date: YMD; meal: Meal };
 

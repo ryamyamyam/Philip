@@ -2,7 +2,7 @@
 
 Capture bugs, UI issues, usability problems, optimizations and feature requests while using an app, then turn a selection of them into one Claude Code implementation prompt.
 
-**Capture → save → organize → select → generate prompt → review/edit → copy or export**
+**Capture → save → organize → select → generate prompt → archive? (asked) → review/edit → copy or export**
 
 Everything runs in the browser. Data lives in its own IndexedDB database (`qa-feedback`). AI is optional: without it you can still capture, attach, search, filter, select and generate template-based prompts.
 

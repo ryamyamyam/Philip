@@ -6,7 +6,7 @@ import { getProfile } from '../../db/repo';
 import { t } from '../../i18n';
 import { AnalysisError, analyzeFoodPhoto, type AnalysisErrorCode } from '../../services/foodAnalysis';
 import { useUI } from '../../ui';
-import { fromAnalysis } from './reviewModel';
+import { fromAnalysis, manualItem } from './reviewModel';
 
 type State = { status: 'analyzing' } | { status: 'error'; code: AnalysisErrorCode; retryAfter: number | null; model: string };
 
@@ -82,7 +82,10 @@ export default function PhotoSheet({ date, meal, file }: { date: YMD; meal: Meal
               <button type="button" className="btn btn-secondary btn-block" onClick={() => openSheet({ kind: 'handoff', date, meal, file })}>
                 <Icon name="sparkle" /> {t('photo.useClaude')}
               </button>
-              <button type="button" className="btn btn-secondary btn-block" onClick={() => openSheet({ kind: 'entry', date, meal })}>
+              <button type="button" className="btn btn-secondary btn-block" onClick={() =>
+                  openSheet({ kind: 'review', date, meal, items: [manualItem()], provider: 'gemini', model: '', notes: [], analyzedAt: Date.now() })
+                }
+              >
                 <Icon name="pencil" /> {t('photo.useManual')}
               </button>
             </div>

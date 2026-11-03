@@ -1,28 +1,56 @@
 import { useId, useMemo, useState } from 'react';
-import { CalorieChart } from '../components/CalorieChart';
+import { Icon } from '../components/Icon';
 import { NumberField } from '../components/NumberField';
 import { useToast } from '../components/Toast';
 import { WeightChart } from '../components/WeightChart';
-import { logWeight } from '../db/repo';
-import { useEntriesInRange, useProfile, useTargetPlans, useWeightEntries } from '../hooks/useData';
-import { t } from '../i18n';
+import { deleteWeight, logWeight, restoreWeight } from '../db/repo';
+import type { WeightEntry } from '../db/types';
+import { useProfile, useTargetPlans, useWeightEntries } from '../hooks/useData';
+import { t, type StringKey } from '../i18n';
 import { addDays, isValidYmd, todayYmd } from '../lib/date';
-import { fmtDate, fmtG, fmtKcal, fmtNum } from '../lib/format';
-import { averages, summarizeDays } from '../lib/history';
+import { fmtDate, fmtNum } from '../lib/format';
 import { KG_PER_LB, validateNumber, type FieldError } from '../lib/numbers';
-import { planForDate } from '../lib/nutrition';
-import { goalDate, latestWeight, weightPlanLine, WEIGHT_LOG_RANGE } from '../lib/weight';
-import { CurrentCard, TargetsSections } from './TargetsView';
+import { goalDate, weightPlanLine, weightProgress, WEIGHT_LOG_RANGE, type WeightStatus } from '../lib/weight';
+import { useUI } from '../ui';
+
+const STATUS_KEY: Record<WeightStatus, StringKey> = {
+  onTrack: 'progress.status.onTrack',
+  ahead: 'progress.status.ahead',
+  behind: 'progress.status.behind',
+  off: 'progress.status.off',
+  reached: 'progress.status.reached',
+  needMore: 'progress.status.needMore',
+};
+const STATUS_TONE: Record<WeightStatus, string> = {
+  onTrack: 'tone-success',
+  reached: 'tone-success',
+  ahead: 'tone-warning',
+  behind: 'tone-warning',
+  off: 'tone-warning',
+  needMore: '',
+};
 
 /**
- * Progress tab (OBS-F047E3): suggested targets + goal date, weight log against the expected line,
- * 7-day intake vs target, then the (compact) body-stats calculator from the old Targets tab.
+ * Progress (Story 3): one question — am I changing weight at the rate I planned?
+ * Status line, actual-vs-plan chart, the weigh-in form and a collapsed history.
+ * Targets and the calculator live in Settings › Targets & body stats.
  */
 export default function ProgressView() {
   const plans = useTargetPlans();
   const profile = useProfile();
+  const entries = useWeightEntries();
+  const { navigate } = useUI();
   const today = todayYmd();
-  const current = plans ? planForDate(plans, today) : null;
+  const lb = profile?.unitPrefs.weight === 'lb';
+  const unit = lb ? 'lb' : 'kg';
+  const toUnit = (kg: number) => (lb ? kg / KG_PER_LB : kg);
+  const fmtW = (kg: number) => fmtNum(toUnit(kg), 1);
+
+  const line = useMemo(() => (profile && plans ? weightPlanLine(plans, profile, today) : null), [plans, profile, today]);
+  const progress = useMemo(() => (entries ? weightProgress(entries, line, today) : null), [entries, line, today]);
+  const reach = line ? goalDate(line) : null;
+
+  if (!profile || !plans || !entries || !progress) return <div className="view" />;
 
   return (
     <div className="view">
@@ -30,32 +58,47 @@ export default function ProgressView() {
         <h1>{t('progress.title')}</h1>
       </header>
       <div className="stack">
-        <CurrentCard plan={current} />
-        {profile && plans && <WeightCard plans={plans} />}
-        <WeekIntake />
-        <h2 className="section-title">{t('progress.bodyStats')}</h2>
-        <TargetsSections showCurrent={false} compact />
+        <section className="card stack-sm" aria-labelledby="weight-h">
+          <h2 id="weight-h">{t('progress.weight')}</h2>
+          <p className={`progress-status ${STATUS_TONE[progress.status]}`} role="status">
+            <strong>{t(STATUS_KEY[progress.status], { value: fmtNum(Math.abs(toUnit(progress.diffKg ?? 0)), 1), unit })}</strong>
+          </p>
+          {line && progress.actualRateKg != null && (
+            <p className="subtle num">
+              {t('progress.rate', { actual: signed(toUnit(progress.actualRateKg)), plan: signed(toUnit(line.rateKg)), unit })}
+            </p>
+          )}
+          {(entries.length > 0 || line) && <WeightChart entries={entries} line={line} today={today} toUnit={toUnit} unit={unit} />}
+          {line && progress.expectedTodayKg != null && <p className="subtle num">{t('progress.expectedToday', { value: fmtW(progress.expectedTodayKg), unit })}</p>}
+          {line && reach && line.targetKg != null && <p className="subtle num">{t('progress.reach', { value: fmtW(line.targetKg), unit, date: fmtDate(reach) })}</p>}
+          {!line && (
+            <>
+              <p className="subtle">{t('progress.noLine')}</p>
+              <button type="button" className="btn btn-secondary btn-block" onClick={() => navigate('targets')}>
+                <Icon name="progress" /> {t('progress.setUp')}
+              </button>
+            </>
+          )}
+        </section>
+        <WeighIn lb={lb} unit={unit} />
+        {entries.length > 0 && <WeightHistory entries={entries} fmtW={fmtW} unit={unit} />}
       </div>
     </div>
   );
 }
 
-function WeightCard({ plans }: { plans: NonNullable<ReturnType<typeof useTargetPlans>> }) {
-  const profile = useProfile();
-  const entries = useWeightEntries();
+function signed(n: number): string {
+  const v = fmtNum(Math.abs(n), 2);
+  return n > 0 ? `+${v}` : n < 0 ? `−${v}` : v;
+}
+
+function WeighIn({ lb, unit }: { lb: boolean; unit: string }) {
   const toast = useToast();
   const today = todayYmd();
-  const lb = profile?.unitPrefs.weight === 'lb';
-  const unit = lb ? 'lb' : 'kg';
-  const toUnit = (kg: number) => (lb ? kg / KG_PER_LB : kg);
   const [value, setValue] = useState('');
   const [date, setDate] = useState(today);
   const [error, setError] = useState<FieldError | null>(null);
   const dateId = useId();
-
-  const line = useMemo(() => (profile ? weightPlanLine(plans, profile, today) : null), [plans, profile, today]);
-  const reach = line ? goalDate(line) : null;
-  const latest = entries ? latestWeight(entries) : null;
   const range = lb
     ? { min: Math.ceil(WEIGHT_LOG_RANGE.min / KG_PER_LB), max: Math.floor(WEIGHT_LOG_RANGE.max / KG_PER_LB) }
     : WEIGHT_LOG_RANGE;
@@ -66,15 +109,13 @@ function WeightCard({ plans }: { plans: NonNullable<ReturnType<typeof useTargetP
       setError(v.error ?? 'invalid');
       return;
     }
-    const kg = lb ? v.value * KG_PER_LB : v.value;
-    await logWeight(date, kg);
+    await logWeight(date, lb ? v.value * KG_PER_LB : v.value);
     setValue('');
     toast(t('progress.logged', { value: fmtNum(v.value, 1), unit }));
   };
 
   return (
-    <section className="card stack-sm" aria-labelledby="weight-h">
-      <h2 id="weight-h">{t('progress.weight')}</h2>
+    <section className="card stack-sm" aria-label={t('progress.logWeight')}>
       <form
         className="weight-form"
         onSubmit={(e) => {
@@ -103,47 +144,35 @@ function WeightCard({ plans }: { plans: NonNullable<ReturnType<typeof useTargetP
           {t('progress.logWeight')}
         </button>
       </form>
-      {latest && (
-        <p className="subtle num">{t('progress.latest', { value: fmtNum(toUnit(latest.weightKg), 1), unit, date: fmtDate(latest.date) })}</p>
-      )}
-      {entries && (entries.length > 0 || line) && <WeightChart entries={entries} line={line} today={today} toUnit={toUnit} unit={unit} />}
-      {line && reach && line.targetKg != null && (
-        <p className="subtle num">{t('progress.reach', { value: fmtNum(toUnit(line.targetKg), 1), unit, date: fmtDate(reach) })}</p>
-      )}
-      {!line && <p className="subtle">{t('progress.noLine')}</p>}
     </section>
   );
 }
 
-function WeekIntake() {
-  const plans = useTargetPlans();
-  const today = todayYmd();
-  const start = addDays(today, -6);
-  const entries = useEntriesInRange(start, today);
-  const days = useMemo(() => (entries && plans ? summarizeDays(entries, plans, start, today) : null), [entries, plans, start, today]);
-  const avg = useMemo(() => (days ? averages(days) : null), [days]);
-  if (!avg || !days) return null;
+function WeightHistory({ entries, fmtW, unit }: { entries: WeightEntry[]; fmtW: (kg: number) => string; unit: string }) {
+  const toast = useToast();
+  const recent = [...entries].reverse().slice(0, 30);
+  const remove = async (date: string) => {
+    const removed = await deleteWeight(date);
+    if (removed) toast(t('progress.deleted', { date: fmtDate(date) }), { label: t('common.undo'), run: () => void restoreWeight(removed) });
+  };
   return (
-    <section className="card stack-sm" aria-labelledby="week-h">
-      <h2 id="week-h">{t('history.avg7')}</h2>
-      {avg.avg ? (
-        <>
-          <p className="week-kcal num">
-            <strong>{fmtKcal(avg.avg.calories)}</strong> {t('common.kcal')}
-            {avg.avgTarget && <span className="subtle"> · {t('history.vsTarget', { target: fmtKcal(avg.avgTarget.calories) })}</span>}
-          </p>
-          <p className="subtle num">
-            P {fmtG(avg.avg.proteinG)}
-            {avg.avgTarget ? `/${fmtG(avg.avgTarget.proteinG)}` : ''} g · F {fmtG(avg.avg.fatG)}
-            {avg.avgTarget ? `/${fmtG(avg.avgTarget.fatG)}` : ''} g · C {fmtG(avg.avg.carbsG)}
-            {avg.avgTarget ? `/${fmtG(avg.avgTarget.carbsG)}` : ''} g
-          </p>
-          <p className="subtle">{t('history.loggedDays', { count: avg.loggedDays, total: avg.days })}</p>
-          <CalorieChart days={days} />
-        </>
-      ) : (
-        <p className="subtle">{t('history.noEntries')}</p>
-      )}
-    </section>
+    <details className="card card-flush weight-history">
+      <summary>{t('progress.history')}</summary>
+      <ul className="list">
+        {recent.map((e) => (
+          <li key={e.date} className="list-item">
+            <span className="list-text">
+              <span className="list-title">{fmtDate(e.date, 'weekday')}</span>
+            </span>
+            <span className="list-value num">
+              {fmtW(e.weightKg)} {unit}
+            </span>
+            <button type="button" className="icon-btn" aria-label={t('progress.delete', { date: fmtDate(e.date) })} onClick={() => void remove(e.date)}>
+              <Icon name="trash" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

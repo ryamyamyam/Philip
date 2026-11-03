@@ -404,8 +404,9 @@ export async function markPromptExported(db: QaFeedbackDB, projectId: string, id
 }
 
 /**
- * Archives the observations included in a prompt once that prompt has been copied or exported.
- * Already-archived observations are left alone (so re-copying doesn't re-stamp them).
+ * Archives the observations included in a prompt. Called only after the user confirms the
+ * "archive the suggestions included in this prompt?" question asked right after generation.
+ * Already-archived observations are left alone (so regenerating doesn't re-stamp them).
  * Returns the ids archived by this call (for "N observations archived" + Undo).
  */
 export async function archiveForPrompt(db: QaFeedbackDB, projectId: string, promptId: string, now = Date.now()): Promise<string[]> {

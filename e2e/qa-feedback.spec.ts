@@ -15,8 +15,21 @@ async function resetQa(page: Page) {
   );
 }
 
+/** Story 3: QA & Feedback opens from Settings only (no floating button). */
+async function openQa(page: Page) {
+  await tab(page, 'Settings').click();
+  await page.getByRole('button', { name: 'Write feedback' }).click();
+}
+
+/** Answers the "archive the included suggestions?" question asked right after each generation. */
+async function keepActive(page: Page) {
+  const ask = page.getByRole('alertdialog', { name: 'Do you want to archive the suggestions included in this prompt?' });
+  await ask.getByRole('button', { name: 'Keep active' }).click();
+  await expect(ask).toHaveCount(0);
+}
+
 async function openCapture(page: Page) {
-  await page.getByRole('button', { name: 'Capture feedback' }).click();
+  await openQa(page);
   const panel = page.getByRole('dialog', { name: 'QA & Feedback' });
   await expect(panel).toBeVisible();
   return panel;
@@ -48,7 +61,7 @@ test.beforeEach(async ({ page }) => {
 
 test('quick capture without AI: save, screenshots, persistence, edit keeps original words', async ({ page }) => {
   const panel = await openCapture(page);
-  await expect(panel.getByLabel('Feature or screen')).toHaveValue('Today');
+  await expect(panel.getByLabel('Feature or screen')).toHaveValue('Settings'); // Story 3: opened from Settings
   await panel.getByLabel('What did you notice?').fill('The calorie ring overlaps the date when text is large. It should sit below it.');
   await panel.getByRole('button', { name: 'Bug', exact: true }).click();
   await panel.getByTestId('qa-screenshot-input').setInputFiles([SHOT, SHOT2]);
@@ -70,7 +83,7 @@ test('quick capture without AI: save, screenshots, persistence, edit keeps origi
   // Persists across reload; reachable from Settings.
   await page.reload();
   await tab(page, 'Settings').click();
-  await page.getByRole('button', { name: 'Open inbox' }).click();
+  await page.getByRole('button', { name: 'Feedback list' }).click();
   const inbox = page.getByRole('dialog', { name: 'QA & Feedback' });
   const item = inbox.getByRole('list', { name: 'Observations' }).getByRole('listitem');
   await expect(item).toHaveCount(1);
@@ -91,7 +104,7 @@ test('quick capture without AI: save, screenshots, persistence, edit keeps origi
   await page.screenshot({ path: 'e2e/screenshots/375-qa-detail.png', fullPage: false });
 
   await page.reload();
-  await page.getByRole('button', { name: 'Capture feedback' }).click();
+  await openQa(page);
   await page.getByRole('dialog').getByRole('button', { name: /^Inbox/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: /Ring overlaps date/ }).click();
   const detail = page.getByRole('dialog', { name: 'QA & Feedback' });
@@ -130,7 +143,7 @@ test('projects isolate observations; search and filters', async ({ page }) => {
   await panel.getByLabel('Project', { exact: true }).selectOption('__new');
   await panel.getByLabel('New project name').fill('Side project');
   await panel.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(panel.getByText('Nothing captured yet')).toBeVisible();
+  await expect(panel.getByText('Nothing waiting. Capture a bug or idea first.')).toBeVisible();
   await panel.getByRole('button', { name: 'Capture', exact: true }).click();
   await capture(page, 'Login screen typo');
   await panel.getByRole('button', { name: /^Inbox/ }).click();
@@ -153,6 +166,7 @@ test('batch select → template prompt → edit protection → copy and .txt exp
   await panel.getByRole('button', { name: 'Build prompt from 3 selected' }).click();
   await expect(panel.getByText('3 observations in 2 groups')).toBeVisible();
   await panel.getByRole('button', { name: 'Generate prompt' }).click();
+  await keepActive(page);
   const editor = panel.getByLabel(/^Prompt \(template\)/);
   const text = await editor.inputValue();
   for (const s of ['Ring overlaps the date', 'Meal list jumps when adding food', 'Export should include notes', 'Inspect the repository first', 'Acceptance criteria']) {
@@ -172,6 +186,7 @@ test('batch select → template prompt → edit protection → copy and .txt exp
   const confirm = page.getByRole('alertdialog', { name: 'Replace your edited prompt?' });
   await confirm.getByRole('button', { name: 'Cancel' }).click();
   await expect(editor).toHaveValue(/MY NOTE$/);
+  // Copy/export no longer archive anything on their own.
 
   await panel.getByRole('button', { name: 'Copy' }).click();
   await expect(panel.getByText('Copied. Paste it into Claude Code.')).toBeVisible();
@@ -183,10 +198,12 @@ test('batch select → template prompt → edit protection → copy and .txt exp
   const path = test.info().outputPath('prompt.txt');
   await download.saveAs(path);
   expect(readFileSync(path, 'utf8')).toContain('MY NOTE');
+  await panel.getByRole('button', { name: /^Inbox/ }).click();
+  await expect(panel.getByRole('list', { name: 'Observations' }).getByRole('listitem')).toHaveCount(3);
 
   // Edited prompt survives reopening.
   await page.reload();
-  await page.getByRole('button', { name: 'Capture feedback' }).click();
+  await openQa(page);
   await page.getByRole('dialog').getByRole('button', { name: /^Prompt/ }).click();
   await page.getByText('Recent prompts').click();
   await page.getByRole('button', { name: /3 observations · template/ }).click();
@@ -239,7 +256,7 @@ test('AI structuring and AI prompt help are optional and failures never block sa
   await panel.getByText('More details (optional)').click();
   await expect(panel.getByLabel(/^Title/)).toHaveValue('Ring overlaps date');
   // Feature was prefilled by the user context and must not be overwritten.
-  await expect(panel.getByLabel('Feature or screen')).toHaveValue('Today');
+  await expect(panel.getByLabel('Feature or screen')).toHaveValue('Settings'); // Story 3: opened from Settings
   // Critical without a reason is not suggested.
   await expect(panel.getByText('Suggested priority')).toHaveCount(0);
   await expect(panel.getByLabel('Priority')).toHaveValue('');
@@ -269,6 +286,7 @@ test('AI structuring and AI prompt help are optional and failures never block sa
   await panel.getByRole('button', { name: 'Improve with AI' }).click();
   await expect(panel.getByRole('alert')).toContainText('The template prompt still works');
   await panel.getByRole('button', { name: 'Generate prompt' }).click();
+  await keepActive(page);
   await expect(panel.getByLabel(/^Prompt \(template\)/)).toHaveValue(/Second note while AI is down/);
 
   mode = 'ok';
@@ -400,69 +418,76 @@ test('OBS-748382: a recognizer that never starts or ends can still be stopped', 
   await capture(page, 'Typed after mic failure');
 });
 
-test('floating button can be hidden; existing app keeps working', async ({ page }) => {
-  const panel = await openCapture(page);
-  await panel.getByLabel('Show the floating capture button on every screen').uncheck();
-  await panel.getByRole('button', { name: 'Close QA & Feedback' }).click();
-  await expect(page.getByRole('button', { name: 'Capture feedback' })).toHaveCount(0);
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Capture feedback' })).toHaveCount(0);
-  await tab(page, 'Settings').click();
-  await page.getByRole('button', { name: 'New observation' }).click();
-  await expect(page.getByRole('dialog', { name: 'QA & Feedback' })).toBeVisible();
+test('Story 3: no floating button; QA & Feedback opens from Settings and the app keeps working', async ({ page }) => {
+  for (const where of ['Today', 'Progress', 'Settings'] as const) {
+    await tab(page, where).click();
+    await expect(page.getByRole('button', { name: 'Capture feedback' })).toHaveCount(0);
+  }
+  await page.getByRole('button', { name: 'Write feedback' }).click();
+  const panel = page.getByRole('dialog', { name: 'QA & Feedback' });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByLabel('Show the floating capture button on every screen')).toHaveCount(0);
+  // Capture needs only the text.
+  await capture(page, 'Make the log button bigger');
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'QA & Feedback' })).toHaveCount(0);
+  await expect(panel).toHaveCount(0);
+  await page.getByRole('button', { name: 'Feedback list' }).click();
+  await expect(panel.getByRole('list', { name: 'Observations' })).toContainText('Make the log button bigger');
 });
 
-test('OBS-CDDDEC: copying a prompt archives its observations (toast + Undo, Archived filter, Unarchive)', async ({ page, context, browserName }) => {
-  test.skip(browserName !== 'chromium', 'clipboard permissions only grantable in Chromium');
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('Story 3: generating a prompt asks to archive; yes archives only the included items, no keeps them active; archive is grouped by date', async ({ page }) => {
   const panel = await openCapture(page);
   await capture(page, 'Heading repeats the date', { feature: 'Today', type: 'UI issue' });
-  await capture(page, 'Swipe is flaky', { feature: 'Meals', type: 'Bug' });
+  await capture(page, 'Swipe is flaky', { feature: 'Today', type: 'Bug' });
   await capture(page, 'Keep this one open', { feature: 'Settings', type: 'Other' });
 
   await panel.getByRole('button', { name: /^Inbox/ }).click();
   const list = panel.getByRole('list', { name: 'Observations' });
+  const items = list.locator('.qa-item');
   await list.getByRole('checkbox', { name: 'Select Heading repeats the date' }).check();
   await list.getByRole('checkbox', { name: 'Select Swipe is flaky' }).check();
+  // Selecting and opening the builder archives nothing.
   await panel.getByRole('button', { name: 'Build prompt from 2 selected' }).click();
-  await panel.getByRole('button', { name: 'Generate prompt' }).click();
-  await panel.getByRole('button', { name: 'Copy' }).click();
-
-  const toast = page.getByRole('status').filter({ hasText: '2 observations archived' });
-  await expect(toast).toBeVisible();
-  await page.screenshot({ path: 'e2e/screenshots/375-qa-archived-toast.png' });
-  // Undo restores both.
-  await toast.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
   await panel.getByRole('button', { name: /^Inbox/ }).click();
-  await expect(list.getByRole('listitem')).toHaveCount(3);
-
-  // Copy again → archived for real; hidden from the default Open filter.
+  await expect(items).toHaveCount(3);
   await panel.getByRole('button', { name: /^Prompt/ }).click();
-  await panel.getByRole('button', { name: 'Generate prompt' }).click();
-  await panel.getByRole('button', { name: 'Copy' }).click();
-  await expect(page.getByRole('status').filter({ hasText: '2 observations archived' })).toBeVisible();
-  await panel.getByRole('button', { name: /^Inbox/ }).click();
-  await expect(list.getByRole('listitem')).toHaveCount(1);
-  await expect(list).toContainText('Keep this one open');
 
-  // Archived filter shows them struck through and muted.
-  await panel.getByRole('button', { name: 'Filters' }).click();
-  await panel.getByLabel('Status').selectOption('archived');
-  await expect(list.getByRole('listitem')).toHaveCount(2);
-  const title = list.locator('.qa-item-archived .qa-item-title').first();
-  await expect(title).toHaveCSS('text-decoration-line', 'line-through');
+  // Generate → asked immediately. "Keep active" leaves everything in the active list.
+  await panel.getByRole('button', { name: 'Generate prompt' }).click();
+  const ask = page.getByRole('alertdialog', { name: 'Do you want to archive the suggestions included in this prompt?' });
+  await expect(ask).toContainText('2 suggestions will leave the active list');
+  await page.screenshot({ path: 'e2e/screenshots/375-qa-archive-ask.png' });
+  await ask.getByRole('button', { name: 'Keep active' }).click();
+  await panel.getByRole('button', { name: /^Inbox/ }).click();
+  await expect(items).toHaveCount(3);
+
+  // Generate again → asked again → Archive. The prompt stays available to copy.
+  await panel.getByRole('button', { name: /^Prompt/ }).click();
+  await panel.getByRole('button', { name: /enerate prompt$/ }).click();
+  await ask.getByRole('button', { name: 'Archive' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '2 observations archived' })).toBeVisible();
+  await expect(panel.getByLabel(/^Prompt \(template\)/)).toHaveValue(/Swipe is flaky/);
+  await panel.getByRole('button', { name: /^Inbox/ }).click();
+  await expect(items).toHaveCount(1);
+  await expect(list).toContainText('Keep this one open');
+  await expect(panel.getByText('1 shown')).toBeVisible(); // selection cleared with the archived items
+
+  // Archived tab: grouped under the day they were archived, struck through.
+  await panel.getByRole('tab', { name: 'Archived' }).click();
+  await expect(items).toHaveCount(2);
+  await expect(list.locator('.qa-day-heading')).toHaveCount(1);
+  await expect(list.locator('.qa-day-heading')).toHaveText(/^Archived /);
+  await expect(list.locator('.qa-item-archived .qa-item-title').first()).toHaveCSS('text-decoration-line', 'line-through');
+  await expect(list).not.toContainText('Keep this one open');
   await page.screenshot({ path: 'e2e/screenshots/375-qa-archived-inbox.png' });
 
-  // Unarchive from the detail screen.
+  // Unarchive from the detail screen brings it back to Active.
   await list.getByRole('button', { name: /Swipe is flaky/ }).click();
-  await expect(panel.getByText(/Archived .*after its prompt was copied or exported/)).toBeVisible();
+  await expect(panel.getByText(/Archived .*after a prompt was generated from it/)).toBeVisible();
   await panel.getByRole('button', { name: 'Unarchive' }).click();
-  await expect(panel.getByRole('button', { name: 'Unarchive' })).toHaveCount(0);
   await panel.getByRole('button', { name: '‹ Inbox' }).click();
-  await expect(list.getByRole('listitem')).toHaveCount(1); // still on the Archived filter
-  await panel.getByRole('button', { name: /^Filters/ }).click();
-  await panel.getByLabel('Status').selectOption('open');
-  await expect(list.getByRole('listitem')).toHaveCount(2);
+  await expect(items).toHaveCount(1);
+  await panel.getByRole('tab', { name: 'Active' }).click();
+  await expect(items).toHaveCount(2);
 });

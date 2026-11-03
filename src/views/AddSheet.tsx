@@ -1,117 +1,65 @@
-import { useId, useMemo, useState } from 'react';
+import { useState } from 'react';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { FoodTextBox } from '../components/FoodTextBox';
 import { Icon } from '../components/Icon';
-import { MealPicker } from '../components/MealPicker';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
-import { addFoodEntry, deleteFoodEntry, logSavedFood } from '../db/repo';
-import type { Meal, YMD } from '../db/types';
-import { useRecentEntries, useSavedFoods } from '../hooks/useData';
+import { deleteSavedMeal, restoreSavedMeal } from '../db/repo';
+import type { Meal, SavedMeal, YMD } from '../db/types';
+import { useSavedMeals } from '../hooks/useData';
 import { t } from '../i18n';
-import { fmtG, fmtKcal } from '../lib/format';
-import { frequentFoods, matchesQuery, recentFoods, savedToQuick, type QuickFood } from '../lib/recents';
-import { useUI } from '../ui';
-import { db } from '../db/db';
-import { FoodTextBox } from '../components/FoodTextBox';
+import { fmtKcal } from '../lib/format';
+import { sumMacros } from '../lib/nutrition';
+import { useUI, type SheetState } from '../ui';
+import { fromSavedMeal, manualItem } from './photo/reviewModel';
 import { useTextFood } from './photo/useTextFood';
 
-type ListTab = 'recent' | 'frequent' | 'favorites';
+type ReviewState = Extract<SheetState, { kind: 'review' }>;
 
-export function AddSheet({ date, meal: initialMeal }: { date: YMD; meal: Meal }) {
+/**
+ * Log food (Story 3): photo, typed text, a saved meal, or by hand. Every path ends in the review
+ * sheet, where the meal is chosen and the save is confirmed. No food database, no favorites.
+ */
+export function AddSheet({ date, meal }: { date: YMD; meal: Meal }) {
   const { closeSheet, openSheet } = useUI();
   const toast = useToast();
-  const [meal, setMeal] = useState<Meal>(initialMeal);
-  const [query, setQuery] = useState('');
-  const [tab, setTab] = useState<ListTab>('recent');
-  const entries = useRecentEntries();
-  const saved = useSavedFoods();
-  const searchId = useId();
-  const [more, setMore] = useState(false);
+  const meals = useSavedMeals();
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState<SavedMeal | null>(null);
   const textFood = useTextFood();
 
-  // Typed text → review list (OBS-A2F21F). AI optional: falls back to a local parse, never blocks saving.
+  const review = (extra: Partial<ReviewState> & Pick<ReviewState, 'items'>) =>
+    openSheet({ kind: 'review', date, meal, provider: 'gemini', model: '', notes: [], analyzedAt: Date.now(), ...extra });
+
+  // Typed text → review list. AI optional: falls back to a local parse, never blocks saving.
   const onText = async (text: string) => {
     setBusy(true);
     try {
       const r = await textFood(text);
-      openSheet({ kind: 'review', date, meal, items: r.items, provider: 'gemini', model: r.model, notes: r.notes, analyzedAt: Date.now(), notice: r.notice });
+      review({ items: r.items, model: r.model, notes: r.notes, notice: r.notice });
     } finally {
       setBusy(false);
     }
   };
 
-  const lists = useMemo(() => {
-    if (!entries || !saved) return null;
-    return {
-      recent: recentFoods(entries, saved),
-      frequent: frequentFoods(entries, saved),
-      favorites: saved.filter((s) => s.favorite).sort((a, b) => a.name.localeCompare(b.name)).map(savedToQuick),
-    };
-  }, [entries, saved]);
-
-  const searchResults = useMemo(() => {
-    if (!query.trim() || !entries || !saved) return null;
-    const fromSaved = saved.filter((s) => matchesQuery(s.name, query)).map(savedToQuick);
-    const savedKeys = new Set(fromSaved.map((f) => f.savedFoodId));
-    const fromRecent = recentFoods(entries, saved, 200).filter(
-      (f) => matchesQuery(f.name, query) && !(f.savedFoodId && savedKeys.has(f.savedFoodId)),
-    );
-    return [...fromSaved, ...fromRecent].slice(0, 40);
-  }, [query, entries, saved]);
-
   const onPhoto = (file: File | undefined) => {
     if (file) openSheet({ kind: 'photo', date, meal, file });
   };
 
-  const relog = async (f: QuickFood) => {
-    let id: string;
-    if (f.savedFoodId && (await db.savedFoods.get(f.savedFoodId))) {
-      id = await logSavedFood(f.savedFoodId, date, meal);
-    } else {
-      id = await addFoodEntry({
-        date,
-        meal,
-        name: f.name,
-        grams: f.grams,
-        calories: f.calories,
-        proteinG: f.proteinG,
-        fatG: f.fatG,
-        carbsG: f.carbsG,
-        source: 'manual',
-        savedFoodId: null,
-        estimate: null,
-      });
-    }
-    toast(t('add.logged', { name: f.name }), {
-      label: t('common.undo'),
-      run: async () => {
-        const removed = await deleteFoodEntry(id);
-        if (removed?.savedFoodId) {
-          const s = await db.savedFoods.get(removed.savedFoodId);
-          if (s && removed.source === 'saved') await db.savedFoods.update(s.id, { useCount: Math.max(0, s.useCount - 1) });
-        }
-      },
-    });
-    closeSheet();
+  const remove = async (m: SavedMeal) => {
+    setDeleting(null);
+    const removed = await deleteSavedMeal(m.id);
+    if (removed) toast(t('meals.deleted', { name: removed.name }), { label: t('common.undo'), run: () => void restoreSavedMeal(removed) });
   };
 
-  const list = searchResults ?? lists?.[tab] ?? [];
-
   return (
-    <Sheet title={t('add.title')} onClose={closeSheet} full={more}>
+    <Sheet title={t('add.title')} onClose={closeSheet}>
       <div className="stack">
-        <p className="subtle add-to-meal">{t('add.toMeal', { meal: t(`meal.${meal}`) })}</p>
         <div className="add-actions">
           <label className="add-action">
             <Icon name="camera" />
             <span className="add-action-title">{t('add.camera')}</span>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="visually-hidden"
-              onChange={(e) => onPhoto(e.target.files?.[0])}
-            />
+            <input type="file" accept="image/*" capture="environment" className="visually-hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
           </label>
           <label className="add-action">
             <Icon name="upload" />
@@ -121,90 +69,49 @@ export function AddSheet({ date, meal: initialMeal }: { date: YMD; meal: Meal })
         </div>
         <FoodTextBox onSend={onText} busy={busy} />
 
-        <button type="button" className="btn btn-ghost add-more-link" aria-expanded={more} onClick={() => setMore((m) => !m)}>
-          {t('add.moreOptions')}
-        </button>
-        {more && (
-          <div className="stack add-more" role="region" aria-label={t('add.moreOptions')}>
-        <MealPicker value={meal} onChange={setMeal} />
-        <div className="row add-more-actions">
-          <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => openSheet({ kind: 'entry', date, meal })}>
-            <Icon name="pencil" /> {t('add.manual')}
-          </button>
-          <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => openSheet({ kind: 'handoff', date, meal, file: null })}>
-            <Icon name="sparkle" /> {t('add.claude')}
-          </button>
-        </div>
-        <div className="field">
-          <label className="visually-hidden" htmlFor={searchId}>
-            {t('add.search')}
-          </label>
-          <input
-            id={searchId}
-            className="input"
-            type="search"
-            placeholder={t('add.search')}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoComplete="off"
-            enterKeyHint="search"
-          />
-        </div>
-
-        {!searchResults && (
-          <div className="segmented" role="tablist">
-            {(['recent', 'frequent', 'favorites'] as const).map((k) => (
-              <button key={k} type="button" role="tab" aria-selected={tab === k} aria-pressed={tab === k} onClick={() => setTab(k)}>
-                {t(`add.${k}`)}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="card card-flush">
-          {list.length === 0 ? (
-            <p className="empty">{searchResults ? t('add.noResults') : t('add.empty')}</p>
-          ) : (
-            <ul className="list">
-              {list.map((f) => (
-                <li key={f.key} className="list-item">
-                  <button type="button" className="list-button" onClick={() => void relog(f)} aria-label={t('add.relog', { name: f.name })}>
+        {meals && meals.length > 0 && (
+          <section className="stack-sm" aria-labelledby="saved-meals-h">
+            <h3 id="saved-meals-h" className="section-title">
+              {t('meals.saved')}
+            </h3>
+            <ul className="card card-flush list">
+              {meals.map((m) => (
+                <li key={m.id} className="list-item">
+                  <button
+                    type="button"
+                    className="list-button"
+                    aria-label={t('meals.use', { name: m.name })}
+                    onClick={() => review({ items: fromSavedMeal(m.items), savedMealId: m.id, title: m.name })}
+                  >
                     <span className="list-text">
-                      <span className="list-title">
-                        {f.savedFoodId && lists?.favorites.some((x) => x.savedFoodId === f.savedFoodId) && (
-                          <span className="fav-star">
-                            <Icon name="star" filled />{' '}
-                          </span>
-                        )}
-                        {f.name}
-                      </span>
-                      <span className="list-meta num">
-                        {f.grams != null ? `${fmtG(f.grams)} g · ` : ''}P {fmtG(f.proteinG)} · F {fmtG(f.fatG)} · C {fmtG(f.carbsG)}
-                      </span>
+                      <span className="list-title">{m.name}</span>
+                      <span className="list-meta">{m.items.map((i) => i.name).join(', ')}</span>
                     </span>
-                    <span className="list-value">{fmtKcal(f.calories)}</span>
+                    <span className="list-value num">{fmtKcal(sumMacros(m.items).calories)}</span>
                   </button>
-                  {f.savedFoodId && (
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      aria-label={t('foods.edit')}
-                      onClick={() => openSheet({ kind: 'savedFood', id: f.savedFoodId! })}
-                    >
-                      <Icon name="more" />
-                    </button>
-                  )}
+                  <button type="button" className="icon-btn" aria-label={t('meals.delete', { name: m.name })} onClick={() => setDeleting(m)}>
+                    <Icon name="trash" />
+                  </button>
                 </li>
               ))}
             </ul>
-          )}
-        </div>
-        <button type="button" className="btn btn-secondary btn-block" onClick={() => openSheet({ kind: 'myFoods', date, meal })}>
-          <Icon name="bookmark" /> {t('add.myFoods')}
-        </button>
-          </div>
+          </section>
         )}
+
+        <button type="button" className="btn btn-ghost btn-block" onClick={() => review({ items: [manualItem()] })}>
+          <Icon name="pencil" /> {t('add.manual')}
+        </button>
       </div>
+      {deleting && (
+        <ConfirmDialog
+          title={t('meals.deleteConfirm', { name: deleting.name })}
+          body={<p>{t('meals.deleteBody')}</p>}
+          confirmLabel={t('common.delete')}
+          destructive
+          onConfirm={() => void remove(deleting)}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </Sheet>
   );
 }

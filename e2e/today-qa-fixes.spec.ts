@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addManualFood, backToTodayOnMeals, fresh, tab } from './helpers';
+import { addManualFood, backToToday, fresh, tab } from './helpers';
 
 /** Fires a horizontal touch drag on an element (Chromium touch emulation). */
 async function swipe(page: Page, selector: string, dx: number) {
@@ -73,7 +73,7 @@ test('OBS-3E7A73: swipe left to delete (with undo) or move an entry to another d
   await expect(page.getByText('Lunch salad')).toHaveCount(0);
   await page.getByRole('button', { name: 'Previous day' }).click();
   await expect(page.getByRole('region', { name: 'Dinner' }).getByText('Lunch salad')).toBeVisible();
-  await backToTodayOnMeals(page);
+  await backToToday(page);
 
   // Swipe-delete with undo.
   await expect(page.getByRole('region', { name: 'Snacks' }).getByText('Apple', { exact: true })).toBeVisible();
@@ -86,7 +86,7 @@ test('OBS-3E7A73: swipe left to delete (with undo) or move an entry to another d
   // A right swipe on a closed row still changes the day; tapping a row still opens it.
   await swipe(page, '.meal-card[aria-label="Snacks"] .swipe-content', 160);
   await expect(page.getByRole('heading', { name: 'Yesterday' })).toBeVisible();
-  await backToTodayOnMeals(page);
+  await backToToday(page);
   await page.getByRole('button', { name: /Apple/ }).click();
   await expect(page.getByRole('dialog', { name: 'Edit food' })).toBeVisible();
 });

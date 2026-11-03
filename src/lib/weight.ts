@@ -66,3 +66,54 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** Accepted body-weight range for the log (kg), same as the calculator's input check. */
 export const WEIGHT_LOG_RANGE = { min: 35, max: 300 } as const;
+
+export type WeightStatus = 'onTrack' | 'ahead' | 'behind' | 'off' | 'reached' | 'needMore';
+
+export interface WeightProgress {
+  status: WeightStatus;
+  /** Latest actual minus the plan on that date (kg, signed). Null without a plan or an entry. */
+  diffKg: number | null;
+  /** Actual trend in kg/week (least-squares over the last 4 weeks), or null with too little data. */
+  actualRateKg: number | null;
+  /** Plan value for today (kg), or null without a plan. */
+  expectedTodayKg: number | null;
+}
+
+/** Within this distance of the plan line counts as on track. Body weight moves ~0.5 kg day to day. */
+export const ON_TRACK_KG = 0.5;
+const TREND_DAYS = 28;
+
+/** Least-squares slope in kg/week over entries in the last 4 weeks; needs 2+ entries spanning 7+ days. */
+export function weeklyTrend(entries: readonly WeightEntry[], today: YMD): number | null {
+  const from = addDays(today, -TREND_DAYS);
+  const pts = entries.filter((e) => e.date >= from && e.date <= today).map((e) => ({ x: daysBetween(from, e.date), y: e.weightKg }));
+  if (pts.length < 2) return null;
+  const xs = pts.map((p) => p.x);
+  if (Math.max(...xs) - Math.min(...xs) < 7) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / pts.length;
+  const my = pts.reduce((a, p) => a + p.y, 0) / pts.length;
+  const num = pts.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0);
+  const den = pts.reduce((a, p) => a + (p.x - mx) ** 2, 0);
+  return den === 0 ? null : Math.round((num / den) * 7 * 100) / 100;
+}
+
+/**
+ * "Am I growing at the rate I want?" — compares the latest weigh-in with the plan line.
+ * Ahead/behind are relative to the plan's direction (gaining faster than planned on a bulk = ahead).
+ */
+export function weightProgress(entries: readonly WeightEntry[], line: WeightPlanLine | null, today: YMD): WeightProgress {
+  const latest = latestWeight(entries, today);
+  const actualRateKg = weeklyTrend(entries, today);
+  const expectedTodayKg = line ? expectedWeightOn(line, today) : null;
+  if (!latest || !line) return { status: 'needMore', diffKg: null, actualRateKg, expectedTodayKg };
+  const diffKg = round1(latest.weightKg - expectedWeightOn(line, latest.date));
+  const dir = Math.sign(line.rateKg);
+  if (line.targetKg != null && dir !== 0 && (latest.weightKg - line.targetKg) * dir >= 0) {
+    return { status: 'reached', diffKg, actualRateKg, expectedTodayKg };
+  }
+  let status: WeightStatus;
+  if (Math.abs(diffKg) <= ON_TRACK_KG) status = 'onTrack';
+  else if (dir === 0) status = 'off';
+  else status = diffKg * dir > 0 ? 'ahead' : 'behind';
+  return { status, diffKg, actualRateKg, expectedTodayKg };
+}

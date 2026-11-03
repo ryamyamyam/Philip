@@ -1,6 +1,6 @@
 /** Data access functions. UI components call these instead of touching tables directly. */
 import { db, newId, defaultProfile, type PhilipDB } from './db';
-import type { FoodEntry, Macros, Meal, Profile, SavedFood, TargetPlan, WeightEntry, YMD } from './types';
+import type { FoodEntry, Macros, Meal, Profile, SavedFood, SavedMeal, SavedMealItem, TargetPlan, WeightEntry, YMD } from './types';
 import { roundMacros } from '../lib/nutrition';
 
 export type NewFoodEntry = Omit<FoodEntry, 'id' | 'createdAt' | 'updatedAt'>;
@@ -127,6 +127,17 @@ export async function logWeight(date: YMD, weightKg: number, database: PhilipDB 
   });
 }
 
+/** Removes one weigh-in (Undo restores it with restoreWeight). Profile weight is left as is. */
+export async function deleteWeight(date: YMD, database: PhilipDB = db): Promise<WeightEntry | undefined> {
+  const existing = await database.weightEntries.get(date);
+  await database.weightEntries.delete(date);
+  return existing;
+}
+
+export async function restoreWeight(entry: WeightEntry, database: PhilipDB = db): Promise<void> {
+  await database.weightEntries.put(entry);
+}
+
 export function allWeightEntries(database: PhilipDB = db): Promise<WeightEntry[]> {
   return database.weightEntries.orderBy('date').toArray();
 }
@@ -204,6 +215,61 @@ export async function saveEntryAsFood(entryId: string, database: PhilipDB = db):
     await database.foodEntries.update(entryId, { savedFoodId: id });
     return id;
   });
+}
+
+/* ---------- Saved meals (Story 3) ---------- */
+
+function cleanMealItems(items: readonly SavedMealItem[]): SavedMealItem[] {
+  return items
+    .filter((i) => i.name.trim())
+    .map((i) => ({ ...roundMacros(i), name: i.name.trim(), grams: i.grams == null ? null : Math.round(i.grams * 10) / 10 }));
+}
+
+/** Saves a named combination of foods. A meal with the same name (case-insensitive) is replaced. */
+export async function saveMeal(name: string, items: readonly SavedMealItem[], database: PhilipDB = db): Promise<string> {
+  const clean = cleanMealItems(items);
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Meal name required');
+  if (clean.length === 0) throw new Error('Meal needs at least one food');
+  return database.transaction('rw', database.savedMeals, async () => {
+    const now = Date.now();
+    const key = trimmed.toLocaleLowerCase();
+    const existing = (await database.savedMeals.toArray()).find((m) => m.name.toLocaleLowerCase() === key);
+    if (existing) {
+      await database.savedMeals.put({ ...existing, name: trimmed, items: clean, updatedAt: now });
+      return existing.id;
+    }
+    const meal: SavedMeal = { id: newId(), name: trimmed, items: clean, useCount: 0, lastUsedAt: null, createdAt: now, updatedAt: now };
+    await database.savedMeals.add(meal);
+    return meal.id;
+  });
+}
+
+/** Most recently used first, then newest. */
+export async function allSavedMeals(database: PhilipDB = db): Promise<SavedMeal[]> {
+  const list = await database.savedMeals.toArray();
+  return list.sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || b.createdAt - a.createdAt);
+}
+
+export async function deleteSavedMeal(id: string, database: PhilipDB = db): Promise<SavedMeal | undefined> {
+  const existing = await database.savedMeals.get(id);
+  await database.savedMeals.delete(id);
+  return existing;
+}
+
+export async function restoreSavedMeal(meal: SavedMeal, database: PhilipDB = db): Promise<void> {
+  await database.savedMeals.put(meal);
+}
+
+/** Bumps usage after a saved meal was logged (it is logged through the review sheet like any other food). */
+export async function markSavedMealUsed(id: string, database: PhilipDB = db): Promise<void> {
+  const m = await database.savedMeals.get(id);
+  if (m) await database.savedMeals.update(id, { useCount: m.useCount + 1, lastUsedAt: Date.now() });
+}
+
+/** Removes entries by id (Undo after saving from the review sheet). */
+export async function deleteFoodEntries(ids: readonly string[], database: PhilipDB = db): Promise<void> {
+  await database.foodEntries.bulkDelete([...ids]);
 }
 
 /* ---------- Meta ---------- */

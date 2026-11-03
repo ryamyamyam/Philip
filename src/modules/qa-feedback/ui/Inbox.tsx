@@ -1,9 +1,9 @@
-import { useId, useMemo, useState } from 'react';
+import { Fragment, useId, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { listFeatures, queryObservations, type ObservationFilter } from '../search';
 import { OBSERVATION_TYPES, PRIORITIES, STATUSES, type Observation } from '../types';
 import { useQa } from './context';
-import { ARCHIVE_TEXT, PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS, fmtWhen } from './strings';
+import { ARCHIVE_TEXT, PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS, fmtDay, fmtWhen } from './strings';
 
 const PAGE = 50;
 
@@ -30,7 +30,13 @@ export function Inbox() {
   const results = useLiveQuery(() => queryObservations(db, projectId, effective), [db, projectId, key]);
   const features = useLiveQuery(() => listFeatures(db, projectId), [db, projectId]);
 
-  const visible = results?.slice(0, limit) ?? [];
+  const archivedView = filter.status === 'archived';
+  // Archived view: newest archive first, grouped by the day they were archived (Story 3).
+  const ordered = useMemo(
+    () => (results && archivedView ? [...results].sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0)) : results),
+    [results, archivedView],
+  );
+  const visible = ordered?.slice(0, limit) ?? [];
   const selected = useMemo(() => new Set(selection), [selection]);
   const update = (f: Partial<ObservationFilter>) => {
     setFilter({ ...filter, ...f });
@@ -47,8 +53,21 @@ export function Inbox() {
   const toggle = (id: string) => setSelection(selected.has(id) ? selection.filter((x) => x !== id) : [...selection, id]);
   const addAll = (list: Observation[]) => setSelection([...new Set([...selection, ...list.map((o) => o.id)])]);
 
+  const setView = (archived: boolean) => {
+    setFilter({ status: archived ? 'archived' : 'open', keyword: filter.keyword });
+    setLimit(PAGE);
+  };
+
   return (
     <div className="qa-stack">
+      <div className="qa-segmented" role="tablist" aria-label="Feedback list">
+        <button type="button" role="tab" aria-selected={!archivedView} onClick={() => setView(false)}>
+          {ARCHIVE_TEXT.active}
+        </button>
+        <button type="button" role="tab" aria-selected={archivedView} onClick={() => setView(true)}>
+          {ARCHIVE_TEXT.filter}
+        </button>
+      </div>
       <div className="qa-row">
         <label className="qa-visually-hidden" htmlFor={searchId}>
           Search observations
@@ -145,12 +164,24 @@ export function Inbox() {
       </div>
 
       {results && results.length === 0 && (
-        <p className="qa-empty">{filter.keyword || active ? 'No observations match.' : 'Nothing captured yet. Use Capture to add your first observation.'}</p>
+        <p className="qa-empty">
+          {filter.keyword || (active && !archivedView) || fromYmd || toYmd ? 'No observations match.' : archivedView ? ARCHIVE_TEXT.emptyArchived : ARCHIVE_TEXT.emptyActive}
+        </p>
       )}
 
       <ul className="qa-list" aria-label="Observations">
-        {visible.map((o) => (
-          <li key={o.id} className={`qa-item${o.archivedAt ? ' qa-item-archived' : ''}`}>
+        {visible.map((o, i) => {
+          const day = archivedView && o.archivedAt ? fmtDay(o.archivedAt) : null;
+          const prev = visible[i - 1];
+          const showDay = day && (!prev?.archivedAt || fmtDay(prev.archivedAt) !== day);
+          return (
+          <Fragment key={o.id}>
+          {showDay && (
+            <li className="qa-day">
+              <h3 className="qa-day-heading">{ARCHIVE_TEXT.archivedOn(day)}</h3>
+            </li>
+          )}
+          <li className={`qa-item${o.archivedAt ? ' qa-item-archived' : ''}`}>
             <label className="qa-item-check">
               <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggle(o.id)} aria-label={`Select ${o.title}`} />
             </label>
@@ -181,7 +212,9 @@ export function Inbox() {
               </span>
             </button>
           </li>
-        ))}
+          </Fragment>
+          );
+        })}
       </ul>
       {results && results.length > visible.length && (
         <button type="button" className="qa-btn qa-btn-secondary" onClick={() => setLimit(limit + PAGE)}>

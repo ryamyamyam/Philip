@@ -1,7 +1,8 @@
 # Philip — working notes for Claude
 
 ## Current stage
-Stages 0–7 implemented; Stage 8 (QA) partially done. QA round 2 (branch `qa-round-2`): 4-tab nav (Today · Meals · Progress · Settings), photo-first add sheet with a text box, weight log, Katch–McArdle, QA archive. See docs/ROADMAP.md.
+Stages 0–7 implemented; Stage 8 (QA) partially done. QA round 2 (branch `qa-round-2`): photo-first add sheet with a text box, weight log, Katch–McArdle, QA archive.
+Story 3 (branch `story-3-simplify`, on top of `qa-round-2`): 3 tabs (Today · Progress · Settings; Meals folded into Today; Targets moved to Settings › `#/targets`), Take photo + Log food on Today, compact review rows, saved meals (Dexie v3 `savedMeals`), weight on-track status, optional Gemini “What should I eat?”, QA only from Settings with archive asked after generation. See docs/ARCHITECTURE.md.
 
 ## Stack & constraints
 - React 19 + TypeScript (strict) + Vite 7, plain CSS with tokens, Dexie 4 (IndexedDB) + `useLiveQuery`
@@ -31,8 +32,9 @@ Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, b
 - WebKit e2e not yet run (only Chromium mobile emulation in the build sandbox). Real-iPhone pass pending.
 - Swipe-left row actions (Meals) and the bottom-sheet QA panel are tested with synthetic touch events in Chromium only; check on a real iPhone.
 - Gemini default model (`gemini-3.1-flash-lite`) not yet verified against a live key.
-- Meals food names are truncated to one line so four meals × two foods fit at 393×793 (default text size); larger Dynamic Type sizes scroll.
-- SW cache matching doesn't ignore `Vary`; if a host sends `Vary: Origin`, lazy chunks (Progress, Settings) can miss the cache offline. Today and Meals are bundled eagerly.
+- Today scrolls once several meals are logged; the card and the Take photo / Log food buttons stay above the fold at 393×793 (e2e). Food names are truncated to one line.
+- QA observations captured from Settings record “Settings” as the screen (the floating button that captured the current screen is off).
+- SW cache matching doesn't ignore `Vary`; if a host sends `Vary: Origin`, lazy chunks (Progress, Settings) can miss the cache offline. Today, the log sheet and the review sheet are bundled eagerly.
 - Export uses the Web Share sheet when available; if iOS rejects the share after the async DB read, it falls back to a download.
 
 ## Next task

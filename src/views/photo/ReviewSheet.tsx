@@ -5,15 +5,26 @@ import { MealPicker } from '../../components/MealPicker';
 import { NumberField } from '../../components/NumberField';
 import { Sheet } from '../../components/Sheet';
 import { useToast } from '../../components/Toast';
-import { addFoodEntries } from '../../db/repo';
+import { addFoodEntries, deleteFoodEntries, markSavedMealUsed, saveMeal } from '../../db/repo';
 import type { Meal, YMD } from '../../db/types';
 import { t } from '../../i18n';
-import { fmtG, fmtKcal } from '../../lib/format';
+import { todayYmd } from '../../lib/date';
+import { fmtDate, fmtG, fmtKcal } from '../../lib/format';
 import { LIMITS, type FieldError } from '../../lib/numbers';
 import { useUI } from '../../ui';
 import { FoodTextBox } from '../../components/FoodTextBox';
 import { useTextFood } from './useTextFood';
-import { blankItem, editItem, isUntouchedBlank, reviewTotals, toEntries, validateItems, type ItemErrors, type ReviewItem } from './reviewModel';
+import {
+  editItem,
+  isUntouchedBlank,
+  manualItem,
+  reviewTotals,
+  toEntries,
+  toMealItems,
+  validateItems,
+  type ItemErrors,
+  type ReviewItem,
+} from './reviewModel';
 
 interface Props {
   date: YMD;
@@ -24,13 +35,20 @@ interface Props {
   notes: string[];
   analyzedAt: number;
   notice?: string | null;
+  savedMealId?: string | null;
+  title?: string | null;
 }
 
-/** Mandatory review step: nothing from an AI estimate is saved until the user confirms here. */
+const MACRO_ERRORS = ['calories', 'proteinG', 'fatG', 'carbsG'] as const;
+
+/**
+ * Mandatory review step: nothing (AI estimate, typed text, saved meal or manual) is saved until the
+ * user confirms here. Story 3: compact rows — name + grams, with nutrition that rescales as grams change.
+ */
 export default function ReviewSheet(props: Props) {
   const { closeSheet } = useUI();
   const toast = useToast();
-  const [items, setItems] = useState<ReviewItem[]>(() => (props.items.length ? props.items : [blankItem()]));
+  const [items, setItems] = useState<ReviewItem[]>(() => (props.items.length ? props.items : [manualItem()]));
   const [meal, setMeal] = useState<Meal>(props.meal);
   const [errors, setErrors] = useState<Record<string, ItemErrors>>({});
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -39,9 +57,14 @@ export default function ReviewSheet(props: Props) {
   const [notes, setNotes] = useState<string[]>(props.notes);
   const [notice, setNotice] = useState<string | null>(props.notice ?? null);
   const [busy, setBusy] = useState(false);
+  const [asMeal, setAsMeal] = useState(false);
+  const [mealName, setMealName] = useState('');
+  const [mealNameError, setMealNameError] = useState(false);
+  const mealNameId = useId();
   const textFood = useTextFood();
+  const pastDay = props.date !== todayYmd();
 
-  // Same text box as the add sheet: sending appends to this list (OBS-A2F21F).
+  // Same text box as the log sheet: sending appends to this list.
   const onText = async (text: string) => {
     setBusy(true);
     try {
@@ -62,20 +85,30 @@ export default function ReviewSheet(props: Props) {
   const save = async () => {
     const v = validateItems(items);
     setErrors(v.errors);
-    if (!v.ok) return;
+    const nameMissing = asMeal && !mealName.trim();
+    setMealNameError(nameMissing);
+    if (!v.ok || nameMissing) return;
     setSaving(true);
     try {
-      await addFoodEntries(toEntries(items, { date: props.date, meal, provider: props.provider, model: props.model, analyzedAt: props.analyzedAt }));
+      const ids = await addFoodEntries(toEntries(items, { date: props.date, meal, provider: props.provider, model: props.model, analyzedAt: props.analyzedAt }));
+      if (props.savedMealId) await markSavedMealUsed(props.savedMealId);
+      if (asMeal) await saveMeal(mealName, toMealItems(items));
       closeSheet();
+      toast(t('review.saved', { kcal: fmtKcal(totals.calories), meal: t(`meal.${meal}`) }), {
+        label: t('common.undo'),
+        run: () => void deleteFoodEntries(ids),
+      });
     } catch {
       setSaving(false);
       toast(t('error.generic'));
     }
   };
 
+  const remove = (key: string) => setItems((l) => l.filter((x) => x.key !== key));
+
   return (
     <Sheet
-      title={t('review.title')}
+      title={props.title || t('review.title')}
       onClose={closeSheet}
       full
       canClose={() => {
@@ -86,18 +119,20 @@ export default function ReviewSheet(props: Props) {
         <>
           <div className="review-total num" aria-live="polite">
             <span>{t('photo.total')}</span>
-            <strong>{fmtKcal(totals.calories)} {t('common.kcal')}</strong>
+            <strong>
+              {fmtKcal(totals.calories)} {t('common.kcal')}
+            </strong>
             <span className="subtle">
-              P {fmtG(totals.proteinG)} · F {fmtG(totals.fatG)} · C {fmtG(totals.carbsG)}
+              P {fmtG(totals.proteinG)} · F {fmtG(totals.fatG)} · C {fmtG(totals.carbsG)}
             </span>
           </div>
           <button type="button" className="btn btn-primary btn-block" onClick={save} disabled={saving || items.length === 0}>
-            {items.length === 1 ? t('photo.saveOne') : t('photo.saveAll', { count: items.length })}
+            {t('review.saveTo', { meal: t(`meal.${meal}`) })}
           </button>
         </>
       }
     >
-      <div className="stack">
+      <div className="stack-sm">
         {items.some((it) => it.original) && (
           <div className="banner banner-warning review-warning" role="note">
             <Icon name="warning" />
@@ -105,11 +140,29 @@ export default function ReviewSheet(props: Props) {
           </div>
         )}
         <MealPicker value={meal} onChange={setMeal} />
+        {pastDay && <p className="subtle">{t('review.forDate', { date: fmtDate(props.date, 'weekday') })}</p>}
         {notice && (
           <p className="banner banner-brand" role="status">
             {notice}
           </p>
         )}
+        {props.items.length === 0 && <p className="banner">{t('photo.noItems')}</p>}
+        <ul className="card card-flush review-list" aria-label={t('photo.items')}>
+          {items.map((it, idx) => (
+            <ItemRow
+              key={it.key}
+              index={idx}
+              item={it}
+              errors={errors[it.key] ?? {}}
+              onChange={(f, v) => update(it.key, f, v)}
+              onRemove={items.length > 1 ? () => remove(it.key) : undefined}
+            />
+          ))}
+        </ul>
+        <button type="button" className="btn btn-secondary btn-block" onClick={() => setItems((l) => [...l, manualItem()])}>
+          <Icon name="plus" /> {t('photo.addItem')}
+        </button>
+        <FoodTextBox onSend={onText} busy={busy} />
         {notes.length > 0 && (
           <details className="card review-notes">
             <summary>{t('photo.notes')}</summary>
@@ -120,22 +173,32 @@ export default function ReviewSheet(props: Props) {
             </ul>
           </details>
         )}
-        {props.items.length === 0 && <p className="banner">{t('photo.noItems')}</p>}
-        <h3 className="section-title">{t('photo.items')}</h3>
-        {items.map((it, idx) => (
-          <ItemEditor
-            key={it.key}
-            index={idx}
-            item={it}
-            errors={errors[it.key] ?? {}}
-            onChange={(f, v) => update(it.key, f, v)}
-            onRemove={items.length > 1 ? () => setItems((l) => l.filter((x) => x.key !== it.key)) : undefined}
-          />
-        ))}
-        <button type="button" className="btn btn-secondary btn-block" onClick={() => setItems((l) => [...l, blankItem()])}>
-          <Icon name="plus" /> {t('photo.addItem')}
-        </button>
-        <FoodTextBox onSend={onText} busy={busy} />
+        <div className="card stack-sm review-save-meal">
+          <label className="checkbox-row">
+            <input type="checkbox" checked={asMeal} onChange={(e) => setAsMeal(e.target.checked)} />
+            <span>{t('meals.saveAs')}</span>
+          </label>
+          {asMeal && (
+            <div className="field">
+              <label className="field-label" htmlFor={mealNameId}>
+                {t('meals.name')}
+              </label>
+              <input
+                id={mealNameId}
+                className="input"
+                value={mealName}
+                maxLength={80}
+                placeholder={t('meals.namePlaceholder')}
+                aria-invalid={mealNameError || undefined}
+                onChange={(e) => {
+                  setMealName(e.target.value);
+                  setMealNameError(false);
+                }}
+              />
+              {mealNameError && <span className="field-error">{t('error.nameRequired')}</span>}
+            </div>
+          )}
+        </div>
       </div>
       {confirmDiscard && (
         <ConfirmDialog
@@ -150,7 +213,7 @@ export default function ReviewSheet(props: Props) {
   );
 }
 
-function ItemEditor({
+function ItemRow({
   item,
   index,
   errors,
@@ -165,10 +228,16 @@ function ItemEditor({
 }) {
   const nameId = useId();
   const err = (k: keyof ItemErrors) => (errors[k] && errors[k] !== 'nameRequired' ? (errors[k] as FieldError) : null);
+  // Nutrition fields start open when there is nothing to rescale from (manual rows, items without grams).
+  const [open, setOpen] = useState(() => !item.scaleBase && !item.calories);
+  const macroError = MACRO_ERRORS.some((k) => errors[k]);
+  const showMacros = open || macroError;
+  const m = reviewTotals([item]);
+  const label = item.name || `#${index + 1}`;
   return (
-    <section className="card stack-sm review-item" aria-label={item.name || `#${index + 1}`}>
-      <div className="row">
-        <div className="field" style={{ flex: 1 }}>
+    <li className="review-row" aria-label={label}>
+      <div className="review-row-main">
+        <div className="field review-name">
           <label className="field-label" htmlFor={nameId}>
             {t('entry.name')}
           </label>
@@ -182,29 +251,40 @@ function ItemEditor({
           />
           {errors.name && <span className="field-error">{t('error.nameRequired')}</span>}
         </div>
+        <div className="review-grams">
+          <NumberField label={t('entry.grams')} value={item.grams} onChange={(v) => onChange('grams', v)} error={err('grams')} max={LIMITS.grams.max} />
+        </div>
         {onRemove && (
-          <button type="button" className="icon-btn review-remove" onClick={onRemove} aria-label={`${t('photo.removeItem')}: ${item.name}`}>
+          <button type="button" className="icon-btn review-remove" onClick={onRemove} aria-label={`${t('photo.removeItem')}: ${label}`}>
             <Icon name="trash" />
           </button>
         )}
       </div>
-      {(item.confidence || item.description) && (
-        <p className="subtle">
-          {item.confidence && (
-            <span className={`chip ${item.confidence === 'high' ? 'chip-success' : item.confidence === 'medium' ? '' : 'chip-warning'}`}>
-              {t(`photo.confidence.${item.confidence}`)}
-            </span>
-          )}{' '}
-          {item.description}
-        </p>
-      )}
-      <div className="grid-2">
-        <NumberField label={t('entry.grams')} value={item.grams} onChange={(v) => onChange('grams', v)} error={err('grams')} max={LIMITS.grams.max} />
-        <NumberField label={t('entry.calories')} value={item.calories} onChange={(v) => onChange('calories', v)} error={err('calories')} max={LIMITS.calories.max} />
-        <NumberField label={t('entry.protein')} value={item.proteinG} onChange={(v) => onChange('proteinG', v)} error={err('proteinG')} max={LIMITS.macro.max} />
-        <NumberField label={t('entry.fat')} value={item.fatG} onChange={(v) => onChange('fatG', v)} error={err('fatG')} max={LIMITS.macro.max} />
-        <NumberField label={t('entry.carbs')} value={item.carbsG} onChange={(v) => onChange('carbsG', v)} error={err('carbsG')} max={LIMITS.macro.max} />
+      <div className="review-row-nutr">
+        <span className="num review-row-macros">
+          <strong>{fmtKcal(m.calories)}</strong> {t('common.kcal')} · P {fmtG(m.proteinG)} · F {fmtG(m.fatG)} · C {fmtG(m.carbsG)}
+          {item.confidence && item.confidence !== 'high' && (
+            <>
+              {' '}
+              <span className={`chip ${item.confidence === 'medium' ? '' : 'chip-warning'}`}>{t(`photo.confidence.${item.confidence}`)}</span>
+            </>
+          )}
+        </span>
+        {!macroError && (
+          <button type="button" className="btn btn-ghost review-edit-nutr" aria-expanded={showMacros} onClick={() => setOpen((o) => !o)}>
+            {showMacros ? t('review.hideNutrition') : t('review.editNutrition')}
+          </button>
+        )}
       </div>
-    </section>
+      {showMacros && (
+        <div className="grid-2 review-macros">
+          <NumberField label={t('entry.calories')} value={item.calories} onChange={(v) => onChange('calories', v)} error={err('calories')} max={LIMITS.calories.max} />
+          <NumberField label={t('entry.protein')} value={item.proteinG} onChange={(v) => onChange('proteinG', v)} error={err('proteinG')} max={LIMITS.macro.max} />
+          <NumberField label={t('entry.fat')} value={item.fatG} onChange={(v) => onChange('fatG', v)} error={err('fatG')} max={LIMITS.macro.max} />
+          <NumberField label={t('entry.carbs')} value={item.carbsG} onChange={(v) => onChange('carbsG', v)} error={err('carbsG')} max={LIMITS.macro.max} />
+        </div>
+      )}
+      {item.description && <p className="subtle small review-desc">{item.description}</p>}
+    </li>
   );
 }

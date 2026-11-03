@@ -1,4 +1,4 @@
-import type { EstimateItem, FoodEstimate, Macros, Meal, YMD } from '../../db/types';
+import type { EstimateItem, FoodEstimate, Macros, Meal, SavedMealItem, YMD } from '../../db/types';
 import type { NewFoodEntry } from '../../db/repo';
 import type { AnalysisItem } from '../../services/foodAnalysis';
 import { LIMITS, parseDecimal, validateNumber, type FieldError } from '../../lib/numbers';
@@ -62,11 +62,40 @@ export function fromLocal(rows: LocalFoodRow[]): ReviewItem[] {
 
 /** A blank row the user never typed into (dropped when new rows arrive from the text box). */
 export function isUntouchedBlank(it: ReviewItem): boolean {
-  return !it.original && !it.local && !it.name && !it.grams && !it.calories && !it.proteinG && !it.fatG && !it.carbsG;
+  return !it.original && !it.name && !it.grams && !it.calories && !it.proteinG && !it.fatG && !it.carbsG;
 }
 
 export function blankItem(): ReviewItem {
   return { key: nextKey(), name: '', grams: '', calories: '', proteinG: '', fatG: '', carbsG: '', confidence: null, description: '', original: null, scaleBase: null };
+}
+
+/** A row the user adds by hand: saved as a manual entry, never as an AI estimate. */
+export function manualItem(): ReviewItem {
+  return { ...blankItem(), local: true };
+}
+
+/** Rows from a saved meal (Story 3). Weight-linked, so changing grams rescales that food's macros. */
+export function fromSavedMeal(items: readonly SavedMealItem[]): ReviewItem[] {
+  return items.map((i) => ({
+    ...blankItem(),
+    name: i.name,
+    grams: i.grams == null ? '' : String(i.grams),
+    calories: String(i.calories),
+    proteinG: String(i.proteinG),
+    fatG: String(i.fatG),
+    carbsG: String(i.carbsG),
+    scaleBase: i.grams && i.grams > 0 ? { grams: i.grams, calories: i.calories, proteinG: i.proteinG, fatG: i.fatG, carbsG: i.carbsG } : null,
+    local: true,
+  }));
+}
+
+/** Confirmed rows → the foods of a saved meal. Call only after validateItems() passes. */
+export function toMealItems(items: readonly ReviewItem[]): SavedMealItem[] {
+  const v = (s: string) => parseDecimal(s) ?? 0;
+  return items.map((it) => {
+    const g = parseDecimal(it.grams);
+    return { name: it.name.trim(), grams: g == null || Number.isNaN(g) ? null : g, calories: v(it.calories), proteinG: v(it.proteinG), fatG: v(it.fatG), carbsG: v(it.carbsG) };
+  });
 }
 
 /** Live totals; invalid or empty fields count as 0 so totals update as the user types. */

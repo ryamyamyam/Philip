@@ -108,6 +108,23 @@ export interface WeightEntry {
   updatedAt: number;
 }
 
+/** One food inside a saved meal. Values are for `grams` (when known). */
+export interface SavedMealItem extends Macros {
+  name: string;
+  grams: number | null;
+}
+
+/** A named, reusable combination of foods ("Usual breakfast"). DB v3 (Story 3). */
+export interface SavedMeal {
+  id: string;
+  name: string;
+  items: SavedMealItem[];
+  useCount: number;
+  lastUsedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface MetaRow {
   key: string;
   value: unknown;

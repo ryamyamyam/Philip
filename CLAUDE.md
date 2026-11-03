@@ -68,15 +68,15 @@ Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, b
 
 ## Known issues
 - QA voice capture uses the Web Speech API; not yet tested on a real iPhone home-screen install.
-- WebKit e2e first run on the Mac (2026-11-03): 39 passed, 14 failed. Fixed: Gemini key field was overwritten when typed before the profile loaded; QA screenshots now stored as bytes (WebKit rejects Blobs in IndexedDB in private sessions). Skipped on WebKit with reasons: synthetic swipe (no `Touch` constructor), offline reload (Playwright WebKit error), clipboard assertions. Re-run pending. Real-iPhone pass pending.
+- WebKit e2e on the Mac (`9d8c052`, 2026-11-03): **51 passed, 3 skipped, 0 failed**. The webkit-iphone project runs with `serviceWorkers: 'block'` (WebKit's `page.route()` misses fetches from SW-controlled pages). Skipped on WebKit with reasons, to verify on a real iPhone: synthetic swipe (no `Touch` constructor), offline reload, clipboard assertions. Real-iPhone pass pending.
 - Swipe-left row actions and the bottom-sheet QA panel are tested with synthetic touch events in Chromium only; check on a real iPhone.
 - Gemini (`gemini-3.1-flash-lite`): owner confirmed "What should I eat?" works on the live app after the temperature fix (2026-11-03). Photo/text analysis, invalid key and rate limit with a live key still unchecked.
 - Today scrolls once several meals are logged; the card and the Take photo / Choose photo / Enter yourself buttons stay above the fold at 393×793 (e2e). Food names are truncated to one line.
-- The iOS date-input fix on Targets (`.input-date`) is untested in WebKit/Safari.
+- The iOS date-input fix on Targets (`.input-date`) passes in Playwright WebKit; check its look on a real iPhone.
 - QA observations captured from Settings record “Settings” as the screen (the floating button that captured the current screen is off).
 - SW cache matching doesn't ignore `Vary`; if a host sends `Vary: Origin`, lazy chunks (Progress, Settings) can miss the cache offline. Today, the log sheet and the review sheet are bundled eagerly.
 - Export uses the Web Share sheet when available; if iOS rejects the share after the async DB read, it falls back to a download.
 - `node_modules` on the Mac is built for macOS; a Linux sandbox (e.g. Cowork's shell) can't run `npm test` against it. Run tests in Terminal on the Mac or in a separate clone.
 
 ## Next task
-See docs/TASK_ASSIGNMENTS.md (registry) and docs/ROADMAP.md (current milestone: M2 — real-device, WebKit and live-Gemini verification).
+See docs/TASK_ASSIGNMENTS.md (registry) and docs/ROADMAP.md (current milestone: M2 — real-device and live-Gemini verification; WebKit done).

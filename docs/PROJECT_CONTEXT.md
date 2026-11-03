@@ -22,13 +22,13 @@ Remote: `https://github.com/ryamyamyam/Philip.git`. GitHub Pages deploys `main` 
 ## Current development stage
 
 - Stages 0–7 implemented; Stage 8 (QA & polish) partially done; Stage 9 (QA & Feedback module) done.
-- M1 (QA round 2 + Story 3) and the owner feedback round are merged and deployed. Current milestone: M2 — WebKit, real-iPhone and live-Gemini verification.
+- M1 (QA round 2 + Story 3) and the owner feedback round are merged and deployed. Current milestone: M2 — real-iPhone and live-Gemini verification (WebKit e2e done 2026-11-03).
 
 ## Current priorities
 
 1. Ship `release/voice-emoji-docs` (merge into `main`, push).
 2. Owner: send the “What Gemini said” text if “What should I eat?” still fails (T-004).
-3. Run WebKit e2e on the Mac against `main`; fix WebKit-only issues (incl. the iOS date-input fix).
+3. ~~WebKit e2e~~ — done: 51 passed, 3 skipped (T-002).
 4. Real-iPhone pass: install, offline, camera → review → save, saved meals, share-sheet export, Dynamic Type, VoiceOver.
 5. Live Gemini key test (photo, text, "What should I eat?").
 6. Owner decisions listed under "Open questions".
@@ -70,7 +70,7 @@ Runtime dependencies: `dexie`, `dexie-react-hooks`, `react`, `react-dom` — not
 | Offline/PWA | Implemented; Vary caveat (below) |
 | QA & Feedback module (from Settings; archive after prompt) | Implemented, tested (Chromium); iPhone voice ❓ |
 
-Test evidence: on `0cdd351`, `tsc -b` clean, 177/177 unit tests and 54/54 Chromium-mobile e2e passed in a clean Linux clone (2026-11-03); see TASK_ASSIGNMENTS.md for the voice/emoji branch. WebKit e2e, a real iPhone and a live Gemini key: **not yet run**.
+Test evidence: on `0cdd351`, `tsc -b` clean, 177/177 unit tests and 54/54 Chromium-mobile e2e passed in a clean Linux clone (2026-11-03); see TASK_ASSIGNMENTS.md for the voice/emoji branch. WebKit (`9d8c052`, Mac): 51 passed, 3 skipped, 0 failed. A real iPhone and full live-Gemini checks: **not yet run**.
 
 ## Known limitations
 
@@ -91,7 +91,7 @@ See CLAUDE.md "Stack & constraints" and "Owner approval required", and DECISIONS
 
 ## Outstanding technical issues
 
-1. WebKit e2e: first run 39/53 passed; fixes on `fix/webkit-and-cleanup`, re-run pending. Real-device checklist unrun.
+1. WebKit e2e green (3 skips need the real iPhone: swipe, offline reload, clipboard). Real-device checklist unrun.
 2. SW `caches.match` without `ignoreVary` → lazy chunks may fail offline if the host sends `Vary` (❓ on GitHub Pages).
 3. Update prompt not wired.
 4. Dead code removed 2026-11-03 (T-005): `CalorieChart`, `CalorieRing`, `MacroBars`, `MyFoodsSheet`, `SavedFoodSheet` (+ their sheet kinds), the `TargetsView` default export. Kept on purpose: `lib/history.ts` (tested; may return with M5), `MealsView.tsx` (`TodayView` imports `MealCard`), unused `en.ts` keys and old CSS classes (harmless).

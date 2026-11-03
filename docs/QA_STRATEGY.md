@@ -14,7 +14,7 @@ Uses only the tools already in the project: **Vitest** (+ `fake-indexeddb`) for 
 
 Gemini is always mocked in tests (`fetchImpl` in unit tests, `page.route` in e2e). No test needs a real key.
 
-Current evidence (2026-11-02, `5f78cb4`): 176/176 unit tests (18 files), `tsc` clean. 52 Chromium e2e reported passing (not independently re-run). WebKit e2e never run.
+Current evidence (2026-11-03, `9d8c052`): 177/177 unit tests (18 files), `tsc` clean, 54/54 Chromium-mobile e2e (clean Linux clone), WebKit on the Mac 51 passed / 3 skipped / 0 failed. WebKit runs with `serviceWorkers: 'block'`; offline is covered in Chromium.
 
 ## Commands
 

@@ -18,7 +18,7 @@ Owner: PM. Update when a milestone or task changes status.
 | 7 | Adherence score (optional), weekday target planning, weekly planned vs actual | ✅ Done |
 | 9 | QA & Feedback Capture module (capture, screenshots, inbox, prompt builder, optional AI) | ✅ Done (needs real-iPhone voice test) |
 | — | Development operating system (CLAUDE.md + docs/*) | ✅ Shipped in `main` (owner review of D-016 ❓) |
-| M1 | QA round 2 + Story 3 merged and deployed | ✅ `main` `0cdd351` (2026-11-03); WebKit not run |
+| M1 | QA round 2 + Story 3 merged and deployed | ✅ `main` `0cdd351` (2026-11-03); WebKit verified later (`9d8c052`) |
 | — | Owner feedback round (units switch, 1-month target, Today log buttons, Gemini temperature) | ✅ `0cdd351`; Chromium e2e 54/54 |
 
 Several later stages changed earlier UI (calorie ring, macro bars, History tab, My Foods in the add sheet). Their code is kept; see PROJECT_CONTEXT.md.
@@ -28,8 +28,8 @@ Several later stages changed earlier UI (calorie ring, macro bars, History tab, 
 | Item | Status | Notes |
 |---|---|---|
 | Voice + emoji copy (D-020) + docs refresh | 🟡 Ready to ship | `release/voice-emoji-docs` → merge into `main` |
-| “What should I eat?” failure | 🟡 In progress | Fix shipped; waiting for the owner's “What Gemini said” text (T-004) |
-| WebKit e2e (`--project=webkit-iphone`) | ⬜ Planned | Must run on the Mac (T-002) |
+| “What should I eat?” failure | ✅ Works with the owner's key (2026-11-03) | T-004 |
+| WebKit e2e (`--project=webkit-iphone`) | ✅ 51 passed, 3 skipped (2026-11-03) | T-002; skipped items go to the iPhone check |
 | Real-iPhone checklist | ⬜ Planned | T-003 |
 | Live Gemini key (photo, text, suggestions) | ⬜ Planned | T-004 |
 
@@ -38,7 +38,7 @@ Several later stages changed earlier UI (calorie ring, macro bars, History tab, 
 - [x] Unit tests: calculations, dates, DB, backup, AI parsing, Gemini adapter (mocked)
 - [x] Browser tests (Chromium mobile emulation): logging, validation, dates, recents, offline, photo flow, handoff, backup, calculator
 - [x] Screenshots at 375 and 440 CSS px, plus 150% text pass; no horizontal scroll
-- [ ] Run Playwright with WebKit (`--project=webkit-iphone`)
+- [x] Run Playwright with WebKit (`--project=webkit-iphone`) — 51 passed, 3 skipped (swipe, offline reload, clipboard → real iPhone)
 - [ ] Real iPhone: install from Safari, offline launch, camera capture, share-sheet export, Files import, Dynamic Type at largest sizes, VoiceOver pass
 - [ ] Live Gemini free-tier key: success, invalid key, rate limit
 - [ ] Performance check on device (cold start, 1 year of entries)
@@ -63,6 +63,5 @@ Several later stages changed earlier UI (calorie ring, macro bars, History tab, 
 
 ## Outstanding blockers
 
-1. WebKit e2e has never been run (needs the Mac).
-2. “What should I eat?” root cause unknown until the owner sends the error text.
-3. Owner confirmation on Today scrolling (D-015), QA screen labels and the dev OS (D-016).
+1. Real-iPhone checklist (T-003) not yet run.
+2. Owner confirmation on QA screen labels and the dev OS (D-016).

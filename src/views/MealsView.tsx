@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { CategoryChip } from '../components/CategoryChip';
 import { DateNav } from '../components/DateNav';
 import { Icon } from '../components/Icon';
 import { MoveEntryDialog } from '../components/MoveEntryDialog';
@@ -9,6 +10,7 @@ import { MEALS, type FoodEntry, type Meal } from '../db/types';
 import { useEntriesForDate } from '../hooks/useData';
 import { useSwipe } from '../hooks/useSwipe';
 import { t } from '../i18n';
+import { MEAL_CATEGORY } from '../lib/category';
 import { addDays } from '../lib/date';
 import { fmtDate, fmtG, fmtKcal } from '../lib/format';
 import { groupByMeal, sumMacros } from '../lib/nutrition';
@@ -69,10 +71,9 @@ export function MealCard({ meal, entries, onAdd, collapse = true }: { meal: Meal
     <section className="card card-flush meal-card" aria-label={mealName}>
       <div className="meal-head">
         <h2>
-          <span aria-hidden="true">{MEAL_EMOJI[meal]} </span>
-          {mealName}
+          <CategoryChip category={MEAL_CATEGORY[meal]} icon={MEAL_EMOJI[meal]} label={mealName} />
         </h2>
-        {entries.length > 0 && <span className="meal-total num">{t('today.mealTotal', { kcal: fmtKcal(total) })}</span>}
+        {entries.length > 0 && <span className="meal-total pm-display num">{t('today.mealTotal', { kcal: fmtKcal(total) })}</span>}
         {onAdd && (
           <button type="button" className="icon-btn" onClick={onAdd} aria-label={t('today.addToMeal', { meal: mealName })}>
             <Icon name="plus" />
@@ -125,7 +126,7 @@ export function MealCard({ meal, entries, onAdd, collapse = true }: { meal: Meal
                       <MacroChip k="c" value={e.carbsG} />
                     </span>
                   </span>
-                  <span className="list-value">{fmtKcal(e.calories)}</span>
+                  <span className="list-value pm-display num">{fmtKcal(e.calories)}</span>
                 </button>
               </SwipeRow>
             </li>

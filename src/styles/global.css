@@ -1,5 +1,42 @@
 @import './tokens.css';
 
+/* Display font (D-022): self-hosted, precached by the service worker. Labels, chips, numbers, headers only. */
+@font-face {
+  font-family: 'Philip Pixel';
+  src: url('../assets/fonts/philip-pixel-400.woff2') format('woff2');
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Philip Pixel';
+  src: url('../assets/fonts/philip-pixel-700.woff2') format('woff2');
+  font-weight: 600 800;
+  font-style: normal;
+  font-display: swap;
+}
+/* Digits come from Silkscreen (Pixelify's 5 reads as S), via unicode-range. Declared last so they win
+   for 0–9. Each digits face repeats a Pixelify face's exact descriptors: browsers only combine
+   unicode-range faces whose weight ranges match. One file for both (Silkscreen Bold's 4 is unclear). */
+@font-face {
+  font-family: 'Philip Pixel';
+  src: url('../assets/fonts/philip-pixel-digits-400.woff2') format('woff2');
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0030-0039;
+  size-adjust: 92%;
+}
+@font-face {
+  font-family: 'Philip Pixel';
+  src: url('../assets/fonts/philip-pixel-digits-400.woff2') format('woff2');
+  font-weight: 600 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0030-0039;
+  size-adjust: 92%;
+}
+
 html {
   font-size: 106.25%; /* 17px fallback for non-Apple browsers */
   -webkit-text-size-adjust: 100%;
@@ -68,7 +105,7 @@ button {
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-action);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 

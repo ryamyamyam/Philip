@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AmbientScene } from '../../components/AmbientScene';
 import { Icon } from '../../components/Icon';
 import { Sheet } from '../../components/Sheet';
 import type { Meal, YMD } from '../../db/types';
@@ -60,7 +61,7 @@ export default function PhotoSheet({ date, meal, file }: { date: YMD; meal: Meal
         {preview && <img className="photo-preview" src={preview} alt="" />}
         {state.status === 'analyzing' ? (
           <div className="analyzing" role="status" aria-live="polite">
-            <div className="spinner" aria-hidden="true" />
+            <AmbientScene variant="analyzing" />
             <strong>{t('photo.analyzing')}</strong>
             <span className="subtle">{t('photo.analyzingHint')}</span>
           </div>

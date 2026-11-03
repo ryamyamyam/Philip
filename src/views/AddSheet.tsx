@@ -1,13 +1,15 @@
 import { useState } from 'react';
+import { CategoryChip } from '../components/CategoryChip';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FoodTextBox } from '../components/FoodTextBox';
 import { Icon } from '../components/Icon';
 import { Sheet } from '../components/Sheet';
 import { useToast } from '../components/Toast';
 import { deleteSavedMeal, restoreSavedMeal } from '../db/repo';
-import type { Meal, SavedMeal, YMD } from '../db/types';
+import type { Meal, SavedMeal, SavedMealItem, YMD } from '../db/types';
 import { useSavedMeals } from '../hooks/useData';
 import { t } from '../i18n';
+import { dominantMacro, MACRO_CATEGORY } from '../lib/category';
 import { fmtKcal } from '../lib/format';
 import { sumMacros } from '../lib/nutrition';
 import { useUI, type SheetState } from '../ui';
@@ -58,7 +60,7 @@ export function AddPanel({ date, meal, autoFocus = false }: { date: YMD; meal: M
           <h3 id="saved-meals-h" className="section-title">
             {t('meals.saved')}
           </h3>
-          <ul className="card card-flush list">
+          <ul className="card card-flush list saved-meals">
             {meals.map((m) => (
               <li key={m.id} className="list-item">
                 <button
@@ -70,8 +72,17 @@ export function AddPanel({ date, meal, autoFocus = false }: { date: YMD; meal: M
                   <span className="list-text">
                     <span className="list-title">{m.name}</span>
                     <span className="list-meta">{m.items.map((i) => i.name).join(', ')}</span>
+                    <SavedMealChip items={m.items} />
                   </span>
-                  <span className="list-value num">{fmtKcal(sumMacros(m.items).calories)}</span>
+                  <span className="saved-meal-counter">
+                    <span className="list-value pm-display num">{fmtKcal(sumMacros(m.items).calories)}</span>
+                    {m.useCount > 0 && (
+                      <span className="saved-meal-uses pm-display num">
+                        <span aria-hidden="true">{t('meals.timesLogged', { count: m.useCount })}</span>
+                        <span className="visually-hidden">{t('meals.timesLoggedLabel', { count: m.useCount })}</span>
+                      </span>
+                    )}
+                  </span>
                 </button>
                 <button type="button" className="icon-btn" aria-label={t('meals.delete', { name: m.name })} onClick={() => setDeleting(m)}>
                   <Icon name="trash" />
@@ -124,4 +135,17 @@ export function AddSheet({ date, meal }: { date: YMD; meal: Meal }) {
       </div>
     </Sheet>
   );
+}
+
+const MACRO_CHIP = {
+  protein: { label: 'macro.protein', emoji: '🥩' },
+  fat: { label: 'macro.fat', emoji: '🥑' },
+  carbs: { label: 'macro.carbs', emoji: '🍚' },
+} as const;
+
+/** Category chip for a saved meal: its dominant macro by calories (D-022, presentation only). */
+function SavedMealChip({ items }: { items: SavedMealItem[] }) {
+  const macro = dominantMacro(items);
+  if (!macro) return null;
+  return <CategoryChip className="saved-meal-chip" category={MACRO_CATEGORY[macro]} icon={MACRO_CHIP[macro].emoji} label={t(MACRO_CHIP[macro].label)} />;
 }

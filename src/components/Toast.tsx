@@ -1,3 +1,4 @@
+import { DialogBar } from './DialogBar';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 interface ToastMsg {
@@ -26,21 +27,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="toast-region" role="status" aria-live="polite">
         {msg && (
-          <div className="toast" key={msg.id}>
-            <span>{msg.text}</span>
-            {msg.action && (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
+          // Dialog-bar skin (D-022). No speaker: toasts can carry plain text (Undo, deleted, errors).
+          <DialogBar
+            key={msg.id}
+            className="toast"
+            action={
+              msg.action && {
+                label: msg.action.label,
+                onClick: () => {
                   msg.action?.run();
                   setMsg(null);
-                }}
-              >
-                {msg.action.label}
-              </button>
-            )}
-          </div>
+                },
+              }
+            }
+          >
+            {msg.text}
+          </DialogBar>
         )}
       </div>
     </ToastCtx.Provider>

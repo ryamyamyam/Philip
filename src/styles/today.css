@@ -1,8 +1,5 @@
-/* Today dashboard */
+/* Today dashboard — status strip (D-022) */
 .date-nav {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
   margin-bottom: var(--space-3);
 }
 .date-nav-title {
@@ -17,10 +14,16 @@
   justify-content: center;
 }
 .date-nav-title h1 {
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-tight);
 }
 .date-nav-title .subtle {
   font-size: var(--text-xs);
+}
+.date-nav-title:focus-within {
+  outline: var(--border-thick) solid var(--color-focus);
+  outline-offset: var(--space-0-5);
 }
 .date-input-overlay {
   position: absolute;
@@ -500,24 +503,9 @@
   vertical-align: -0.12em;
 }
 
-/* Primary logging action: photo first, everything else one tap away. */
-.log-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: var(--space-2);
-}
-.log-actions .btn {
-  min-height: 56px;
-  font-size: var(--text-md);
-  padding-left: var(--space-3);
-  padding-right: var(--space-3);
-}
+/* Primary logging action: photo first, docked on the control deck (D-022). */
 .log-photo {
   cursor: pointer;
-}
-.log-photo:focus-within {
-  outline: 3px solid var(--color-action);
-  outline-offset: 2px;
 }
 .log-date-note {
   margin: 0;
@@ -535,18 +523,194 @@
   font-size: var(--text-sm);
 }
 
-/* Owner feedback (Nov 2026): three log buttons — Take photo · Choose photo · Enter yourself. */
-.log-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.log-actions .btn {
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--text-sm);
-}
-.log-type[aria-expanded='true'] {
-  border-color: var(--color-action);
-}
 .add-inline {
   animation: fade-in 0.15s ease-out;
+}
+
+/* ======================================================================
+   T-009 / D-022 — Today in the handheld-RPG language. Tokens only.
+   Top = display zone (status, meters, Philip's line); bottom = control deck.
+   ====================================================================== */
+.view,
+.view-fit {
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--deck-actions-h) + var(--space-6));
+}
+
+/* Hero display panel */
+.today-card.pm-hero {
+  align-items: stretch;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+}
+.today-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.today-card .today-big {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+.today-card .today-sub {
+  align-self: flex-end;
+}
+
+/* Macro rows: chip · value / meter / eaten */
+.today-card .today-macros {
+  margin: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--border-hair) dashed var(--color-border-strong);
+}
+.today-card .today-macro {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'name value'
+    'bar bar'
+    'eaten eaten';
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+.today-card .today-macro-name {
+  grid-area: name;
+}
+.today-card .today-macro-value {
+  grid-area: value;
+  justify-self: end;
+  text-align: right;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+.today-card .today-macro .pm-meter {
+  grid-area: bar;
+}
+.today-card .today-macro-eaten {
+  grid-area: eaten;
+  justify-self: end;
+}
+.today-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.today-badges .today-hit {
+  margin: 0;
+}
+
+/* Philip speaks: the dialog bar spans the panel's bottom edge */
+.today-card .today-hint.pm-dialog {
+  width: auto;
+  margin: var(--space-3) calc(-1 * var(--space-4)) 0;
+  border-bottom: none;
+}
+.today-card .today-hint .pm-dialog-text {
+  color: var(--color-on-dialog);
+}
+
+/* Empty target state keeps the plain card, framed */
+.today-card-empty {
+  border: var(--border-frame) solid var(--color-ink);
+  border-radius: 0;
+  box-shadow: var(--shadow-hard);
+}
+
+/* Meal cards: framed panels with a category chip and a pixel counter */
+.view-today .meal-card {
+  border: var(--border-frame) solid var(--color-ink);
+  border-radius: 0;
+  box-shadow: var(--shadow-hard);
+}
+.view-today .meal-card .meal-head {
+  background: var(--color-display-2);
+  border-bottom: var(--border-hair) solid var(--color-ink);
+}
+.view-today .meal-card .list {
+  border-top: none;
+}
+.meal-card .meal-head h2 .pm-chip {
+  font-size: var(--text-md);
+}
+.meal-total.pm-display {
+  font-size: var(--text-md);
+  color: var(--color-text);
+}
+.view-today .list-value.pm-display {
+  font-weight: var(--weight-regular);
+}
+
+/* Saved meals: chip under the name, counter on the right */
+.saved-meals .saved-meal-chip {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+}
+.saved-meals .list-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.saved-meal-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-0-5);
+  flex: none;
+}
+.saved-meal-uses {
+  font-size: var(--text-xs);
+  color: var(--color-text-3);
+}
+
+/* Empty day: ambient world */
+.today-empty-world {
+  border: var(--border-frame) solid var(--color-ink);
+  box-shadow: var(--shadow-hard);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.today-empty-world .today-empty {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-2);
+}
+
+/* Inline "Enter yourself" panel */
+.view-today .add-inline {
+  border: var(--border-frame) solid var(--color-ink);
+  border-radius: 0;
+  box-shadow: var(--shadow-hard);
+}
+
+/* Photo analysis wait */
+.analyzing .pm-world {
+  border: var(--border-frame) solid var(--color-ink);
+  margin-bottom: var(--space-2);
+}
+
+/* Primary buttons inside Today's panels follow the teal label color (global .btn restyle is Phase 3). */
+.view-today .btn-primary {
+  background: var(--color-label);
+  color: var(--color-on-label);
+  border-color: var(--color-ink);
+}
+@media (hover: hover) {
+  .view-today .btn-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-label) 85%, var(--color-ink));
+  }
+}
+.view-today .btn-primary:active:not(:disabled) {
+  transform: translateY(var(--press-depth));
 }

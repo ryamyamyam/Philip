@@ -14,8 +14,17 @@ Base branch for new work: `main`.
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
+| T-009 | Design system v2 (handheld-RPG look), phase 2: tokens, components, Today | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-009 — Design system v2 (D-022, proposed)
+- **Role:** Feature, with owner-approved shared-file edits (Ryan approved Phase 1 on 2026-11-03).
+- **Description:** Visual layer only. Phase 2: tokens, self-hosted OFL pixel font, components (Meter, ActionButton, CategoryChip, DialogBar, ControlDeck/DeckActions, StatusStrip, DotIndicator, CornerButton, AmbientScene) and the Today restyle. Phase 3: Progress, Settings (incl. QA look via `--qa-*` variables only), docs/DESIGN_SYSTEM.md rewrite, D-022.
+- **Allowed files (phase 2):** `src/styles/{tokens,global,components,today}.css`, `src/main.tsx` (CSS import), `src/assets/fonts/**`, `src/components/{Meter,ActionButton,CategoryChip,DialogBar,ControlDeck,StatusStrip,DotIndicator,CornerButton,AmbientScene,TodayCard,TabBar,Toast,DateNav}.tsx`, `src/views/{TodayView,MealsView,AddSheet}.tsx`, `src/views/photo/PhotoSheet.tsx`, `src/lib/{category,meter}.ts` + `category.test.ts`, `src/i18n/en.ts` (append), `index.html`/manifest theme color.
+- **Excluded:** `src/db/**`, `src/services/**`, `src/modules/qa-feedback/**`, other `src/lib/*`, `package.json`.
+- **Status:** Ready for owner review on device · **Branch:** `feat/T-009-design-system`
+- **Log:** 2026-11-03 Feature: phase 2 done in a clean Linux clone — tsc clean, 196/196 unit (+9), 59/59 Chromium-mobile e2e (no test changed). WebKit and a real iPhone not run.
 
 ### T-008 — Voice + emoji copy and docs refresh
 - **Role:** Feature (copy) + PM (docs)

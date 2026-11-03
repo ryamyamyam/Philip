@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { BackupReminder } from '../components/BackupReminder';
 import { DateNav } from '../components/DateNav';
+import { ActionButton, ActionFileButton } from '../components/ActionButton';
+import { AmbientScene } from '../components/AmbientScene';
+import { DeckActions } from '../components/ControlDeck';
 import { Icon } from '../components/Icon';
 import { TodayCard } from '../components/TodayCard';
 import { MEALS } from '../db/types';
@@ -48,7 +51,7 @@ export function TodayView() {
   };
 
   return (
-    <div className="view view-fit" {...swipe}>
+    <div className="view view-fit view-today" {...swipe}>
       <DateNav />
       <div className="stack">
         <BackupReminder />
@@ -61,45 +64,33 @@ export function TodayView() {
             onSetTargets={() => navigate('targets')}
           />
         )}
-        <div className="log-actions">
-          <label className="btn btn-primary log-photo">
-            <Icon name="camera" />
-            <span>{t('add.camera')}</span>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="visually-hidden"
-              onChange={(e) => {
-                onPhoto(e.target.files?.[0]);
-                e.target.value = '';
-              }}
-            />
-          </label>
-          <label className="btn btn-secondary log-photo">
-            <Icon name="upload" />
-            <span>{t('add.library')}</span>
-            <input
-              type="file"
-              accept="image/*"
-              className="visually-hidden"
-              onChange={(e) => {
-                onPhoto(e.target.files?.[0]);
-                e.target.value = '';
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            className="btn btn-secondary log-type"
+        <DeckActions label={t('deck.log')} className="log-actions">
+          <ActionFileButton
+            variant="primary"
+            size="lg"
+            icon="camera"
+            className="log-photo"
+            accept="image/*"
+            capture="environment"
+            onFile={onPhoto}
+          >
+            {t('add.camera')}
+          </ActionFileButton>
+          <ActionFileButton variant="secondary" size="lg" icon="upload" className="log-photo" accept="image/*" onFile={onPhoto}>
+            {t('add.library')}
+          </ActionFileButton>
+          <ActionButton
+            variant="quiet"
+            size="lg"
+            icon="pencil"
+            className="log-type"
             aria-expanded={typing}
             aria-controls="today-type"
             onClick={() => setTyping((v) => !v)}
           >
-            <Icon name="pencil" />
-            <span>{t('today.enterYourself')}</span>
-          </button>
-        </div>
+            {t('today.enterYourself')}
+          </ActionButton>
+        </DeckActions>
         {typing && (
           <section id="today-type" className="card add-inline" aria-label={t('add.title')}>
             <AddPanel date={date} meal={meal} autoFocus />
@@ -108,7 +99,12 @@ export function TodayView() {
         {!isToday && <p className="subtle log-date-note">{t('today.loggingPast')}</p>}
 
         <section className="stack-sm" aria-label={t('today.logged')}>
-          {entries && entries.length === 0 && <p className="subtle today-empty">{t('today.nothingLogged')}</p>}
+          {entries && entries.length === 0 && (
+            <div className="today-empty-world">
+              <AmbientScene variant="empty" />
+              <p className="subtle today-empty">{t('today.nothingLogged')}</p>
+            </div>
+          )}
           {MEALS.filter((m) => byMeal[m].length > 0).map((m) => (
             <MealCard key={`${date}-${m}`} meal={m} entries={byMeal[m]} collapse={false} />
           ))}

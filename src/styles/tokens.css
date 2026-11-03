@@ -5,12 +5,12 @@
  */
 :root {
   /* Color */
-  --color-bg: #fafaf8;
+  --color-bg: #eef1f3; /* = --color-display (D-022) */
   --color-surface: #ffffff;
   --color-surface-2: #f5f5f4;
   --color-text: #1c1917;
   --color-text-2: #57534e; /* 7.0:1 on white */
-  --color-text-3: #78716c; /* 4.8:1 on white — minimum for small text */
+  --color-text-3: #69625d; /* 5.3:1 on display, 6.0:1 on white — minimum for small text */
   --color-border: #e7e5e4;
   --color-border-strong: #d6d3d1;
   --color-brand: #f97316; /* fills, rings, icons — never small text on white */
@@ -18,24 +18,125 @@
   --color-action: #c2410c; /* buttons, orange text (5.2:1 on white) */
   --color-action-pressed: #9a3412;
   --color-on-action: #ffffff;
-  --color-success: #3f7d58;
+  --color-success: #37704f;
   --color-success-soft: #e7f2ea;
-  --color-warning: #a16207;
+  --color-warning: #8a5606;
   --color-warning-soft: #fef6dc;
   --color-danger: #b91c1c;
   --color-danger-soft: #fdecec;
   --color-track: #f0eeec;
-  --color-protein: #c2410c;
-  --color-fat: #f59e0b;
-  --color-carbs: #fb923c;
+  /* Macro colors re-point to the category palette (D-022): protein coral, fat sand, carbs sky. */
+  --color-protein: var(--cat-coral);
+  --color-fat: var(--cat-sand);
+  --color-carbs: var(--cat-sky);
   /* Macro chips: soft fill + dark text (≥ 4.5:1) per macro */
-  --color-protein-soft: #fbe3d6;
-  --color-protein-text: #8a2c0b;
-  --color-fat-soft: #fdf0c4;
-  --color-fat-text: #7a4a03;
-  --color-carbs-soft: #e3eefb;
+  --color-protein-soft: #f8ddd4;
+  --color-protein-text: #7a2a14;
+  --color-fat-soft: #efe7d2;
+  --color-fat-text: #5a4716;
+  --color-carbs-soft: #dde8f8;
   --color-carbs-text: #1e4a7a;
-  --color-scrim: rgb(28 25 23 / 0.4);
+  --color-scrim: rgb(26 29 32 / 0.45);
+
+  /* ---------- Handheld-RPG language (D-022, docs/DESIGN_SYSTEM.md) ---------- */
+  /* Ink & surfaces */
+  --color-ink: #1a1d20; /* outlines, text on light (16.9:1 on white) */
+  --color-display: #eef1f3; /* top display zone (ink 14.9:1) */
+  --color-display-2: #e2e7eb;
+  --color-panel: #d8dce0; /* info panel (ink 12.3:1) */
+  --color-panel-text-2: #4a5058; /* 5.9:1 on panel */
+  --color-panel-stripe: rgb(255 255 255 / 0.35); /* scanlines */
+  --color-panel-head: #3a3f46; /* header bar (white 10.6:1) */
+  --color-deck: #2a2e33; /* control deck */
+  --color-deck-raised: #363b41;
+  --color-deck-line: #1a1d20;
+  --color-on-deck: #f2f4f5; /* 12.4:1 on deck */
+  --color-on-deck-2: #b8bec4; /* 7.3:1 on deck */
+  --color-label: #267575; /* teal label pill (white 5.4:1; #2e8c8c was 4.0:1) */
+  --color-on-label: #ffffff;
+  --color-notable: #e04848; /* fills/markers only — 2.9:1 on panel, never text */
+  --color-notable-fill: #c93c3c; /* white text 5.0:1 */
+  --color-notable-text: #a82a2a; /* red text on light ≥ 4.5:1 */
+  --color-on-notable: #ffffff;
+  --color-dialog: rgb(26 29 32 / 0.9); /* Philip's dialog bar */
+  --color-screen-stripe: rgb(26 29 32 / 0.025); /* scanlines on the white display panel */
+  --color-chip-shade: rgb(26 29 32 / 0.22);
+  --color-deck-texture: rgb(255 255 255 / 0.05);
+  --color-lens: rgb(255 255 255 / 0.55);
+  --color-on-dialog: #ffffff;
+  --color-dialog-speaker: #9fe3c8; /* speaker plate text on dialog, 10:1 */
+  --color-focus: #2b63bd; /* focus ring on light (5.2:1 on display) */
+  --color-focus-on-dark: #ffd84a; /* focus ring on deck/dialog (10:1) */
+
+  /* Meters */
+  --color-meter-track: #2a2e33;
+  --color-meter-full: #3fd86a; /* 7.3:1 vs track */
+  --color-meter-mid: #f2c230; /* 8.2:1 vs track */
+  --color-meter-low: #e04848; /* 3.4:1 vs track (non-text ≥ 3:1) */
+  --color-meter-fill-up: #5a8fe0; /* minimum (XP-style) meters, 4.2:1 vs track */
+  --color-meter-shine: rgb(255 255 255 / 0.35);
+
+  /* Category palette: fill + ink pair, every pair ≥ 4.5:1 */
+  --cat-sky: #5a8fe0;
+  --cat-sky-ink: #1a1d20;
+  --cat-sand: #b8a06a;
+  --cat-sand-ink: #1a1d20;
+  --cat-slate: #9a9aa0;
+  --cat-slate-ink: #1a1d20;
+  --cat-violet: #7a5ae0;
+  --cat-violet-ink: #ffffff;
+  --cat-coral: #e0785a;
+  --cat-coral-ink: #1a1d20;
+  --cat-leaf: #5ab85a;
+  --cat-leaf-ink: #1a1d20;
+  --cat-rose: #d86a9a;
+  --cat-rose-ink: #1a1d20;
+  --cat-teal: #3fa8a8;
+  --cat-teal-ink: #1a1d20;
+
+  /* Ambient world (empty states, onboarding, photo analysis) */
+  --world-ground: #6cc8a8;
+  --world-ground-2: #5ab896;
+  --world-path: #e8d29a;
+  --world-foliage: #2f7a4e;
+  --world-foliage-2: #3f9a62;
+  --world-sky: #dff1ec;
+  --world-shadow: rgb(26 29 32 / 0.18);
+  --world-outline: #1a1d20;
+
+  /* Type */
+  --font-display: 'Philip Pixel', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-body: var(--font-family);
+  --display-tracking: 0.04em; /* labels, chips */
+  --display-tracking-num: 0.01em; /* numbers and headings */
+
+  /* Shape */
+  --space-0-5: 2px;
+  --chamfer-sm: 6px;
+  --chamfer-md: 10px;
+  --chamfer-lg: 14px;
+  --border-hair: 1px;
+  --border-frame: 2px;
+  --border-thick: 3px;
+  --radius-capsule: 999px;
+  --shadow-hard: 0 var(--space-0-5) 0 var(--color-ink);
+  --shadow-hard-lg: 0 4px 0 var(--color-ink);
+  --shadow-inset-frame: inset 0 0 0 var(--border-frame) var(--color-ink);
+  --shadow-deck: 0 -1px 0 var(--color-deck-line), 0 -8px 24px rgb(26 29 32 / 0.18);
+
+  /* Motion */
+  --dur-fast: 120ms;
+  --dur-base: 150ms;
+  --dur-slow: 180ms;
+  --dur-meter: 360ms;
+  --dur-blink: 900ms; /* dialog caret */
+  --dur-loop: 1600ms; /* ambient loops */
+  --ease-snap: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --press-depth: var(--space-0-5);
+
+  /* Layout (measured by ControlDeck; fallbacks for first paint) */
+  --deck-actions-h: 0px;
 
   /* Spacing — 4-point grid */
   --space-1: 4px;
@@ -81,4 +182,15 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+    --dur-meter: 0ms;
+    --ease-bounce: linear;
+    --press-depth: 0px;
+  }
 }

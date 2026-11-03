@@ -1,8 +1,13 @@
 import type { Macros } from '../db/types';
 import { t, type StringKey } from '../i18n';
 import { fmtG, fmtKcal } from '../lib/format';
-import { dayGoalHit, progressFraction, remainingAll, type MacroKey, type Phase, type Remaining } from '../lib/remaining';
+import { MACRO_CATEGORY, type CategoryKey } from '../lib/category';
+import type { MeterMode } from '../lib/meter';
+import { dayGoalHit, remainingAll, type MacroKey, type Phase, type Remaining } from '../lib/remaining';
+import { CategoryChip } from './CategoryChip';
+import { DialogBar } from './DialogBar';
 import { Icon } from './Icon';
+import { Meter } from './Meter';
 
 const KCAL_KEY: Record<Remaining['status'], StringKey> = {
   left: 'today.kcal.left',
@@ -22,19 +27,14 @@ const G_KEY: Record<Remaining['status'], StringKey> = {
   toGo: 'today.g.toGo',
   reached: 'today.g.reached',
 };
-const MACROS: { key: Exclude<MacroKey, 'calories'>; label: StringKey; cls: string; emoji: string }[] = [
-  { key: 'proteinG', label: 'macro.protein', cls: 'p', emoji: '🥩' },
-  { key: 'fatG', label: 'macro.fat', cls: 'f', emoji: '🥑' },
-  { key: 'carbsG', label: 'macro.carbs', cls: 'c', emoji: '🍚' },
+const MACROS: { key: Exclude<MacroKey, 'calories'>; label: StringKey; cat: CategoryKey; emoji: string }[] = [
+  { key: 'proteinG', label: 'macro.protein', cat: MACRO_CATEGORY.protein, emoji: '🥩' },
+  { key: 'fatG', label: 'macro.fat', cat: MACRO_CATEGORY.fat, emoji: '🥑' },
+  { key: 'carbsG', label: 'macro.carbs', cat: MACRO_CATEGORY.carbs, emoji: '🍚' },
 ];
 
-function Bar({ fraction, cls, label }: { fraction: number; cls: string; label: string }) {
-  return (
-    <div className="today-track" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fraction * 100)}>
-      <div className={`today-fill today-fill-${cls}`} style={{ width: `${fraction * 100}%` }} />
-    </div>
-  );
-}
+/** Ceilings (left / over) drain like a health bar; minimums (to go / reached) fill up (D-022). */
+const modeFor = (r: Remaining): MeterMode => (r.status === 'left' || r.status === 'over' ? 'drain' : 'fill');
 
 /**
  * Today's one card (Story 3): calories eaten and left, then P/F/C eaten / target / left, each with a bar.
@@ -67,31 +67,45 @@ export function TodayCard({
   }
   const r = remainingAll(phase, consumed, target);
   const hit = dayGoalHit(phase, consumed, target);
+  const kcalText = t(KCAL_KEY[r.calories.status], { kcal: fmtKcal(r.calories.amount) });
   return (
-    <section className="card today-card" aria-label={t('today.cardLabel')}>
-      <p className={`today-big tone-${r.calories.tone}`} aria-live="polite">
-        <span className="num">{t(KCAL_KEY[r.calories.status], { kcal: fmtKcal(r.calories.amount) })}</span>
-      </p>
-      <p className="today-hint subtle">{hit ? t('today.goalHit') : t(KCAL_HINT[r.calories.status])}</p>
-      <Bar
-        fraction={progressFraction(consumed.calories, target.calories)}
-        cls={`kcal tone-bg-${r.calories.tone}`}
-        label={t('macro.calories')}
-      />
-      <p className="today-sub subtle num">
-        {t('today.eatenOf', { consumed: fmtKcal(consumed.calories), target: fmtKcal(target.calories) })}
-      </p>
+    <section className="card today-card pm-hero" aria-label={t('today.cardLabel')}>
+      <div className="today-hero">
+        <span className="pm-pill">{t('macro.calories')}</span>
+        <p className={`today-big pm-display tone-${r.calories.tone}`} aria-live="polite">
+          <span className="num">{kcalText}</span>
+        </p>
+        <Meter
+          size="hero"
+          label={t('macro.calories')}
+          value={consumed.calories}
+          max={target.calories}
+          mode={modeFor(r.calories)}
+          tone={r.calories.tone}
+          valueText={kcalText}
+        />
+        <p className="today-sub subtle num">
+          {t('today.eatenOf', { consumed: fmtKcal(consumed.calories), target: fmtKcal(target.calories) })}
+        </p>
+      </div>
       <ul className="today-macros" aria-label={t('today.macrosLabel')}>
         {MACROS.map((m) => {
           const rem = r[m.key];
+          const text = t(G_KEY[rem.status], { g: fmtKcal(rem.amount) });
           return (
             <li key={m.key} className={`today-macro tone-${rem.tone}`}>
-              <span className={`today-macro-name macro-dot-${m.cls}`}>
-                <span aria-hidden="true">{m.emoji} </span>
-                {t(m.label)}
+              <span className="today-macro-name">
+                <CategoryChip category={m.cat} icon={m.emoji} label={t(m.label)} />
               </span>
-              <span className="today-macro-value num">{t(G_KEY[rem.status], { g: fmtKcal(rem.amount) })}</span>
-              <Bar fraction={progressFraction(consumed[m.key], target[m.key])} cls={m.cls} label={t(m.label)} />
+              <span className="today-macro-value pm-display num">{text}</span>
+              <Meter
+                label={t(m.label)}
+                value={consumed[m.key]}
+                max={target[m.key]}
+                mode={modeFor(rem)}
+                tone={rem.tone}
+                valueText={text}
+              />
               <span className="today-macro-eaten subtle num">
                 {t('today.gOf', { consumed: fmtG(consumed[m.key]), target: fmtG(target[m.key]) })}
               </span>
@@ -99,12 +113,19 @@ export function TodayCard({
           );
         })}
       </ul>
-      {hit && (
-        <span className="chip chip-success today-hit" role="status">
-          <Icon name="check" /> {t('today.goalHitChip')}
-        </span>
+      {(hit || adherence) && (
+        <div className="today-badges">
+          {hit && (
+            <span className="chip chip-success today-hit" role="status">
+              <Icon name="check" /> {t('today.goalHitChip')}
+            </span>
+          )}
+          {adherence && <span className="chip chip-brand adherence-pill num">{adherence}</span>}
+        </div>
       )}
-      {adherence && <span className="chip chip-brand adherence-pill num">{adherence}</span>}
+      <DialogBar speaker={t('coach.speaker')} className="today-hint">
+        {hit ? t('today.goalHit') : t(KCAL_HINT[r.calories.status])}
+      </DialogBar>
     </section>
   );
 }

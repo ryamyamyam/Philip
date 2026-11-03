@@ -108,6 +108,8 @@ export const en = {
   'meals.saveAs': 'Also save as a meal I can reuse',
   'meals.name': 'Meal name',
   'meals.namePlaceholder': 'e.g. Usual breakfast',
+  'meals.timesLogged': '×{count}',
+  'meals.timesLoggedLabel': 'logged {count} times',
 
   'entry.addTitle': 'Add food',
   'entry.editTitle': 'Edit food',
@@ -465,6 +467,10 @@ export const en = {
   'offline': 'Offline. Everything but AI analysis still works.',
   'update.available': 'New version ready.',
   'update.reload': 'Reload',
+
+  // T-009 design system (D-022): short labels only
+  'coach.speaker': 'Philip',
+  'deck.log': 'Log food',
 } as const;
 
 export type StringKey = keyof typeof en;

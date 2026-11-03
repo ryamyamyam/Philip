@@ -30,15 +30,19 @@ async function photoFromToday(page: Page) {
 test('photo, Gemini, review, edit, confirm save', async ({ page }) => {
   let keyHeader = '';
   let url = '';
+  // Hold the reply until the "analyzing" state has been seen (WebKit can finish too fast to catch it).
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((r) => (release = r));
   await page.route('https://generativelanguage.googleapis.com/**', async (route) => {
     keyHeader = route.request().headers()['x-goog-api-key'] ?? '';
     url = route.request().url();
-    await new Promise((r) => setTimeout(r, 300));
+    await Promise.race([gate, new Promise((r) => setTimeout(r, 10_000))]);
     await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] }, finishReason: 'STOP' }] } });
   });
   await setKey(page);
   await photoFromToday(page);
   await expect(page.getByText('Judging your plate… 👀')).toBeVisible();
+  release();
   const review = page.getByRole('dialog', { name: 'Review' });
   await expect(review.getByText('Estimate. Check the portions.')).toBeVisible();
   expect(keyHeader).toBe('test-key-123');

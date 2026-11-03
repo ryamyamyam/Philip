@@ -21,7 +21,9 @@ export default defineConfig({
     timeout: 120_000,
   },
   projects: [
-    { name: 'webkit-iphone', use: { ...devices['iPhone 15'] } },
+    // WebKit: page.route() misses fetches from service-worker-controlled pages, so mocked Gemini
+    // calls leaked to the real API. Block the SW here; offline is covered in Chromium (and skipped on WebKit).
+    { name: 'webkit-iphone', use: { ...devices['iPhone 15'], serviceWorkers: 'block' } },
     {
       name: 'chromium-mobile',
       use: { ...devices['Pixel 7'], viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },

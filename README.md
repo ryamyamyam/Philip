@@ -4,14 +4,16 @@ Personal nutrition tracker. Local-first PWA for iPhone: calories, protein, fat a
 
 ## Features
 
-- **Today**: calorie ring, macro bars, meals, date navigation (arrows, date picker, swipe)
-- **Manual logging**: add / edit / duplicate / delete, decimals, weight-linked rescaling
-- **Photo estimates**: Gemini analysis → mandatory review & edit → save. Claude-app copy/paste handoff as a fallback
-- **My Foods**: recent, frequent, favorites, one-tap re-logging
-- **Targets**: Mifflin–St Jeor calculator with safety limits, manual override, history-preserving plans, weekday plans
-- **History**: 7/30-day averages, SVG chart, weekly planned vs actual, optional adherence score
+> Describes the `story-3-simplify` branch (latest code, not yet merged to `main`). See [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md).
+
+- **Today**: kcal and protein/fat/carbs eaten, target and left; the day's foods by meal (tap to edit, swipe to move/delete); date navigation; **Take photo** and **Log food**; optional "What should I eat?" (Gemini)
+- **Logging**: photo, typed text (Gemini or local parsing without a key), saved meals, or manual entry, always ending in a review step
+- **Photo/text estimates**: Gemini analysis → mandatory review & edit → save. Claude-app copy/paste handoff as a fallback on photo errors
+- **Saved meals**: save a reviewed set of foods and re-log it
+- **Progress**: weight log, on track / ahead / behind vs plan, chart, history with delete + Undo
+- **Targets** (Settings › Targets & body stats): Mifflin–St Jeor / Katch–McArdle calculator with safety limits, manual override, history-preserving plans, weekday plans, optional adherence score
 - **Backup**: versioned JSON export/import (merge or replace), typed-confirmation delete-all
-- **QA & Feedback**: capture bugs and ideas by voice or text with screenshots, organize them, and generate Claude Code prompts (reusable module in `src/modules/qa-feedback`)
+- **QA & Feedback**: capture bugs and ideas by voice or text with screenshots, organize them, and generate Claude Code prompts (reusable module in `src/modules/qa-feedback`, opened from Settings)
 
 ## Development
 
@@ -52,7 +54,16 @@ Everything except photo analysis works without Gemini.
 
 ## Docs
 
-- [CLAUDE.md](CLAUDE.md) — current stage, conventions, next task
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — structure, data model, backup format, calculations
+Every Claude Code session starts with [CLAUDE.md](CLAUDE.md), which lists the mandatory reading order.
+
+- [CLAUDE.md](CLAUDE.md) — rules for every session, startup procedure, conventions, known issues
+- [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) — current state, branches, open questions
+- [docs/ROADMAP.md](docs/ROADMAP.md) — milestones and status
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — structure, data model, backup format, calculations, boundaries
 - [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) — tokens and UI rules
-- [docs/ROADMAP.md](docs/ROADMAP.md) — stages and status
+- [docs/DEVELOPMENT_WORKFLOW.md](docs/DEVELOPMENT_WORKFLOW.md) — how a request becomes a finished feature
+- [docs/DEVELOPMENT_RULES.md](docs/DEVELOPMENT_RULES.md) — mandatory rules, shared files, Git
+- [docs/AGENT_ROLES.md](docs/AGENT_ROLES.md) — PM, Core, Feature, QA; how to run them in parallel sessions
+- [docs/TASK_ASSIGNMENTS.md](docs/TASK_ASSIGNMENTS.md) — task registry
+- [docs/DECISIONS.md](docs/DECISIONS.md) — decision log
+- [docs/QA_STRATEGY.md](docs/QA_STRATEGY.md) — testing and Definition of Done

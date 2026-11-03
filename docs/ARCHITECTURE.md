@@ -1,5 +1,7 @@
 # Architecture
 
+> Verified against `story-3-simplify` (`5f78cb4`) on 2026-11-02. Parallel-development boundaries (shared files, ownership zones) are in [DEVELOPMENT_RULES.md](DEVELOPMENT_RULES.md). Architectural changes must be recorded in [DECISIONS.md](DECISIONS.md).
+
 Local-first single-page PWA. No server: everything runs in the browser and is stored in IndexedDB.
 
 ```
@@ -32,7 +34,7 @@ src/
     prompt.ts           shared prompt + JSON shape + Gemini response schema
     parse.ts            JSON extraction + strict validation (used by Gemini and Claude handoff)
   views/                screens and sheets (Today, Progress, Settings, TargetsPage, Add (log), Entry (edit), Suggest, photo/*); MealsView is no longer routed;
-                        TargetsView.tsx now only supplies the calculator sections reused by Progress
+                        TargetsView.tsx now only supplies CurrentCard + TargetsSections, used by TargetsPage (Settings › #/targets)
   components/           small shared UI (Sheet, ConfirmDialog, CalorieRing, MacroBars, …)
   i18n/                 en.ts strings + t() helper
   styles/               tokens.css, global.css, view styles
@@ -135,7 +137,7 @@ Photos are never stored.
 
 ### Typed text (add sheet and review list)
 
-The add sheet shows only Take photo / Choose photo and one text box (“2 eggs, 150 g rice, 1 tbsp olive oil”); the manual form, My Foods, recents and the Claude handoff sit behind “More options”. Text goes to `analyzeFoodText()` → `analyzeTextWithGemini()` (same request, schema, error mapping and `validateAnalysis()` as photos; prompt `FOOD_TEXT_INSTRUCTIONS` with the same JSON shape). The review list has the same text box; sending appends rows. Without a key, on any error, or when Gemini finds nothing, `lib/foodText.ts` splits the text locally (g/kg/ml, tbsp 15 g, tsp 5 g, cup 240 g, bare counts), prefills macros from a My Foods / recent-food name match, and leaves the rest empty for the user. Local rows save as `source: 'manual'` with no estimate; AI rows save as `source: 'photo'` with their own provider/model.
+The log sheet (Story 3) shows Take photo, Choose photo, one text box (“2 eggs, 150 g rice, 1 tbsp olive oil”), saved meals and Enter it yourself (see “Logging flow” above); My Foods, recents and the Claude handoff button are no longer in it. Text goes to `analyzeFoodText()` → `analyzeTextWithGemini()` (same request, schema, error mapping and `validateAnalysis()` as photos; prompt `FOOD_TEXT_INSTRUCTIONS` with the same JSON shape). The review list has the same text box; sending appends rows. Without a key, on any error, or when Gemini finds nothing, `lib/foodText.ts` splits the text locally (g/kg/ml, tbsp 15 g, tsp 5 g, cup 240 g, bare counts), prefills macros from a My Foods / recent-food name match, and leaves the rest empty for the user. Local rows save as `source: 'manual'` with no estimate; AI rows save as `source: 'photo'` with their own provider/model.
 
 ## QA & Feedback Capture (`src/modules/qa-feedback`)
 
@@ -150,3 +152,22 @@ A reusable, self-contained module for capturing observations (bugs, UI/usability
 ## Offline / PWA
 
 `vite.config.ts` generates `dist/sw.js` with a precache list of all build assets. Navigations are network-first with the cached shell as fallback; same-origin assets are cache-first; cross-origin requests (Gemini) bypass the SW. `navigator.storage.persist()` is requested at boot.
+
+## Boundaries and integration points
+
+These are the seams that keep parallel work safe. Changing any of them is an architectural change (PM review + entry in [DECISIONS.md](DECISIONS.md)).
+
+| Boundary | Rule | Integration point |
+|---|---|---|
+| UI ↔ data | Views/components read through `hooks/useData.ts` (live queries) and write through `db/repo.ts`. A few small direct Dexie reads exist (Settings, BackupReminder) — don't add more. | `repo.ts` function signatures |
+| Data ↔ schema | `db/types.ts` + `db/db.ts`. New tables/fields = new Dexie version with an upgrade; never edit an old version. | Dexie version number (currently 3) |
+| Data ↔ backups | `lib/backup.ts`. New persisted data must be added to export/validate/merge/replace as an **optional** field; `schemaVersion` stays 1 unless the owner approves. | backup JSON shape |
+| Logic | Pure calculations in `lib/*` (no React). Safety rules in `lib/targets.ts` are owner-controlled. | exported functions + their tests |
+| AI | Only `services/foodAnalysis/gemini.ts` knows Gemini. Everything goes through `index.ts` (`analyzeFoodPhoto`, `analyzeFoodText`) and `parse.ts#validateAnalysis`, then the Review sheet. | `AnalysisResult`, `AnalysisError` |
+| Navigation | `hooks/useRoute.ts` (`Tab`, `TABS`, `ROUTE_REDIRECTS`) + `App.tsx` + `components/TabBar.tsx`. | `Tab` union |
+| Sheets | One sheet at a time: `SheetState` union in `ui.tsx`, rendered by `views/SheetHost.tsx`. A new sheet = a new union member + a SheetHost case. | `SheetState`, `useUI()` |
+| Strings | `i18n/en.ts` via `t()`. QA module strings only in `modules/qa-feedback/ui/strings.ts`. | string keys |
+| Styles | Tokens in `styles/tokens.css`; shared classes in `global.css`; screen styles in `today.css` / `views.css`; QA module uses `qa-` classes only. | CSS custom properties |
+| QA module | `modules/qa-feedback/` imports nothing from Philip. Philip wiring only in `src/qaFeedback.config.ts` + `<QaFeedback>` in `App.tsx` + Settings card. | `QaFeedbackConfig`, `index.ts` exports |
+| Build / offline | `vite.config.ts` (SW generator plugin, base `./`), `src/sw-template.js`, `public/manifest.webmanifest`. | precache list |
+| Deploy | `.github/workflows/deploy.yml`: push to `main` → `npm ci` → `npm test` → `npm run build` → GitHub Pages. E2E is not run in CI. | `main` branch |

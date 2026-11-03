@@ -14,17 +14,6 @@ import { BODY_FAT_RANGE, calculateTargets, manualTargetWarnings, resolveRate, RE
 
 type Mode = 'calculator' | 'manual';
 
-export default function TargetsView() {
-  return (
-    <div className="view">
-      <header className="view-header">
-        <h1>{t('targets.title')}</h1>
-      </header>
-      <TargetsSections />
-    </div>
-  );
-}
-
 /**
  * The Targets screen's content, reused by the Progress tab (OBS-F047E3). `showCurrent=false` lets
  * Progress show its own summary card; `compact` tucks the less-used sections behind one disclosure.

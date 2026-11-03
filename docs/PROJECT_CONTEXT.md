@@ -63,7 +63,7 @@ Runtime dependencies: `dexie`, `dexie-react-hooks`, `react`, `react-dom` — not
 | Voice + emoji copy (D-020) | On `release/voice-emoji-docs`, tested (Chromium) |
 | Review sheet (mandatory for AI), saved meals (Dexie v3) | Implemented, tested (Chromium) |
 | Gemini photo + text analysis, local text fallback, Claude handoff on photo errors | Implemented, mock-tested; live key ❓ |
-| "What should I eat?" suggestions (Gemini) | Implemented, mock-tested; owner reported a failure — temperature fix, retry and error detail shipped; live key ❓ |
+| "What should I eat?" suggestions (Gemini) | Works with the owner's live key (2026-11-03) |
 | Targets calculator + safety rules, manual, weekday plans, adherence (Settings › Targets) | Implemented, tested |
 | Progress: weight log, on-track status, chart, history with delete + Undo | Implemented, tested (Chromium) |
 | Backups (merge/replace), delete-all, backup reminder | Implemented, tested |
@@ -91,17 +91,17 @@ See CLAUDE.md "Stack & constraints" and "Owner approval required", and DECISIONS
 
 ## Outstanding technical issues
 
-1. WebKit e2e never run; real-device checklist unrun.
+1. WebKit e2e: first run 39/53 passed; fixes on `fix/webkit-and-cleanup`, re-run pending. Real-device checklist unrun.
 2. SW `caches.match` without `ignoreVary` → lazy chunks may fail offline if the host sends `Vary` (❓ on GitHub Pages).
 3. Update prompt not wired.
-4. Possibly dead code kept on purpose (no deletions without approval): `components/CalorieChart.tsx`, `CalorieRing.tsx`, `MacroBars.tsx` have no static imports; `TargetsView` default export unrouted; `MyFoodsSheet` / `SavedFoodSheet` still referenced by `SheetHost` but not reachable from the log sheet; `MealsView.tsx` is unrouted but `TodayView` imports `MealCard` from it (**do not delete MealsView**).
+4. Dead code removed 2026-11-03 (T-005): `CalorieChart`, `CalorieRing`, `MacroBars`, `MyFoodsSheet`, `SavedFoodSheet` (+ their sheet kinds), the `TargetsView` default export. Kept on purpose: `lib/history.ts` (tested; may return with M5), `MealsView.tsx` (`TodayView` imports `MealCard`), unused `en.ts` keys and old CSS classes (harmless).
 5. E2E is not run in CI.
 6. `node_modules` on the Mac is macOS-native; Linux sandboxes need their own clone + `npm ci`.
 
 ## Open questions (owner)
 
-1. Today now scrolls with many foods — shipped; confirm it replaces the old "Today fits 393×793 without scrolling" rule.
+1. ~~Today scrolls~~ — confirmed by the owner 2026-11-03 (D-015 accepted).
 2. QA observations now record "Settings" as the screen — acceptable?
-3. Delete the now-unused files listed above?
+3. ~~Delete unused files~~ — approved and done 2026-11-03 (T-005).
 4. Should removed History views (30-day averages, weekly planned vs actual) come back?
 5. Did the 2026-11-03 Pages deploy succeed (Actions tab)?

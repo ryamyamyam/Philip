@@ -11,11 +11,9 @@ Base branch for new work: `main`.
 
 | ID | Feature | Role | Status | Branch | Depends on |
 |---|---|---|---|---|---|
-| T-002 | WebKit e2e run on `main` | QA | Proposed | `main` (read-only) / `fix/T-002-…` | — |
-| T-008 | Voice + emoji copy (D-020) and docs refresh | Feature + PM | Ready to ship (owner merges) | `release/voice-emoji-docs` | — |
+| T-002 | WebKit e2e run on `main` | QA + Core | In progress — fixes ready, owner re-runs | `fix/webkit-and-cleanup` | — |
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
-| T-004 | Live Gemini key verification (incl. “What should I eat?” failure) | Owner + QA | In progress — waiting for the owner's “What Gemini said” text | — | — |
-| T-005 | Remove unused files | Core | Proposed (needs owner approval: deletion) | `chore/T-005-unused-files` | — |
+| T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
 
 ---
@@ -35,7 +33,8 @@ Base branch for new work: `main`.
 - **Excluded:** `src/**`.
 - **Deliverables:** pass/fail report in this entry.
 - **Acceptance criteria:** full WebKit suite run with results recorded.
-- **Status:** Proposed · **Note:** `test-results/` on the Mac contains failing WebKit traces from an earlier run (date/branch unknown) — re-run before drawing conclusions.
+- **Status:** In progress
+- **Log:** 2026-11-03 Owner: first WebKit run on `main` `da7c5cf` — 39 passed, 1 skipped, 14 failed. Core: root causes — (a) Settings overwrote a Gemini key typed before the profile loaded (9 photo/text/suggest tests); (b) WebKit ephemeral IndexedDB rejects Blobs → QA screenshots now stored as ArrayBuffer (2 QA tests); (c) test-environment limits skipped/guarded on WebKit: synthetic Touch, offline reload, clipboard permissions (3 tests). Fixes on `fix/webkit-and-cleanup`; owner to re-run WebKit.
 
 ### T-003 — Real-iPhone verification
 - **Role:** Ryan (device) + QA (checklist, reporting)
@@ -65,6 +64,8 @@ Base branch for new work: `main`.
 |---|---|---|---|
 | T-000 | Development operating system docs | 2026-11-03 | Shipped in `main` `0cdd351` (owner push) |
 | T-001 | Merge QA round 2 + Story 3 into `main` | 2026-11-03 | Owner fast-forwarded `main` to `0cdd351` and pushed. WebKit (T-002) was **not** run first. |
+| T-008 | Voice + emoji copy (D-020) and docs refresh | 2026-11-03 | `main` `da7c5cf`, Pages deploy green |
+| T-005 | Remove unused files (owner approved) | 2026-11-03 | `fix/webkit-and-cleanup`; tsc, 177 unit, 54 Chromium e2e |
 | T-007 | Owner feedback round: units switch, DOB layout, 1-month target, Today log buttons, Gemini temperature/retry/error detail | 2026-11-03 | `0cdd351`; tsc clean, 177 unit, 54 Chromium e2e (clean clone) |
 
 ## Entry template

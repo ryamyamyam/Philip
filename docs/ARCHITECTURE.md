@@ -35,7 +35,7 @@ src/
     parse.ts            JSON extraction + strict validation (used by Gemini and Claude handoff)
   views/                screens and sheets (Today, Progress, Settings, TargetsPage, Add (log), Entry (edit), Suggest, photo/*); MealsView is no longer routed;
                         TargetsView.tsx now only supplies CurrentCard + TargetsSections, used by TargetsPage (Settings › #/targets)
-  components/           small shared UI (Sheet, ConfirmDialog, CalorieRing, MacroBars, …)
+  components/           small shared UI (Sheet, ConfirmDialog, TodayCard, WeightChart, …)
   i18n/                 en.ts strings + t() helper
   styles/               tokens.css, global.css, view styles
   sw-template.js        service worker; precache list injected at build (vite.config.ts)

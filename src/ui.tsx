@@ -23,9 +23,7 @@ export type SheetState =
       /** Sheet title override (e.g. the saved meal's name). */
       title?: string | null;
     }
-  | { kind: 'suggest'; date: YMD }
-  | { kind: 'savedFood'; id: string }
-  | { kind: 'myFoods'; date: YMD; meal: Meal };
+  | { kind: 'suggest'; date: YMD };
 
 export interface UI {
   date: YMD;

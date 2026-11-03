@@ -153,7 +153,8 @@ test('no My Foods, recents or favorites in the log sheet', async ({ page }) => {
   }
 });
 
-test('works offline after first load', async ({ page, context }) => {
+test('works offline after first load', async ({ page, context, browserName }) => {
+  test.skip(browserName === 'webkit', 'Playwright WebKit errors on page.reload() while offline; offline is covered in Chromium and the real-iPhone check (T-003).');
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
   await context.setOffline(true);

@@ -115,9 +115,15 @@ export interface ScreenshotAttachment {
   aiAnalysis: AiScreenshotAnalysis | null;
 }
 
+/**
+ * Image bytes. New rows store an ArrayBuffer + type: WebKit refuses Blobs in IndexedDB in
+ * private/ephemeral sessions. Older rows may still hold a Blob.
+ */
 export interface StoredFile {
   id: string;
-  blob: Blob;
+  bytes?: ArrayBuffer;
+  type?: string;
+  blob?: Blob;
 }
 
 export type ExportFormat = 'clipboard' | 'txt' | 'md';

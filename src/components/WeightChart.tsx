@@ -11,7 +11,7 @@ const MIN_SPAN_DAYS = 14;
 
 /**
  * Actual weight (dots + line) against the expected line from the plan (dashed). Inline SVG,
- * same conventions as CalorieChart. `toUnit` converts kg to the display unit.
+ * same SVG conventions as the old calorie chart. `toUnit` converts kg to the display unit.
  */
 export function WeightChart({
   entries,

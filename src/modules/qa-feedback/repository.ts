@@ -271,6 +271,8 @@ export async function addAttachments(
   limits: AttachmentLimits = {},
 ): Promise<ScreenshotAttachment[]> {
   for (const i of inputs) validateAttachment(i.blob, limits);
+  // Read bytes before the transaction: awaiting non-IndexedDB work inside it would end it.
+  const bytes = await Promise.all(inputs.map((i) => blobBytes(i.blob)));
   return db.transaction('rw', [db.observations, db.attachments, db.files], async () => {
     const obs = await db.observations.get(observationId);
     if (!obs) throw new QaError('notFound');
@@ -292,7 +294,7 @@ export async function addAttachments(
       description: '',
       aiAnalysis: null,
     }));
-    await db.files.bulkAdd(created.map((a, n) => ({ id: a.fileId, blob: inputs[n]!.blob })));
+    await db.files.bulkAdd(created.map((a, n) => ({ id: a.fileId, bytes: bytes[n]!, type: inputs[n]!.blob.type })));
     await db.attachments.bulkAdd(created);
     await db.observations.update(observationId, { attachmentCount: existing + created.length, updatedAt: now });
     return created;
@@ -307,7 +309,21 @@ export async function listAttachments(db: QaFeedbackDB, projectId: string, obser
 export async function getAttachmentBlob(db: QaFeedbackDB, projectId: string, attachmentId: string): Promise<Blob | undefined> {
   const a = await db.attachments.get(attachmentId);
   if (!a || a.projectId !== projectId) return undefined;
-  return (await db.files.get(a.fileId))?.blob;
+  const f = await db.files.get(a.fileId);
+  if (!f) return undefined;
+  if (f.bytes) return new Blob([f.bytes], { type: f.type ?? a.mimeType });
+  return f.blob;
+}
+
+/** Blob → ArrayBuffer, with a FileReader fallback for older engines. */
+function blobBytes(blob: Blob): Promise<ArrayBuffer> {
+  if (typeof blob.arrayBuffer === 'function') return blob.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as ArrayBuffer);
+    r.onerror = () => reject(r.error);
+    r.readAsArrayBuffer(blob);
+  });
 }
 
 export async function updateAttachment(

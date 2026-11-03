@@ -68,9 +68,9 @@ Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, b
 
 ## Known issues
 - QA voice capture uses the Web Speech API; not yet tested on a real iPhone home-screen install.
-- WebKit e2e not yet run (only Chromium mobile emulation in the build sandbox). Real-iPhone pass pending.
+- WebKit e2e first run on the Mac (2026-11-03): 39 passed, 14 failed. Fixed: Gemini key field was overwritten when typed before the profile loaded; QA screenshots now stored as bytes (WebKit rejects Blobs in IndexedDB in private sessions). Skipped on WebKit with reasons: synthetic swipe (no `Touch` constructor), offline reload (Playwright WebKit error), clipboard assertions. Re-run pending. Real-iPhone pass pending.
 - Swipe-left row actions and the bottom-sheet QA panel are tested with synthetic touch events in Chromium only; check on a real iPhone.
-- Gemini default model (`gemini-3.1-flash-lite`, a stable ID per Google's models page, Oct 2026) not yet verified against a live key. "What should I eat?" was reported failing by the owner; temperature fix + retry + error detail shipped, root cause unconfirmed until the owner sends the "What Gemini said" text.
+- Gemini (`gemini-3.1-flash-lite`): owner confirmed "What should I eat?" works on the live app after the temperature fix (2026-11-03). Photo/text analysis, invalid key and rate limit with a live key still unchecked.
 - Today scrolls once several meals are logged; the card and the Take photo / Choose photo / Enter yourself buttons stay above the fold at 393×793 (e2e). Food names are truncated to one line.
 - The iOS date-input fix on Targets (`.input-date`) is untested in WebKit/Safari.
 - QA observations captured from Settings record “Settings” as the screen (the floating button that captured the current screen is off).

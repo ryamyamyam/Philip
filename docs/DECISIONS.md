@@ -111,7 +111,7 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Reason:** Meals folded into Today (D-014).
 - **Alternatives:** Keep no-scroll by capping visible foods.
 - **Consequences:** e2e asserts above-the-fold actions instead of no-scroll.
-- **Date:** 2026-11-02 · **By:** Story 3 session · **Status:** Shipped to `main` (2026-11-03); explicit owner confirmation ❓
+- **Date:** 2026-11-02 · **By:** Story 3 session · **Status:** Accepted — owner confirmed 2026-11-03
 
 ### D-016 — Development operating system
 - **Decision:** Adopt the four-role model (PM, Core, Feature, QA), the task registry, worktree-per-session parallel development, and the docs set referenced from CLAUDE.md.

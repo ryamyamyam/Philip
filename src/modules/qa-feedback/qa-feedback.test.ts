@@ -114,6 +114,10 @@ describe('attachments', () => {
     const stored = await getAttachmentBlob(db, project.id, listed[0]!.id);
     expect(stored?.size).toBe(32);
     expect(stored?.type).toBe('image/png');
+    // New rows hold bytes, not a Blob (WebKit private sessions reject Blobs in IndexedDB).
+    const row = await db.files.get(listed[0]!.fileId);
+    expect(row?.bytes?.byteLength).toBe(32);
+    expect(row?.blob).toBeUndefined();
 
     await removeAttachment(db, project.id, listed[1]!.id);
     expect((await getObservation(db, project.id, a.id))!.attachmentCount).toBe(1);

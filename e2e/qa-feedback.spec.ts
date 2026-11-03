@@ -153,8 +153,9 @@ test('projects isolate observations; search and filters', async ({ page }) => {
   await expect(list).not.toContainText('Login screen typo');
 });
 
-test('batch select → template prompt → edit protection → copy and .txt export', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('batch select → template prompt → edit protection → copy and .txt export', async ({ page, context, browserName }) => {
+  // WebKit has no clipboard permissions to grant; the app falls back to a manual copy.
+  if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const panel = await openCapture(page);
   await capture(page, 'Ring overlaps the date', { feature: 'Today', type: 'UI issue' });
   await capture(page, 'Meal list jumps when adding food', { feature: 'today', type: 'Bug' });
@@ -189,8 +190,11 @@ test('batch select → template prompt → edit protection → copy and .txt exp
   // Copy/export no longer archive anything on their own.
 
   await panel.getByRole('button', { name: 'Copy' }).click();
-  await expect(panel.getByText('Copied. Paste it into Claude Code.')).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('MY NOTE');
+  if (browserName === 'chromium') {
+    // Clipboard read/write is only grantable in Chromium; WebKit shows the manual-copy fallback instead.
+    await expect(panel.getByText('Copied. Paste it into Claude Code.')).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('MY NOTE');
+  }
 
   await page.evaluate(() => Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true }));
   const [download] = await Promise.all([page.waitForEvent('download'), panel.getByRole('button', { name: 'Save .txt' }).click()]);

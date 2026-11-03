@@ -43,7 +43,8 @@ test('OBS-352C94: P, F and C each sit in their own colored rounded square', asyn
   await page.locator('.meal-card').filter({ hasText: 'Chicken rice bowl' }).screenshot({ path: 'e2e/screenshots/375-today-macro-chips.png' });
 });
 
-test('OBS-3E7A73: swipe left to delete (with undo) or move an entry to another day', async ({ page }) => {
+test('OBS-3E7A73: swipe left to delete (with undo) or move an entry to another day', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'WebKit has no Touch constructor for synthetic swipes; verify swipe on a real iPhone (T-003).');
   await addManualFood(page, { name: 'Lunch salad', calories: '400', protein: '20', fat: '15', carbs: '40', meal: 'Lunch' });
   await addManualFood(page, { name: 'Apple', calories: '95', protein: '0.5', fat: '0.3', carbs: '25', meal: 'Snacks' });
 

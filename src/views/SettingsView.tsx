@@ -253,8 +253,9 @@ function GeminiSection() {
   useEffect(() => {
     if (profile && !loaded.current) {
       loaded.current = true;
-      setKey(profile.geminiKey ?? '');
-      setModel(profile.geminiModel ?? DEFAULT_GEMINI_MODEL);
+      // Don't overwrite what was typed before the profile finished loading (seen in WebKit).
+      setKey((k) => k || (profile.geminiKey ?? ''));
+      setModel((m) => m || (profile.geminiModel ?? DEFAULT_GEMINI_MODEL));
     }
   }, [profile]);
 

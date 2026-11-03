@@ -10,7 +10,7 @@ test('manual logging updates the Today card and persists; edit, duplicate, delet
 
   await addManualFood(page, { name: 'Greek yogurt', grams: '170', calories: '146.5', protein: '17.3', fat: '3.8', carbs: '7.9', meal: 'Breakfast' });
   // Today updates immediately, with a calm confirmation and Undo.
-  await expect(page.getByRole('status').filter({ hasText: '147 kcal logged to Breakfast.' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: '147 kcal → Breakfast.' })).toBeVisible();
   await expect(card.getByText('2,054 kcal left')).toBeVisible();
   await expect(card.getByRole('listitem').filter({ hasText: 'Protein' })).toContainText('143 g to go');
   await expect(card.getByRole('listitem').filter({ hasText: 'Protein' })).toContainText('17 / 160 g');
@@ -47,7 +47,7 @@ test('Undo on the save toast removes what was just logged', async ({ page }) => 
   await expect(page.getByRole('region', { name: 'Snacks' })).toBeVisible();
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.getByText('Cookie')).toHaveCount(0);
-  await expect(page.getByText('Nothing logged yet.')).toBeVisible();
+  await expect(page.getByText(/^Nothing yet\./)).toBeVisible();
 });
 
 test('validation blocks bad input in the review sheet', async ({ page }) => {

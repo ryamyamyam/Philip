@@ -22,10 +22,10 @@ const G_KEY: Record<Remaining['status'], StringKey> = {
   toGo: 'today.g.toGo',
   reached: 'today.g.reached',
 };
-const MACROS: { key: Exclude<MacroKey, 'calories'>; label: StringKey; cls: string }[] = [
-  { key: 'proteinG', label: 'macro.protein', cls: 'p' },
-  { key: 'fatG', label: 'macro.fat', cls: 'f' },
-  { key: 'carbsG', label: 'macro.carbs', cls: 'c' },
+const MACROS: { key: Exclude<MacroKey, 'calories'>; label: StringKey; cls: string; emoji: string }[] = [
+  { key: 'proteinG', label: 'macro.protein', cls: 'p', emoji: '🥩' },
+  { key: 'fatG', label: 'macro.fat', cls: 'f', emoji: '🥑' },
+  { key: 'carbsG', label: 'macro.carbs', cls: 'c', emoji: '🍚' },
 ];
 
 function Bar({ fraction, cls, label }: { fraction: number; cls: string; label: string }) {
@@ -86,7 +86,10 @@ export function TodayCard({
           const rem = r[m.key];
           return (
             <li key={m.key} className={`today-macro tone-${rem.tone}`}>
-              <span className={`today-macro-name macro-dot-${m.cls}`}>{t(m.label)}</span>
+              <span className={`today-macro-name macro-dot-${m.cls}`}>
+                <span aria-hidden="true">{m.emoji} </span>
+                {t(m.label)}
+              </span>
               <span className="today-macro-value num">{t(G_KEY[rem.status], { g: fmtKcal(rem.amount) })}</span>
               <Bar fraction={progressFraction(consumed[m.key], target[m.key])} cls={m.cls} label={t(m.label)} />
               <span className="today-macro-eaten subtle num">

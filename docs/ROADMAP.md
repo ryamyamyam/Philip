@@ -17,21 +17,21 @@ Owner: PM. Update when a milestone or task changes status.
 | 6 | History: daily log, 7/30-day averages, SVG chart, target comparisons | ✅ Done (UI removed in round 2 / Story 3; code kept) |
 | 7 | Adherence score (optional), weekday target planning, weekly planned vs actual | ✅ Done |
 | 9 | QA & Feedback Capture module (capture, screenshots, inbox, prompt builder, optional AI) | ✅ Done (needs real-iPhone voice test) |
-| — | Development operating system (CLAUDE.md + docs/*) | 🟡 Drafted on `docs/dev-os`, awaiting owner review |
+| — | Development operating system (CLAUDE.md + docs/*) | ✅ Shipped in `main` (owner review of D-016 ❓) |
+| M1 | QA round 2 + Story 3 merged and deployed | ✅ `main` `0cdd351` (2026-11-03); WebKit not run |
+| — | Owner feedback round (units switch, 1-month target, Today log buttons, Gemini temperature) | ✅ `0cdd351`; Chromium e2e 54/54 |
 
 Several later stages changed earlier UI (calorie ring, macro bars, History tab, My Foods in the add sheet). Their code is kept; see PROJECT_CONTEXT.md.
 
-## Current milestone — M1: verify and ship QA round 2 + Story 3
+## Current milestone — M2: verify on real devices
 
 | Item | Status | Notes |
 |---|---|---|
-| QA round 2 (`qa-round-2`, `389c39e`) | 🟡 Implemented, unmerged | 4-tab nav, photo-first add, weight log, Katch–McArdle, QA archive |
-| Story 3 (`story-3-simplify`, `5f78cb4`) | 🟡 Implemented, unmerged | 3 tabs, Today logging, saved meals (Dexie v3), weight on-track, "What should I eat?" |
-| Unit tests + typecheck on `5f78cb4` | ✅ 176/176, tsc clean | Re-run 2026-11-02 |
-| Chromium e2e on `5f78cb4` | ❓ 52 reported passing | Not re-run independently |
-| WebKit e2e (`--project=webkit-iphone`) | ⬜ Planned | Must run on the Mac |
-| Owner decisions (Today scroll, QA screen name) | ❓ Requires confirmation | PROJECT_CONTEXT.md "Open questions" |
-| Merge into `main` + push (deploys) | ⛔ Blocked | By WebKit run + owner decisions |
+| Voice + emoji copy (D-020) + docs refresh | 🟡 Ready to ship | `release/voice-emoji-docs` → merge into `main` |
+| “What should I eat?” failure | 🟡 In progress | Fix shipped; waiting for the owner's “What Gemini said” text (T-004) |
+| WebKit e2e (`--project=webkit-iphone`) | ⬜ Planned | Must run on the Mac (T-002) |
+| Real-iPhone checklist | ⬜ Planned | T-003 |
+| Live Gemini key (photo, text, suggestions) | ⬜ Planned | T-004 |
 
 ## Stage 8 — QA & polish (🟡 In progress)
 
@@ -48,7 +48,6 @@ Several later stages changed earlier UI (calorie ring, macro bars, History tab, 
 
 | ID | Milestone | Status | Depends on |
 |---|---|---|---|
-| M2 | Real-device + live-Gemini verification (rest of Stage 8) | ⬜ Planned | M1 merged and deployed |
 | M3 | Hardening: SW `ignoreVary`, update-available prompt, e2e in CI (optional) | ⬜ Planned / ❓ scope | M1 |
 | M4 | Cleanup of unused files (CalorieChart, CalorieRing, MacroBars, …) | ❓ Requires owner approval (file deletion) | M1 |
 | M5 | Body-weight & long-term analytics (bring back 30-day / weekly views?) | ❓ Requires confirmation | M1 |
@@ -65,5 +64,5 @@ Several later stages changed earlier UI (calorie ring, macro bars, History tab, 
 ## Outstanding blockers
 
 1. WebKit e2e has never been run (needs the Mac).
-2. Owner decisions on Today scrolling and QA screen labels.
-3. GitHub Pages deployment status ❓.
+2. “What should I eat?” root cause unknown until the owner sends the error text.
+3. Owner confirmation on Today scrolling (D-015), QA screen labels and the dev OS (D-016).

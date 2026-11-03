@@ -25,7 +25,7 @@ test('export, delete all, import round trip', async ({ page }, info) => {
   await dlg.getByRole('textbox').fill('DELETE');
   await dlg.getByRole('button', { name: 'Delete' }).click();
   await tab(page, 'Today').click();
-  await expect(page.getByText('Nothing logged yet.')).toBeVisible();
+  await expect(page.getByText(/^Nothing yet\./)).toBeVisible();
   await expect(page.getByText('Banana')).toHaveCount(0);
 
   // Invalid file is rejected without changes

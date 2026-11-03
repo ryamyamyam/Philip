@@ -4,14 +4,14 @@ Personal nutrition tracker. Local-first PWA for iPhone: calories, protein, fat a
 
 ## Features
 
-> Describes the `story-3-simplify` branch (latest code, not yet merged to `main`). See [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md).
+> Describes `main` (deployed to GitHub Pages). See [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md).
 
-- **Today**: kcal and protein/fat/carbs eaten, target and left; the day's foods by meal (tap to edit, swipe to move/delete); date navigation; **Take photo** and **Log food**; optional "What should I eat?" (Gemini)
+- **Today**: kcal and protein/fat/carbs eaten, target and left; the day's foods by meal (tap to edit, swipe to move/delete); date navigation; **Take photo**, **Choose photo** and **Enter yourself** (opens an inline text box, saved meals and "Type the numbers"); optional "What should I eat?" (Gemini)
 - **Logging**: photo, typed text (Gemini or local parsing without a key), saved meals, or manual entry, always ending in a review step
 - **Photo/text estimates**: Gemini analysis → mandatory review & edit → save. Claude-app copy/paste handoff as a fallback on photo errors
 - **Saved meals**: save a reviewed set of foods and re-log it
 - **Progress**: weight log, on track / ahead / behind vs plan, chart, history with delete + Undo
-- **Targets** (Settings › Targets & body stats): Mifflin–St Jeor / Katch–McArdle calculator with safety limits, manual override, history-preserving plans, weekday plans, optional adherence score
+- **Targets** (Settings › Targets & body stats): metric ⇄ imperial switch in the calculator, a 1-month target-weight suggestion at a safe pace, Mifflin–St Jeor / Katch–McArdle calculator with safety limits, manual override, history-preserving plans, weekday plans, optional adherence score
 - **Backup**: versioned JSON export/import (merge or replace), typed-confirmation delete-all
 - **QA & Feedback**: capture bugs and ideas by voice or text with screenshots, organize them, and generate Claude Code prompts (reusable module in `src/modules/qa-feedback`, opened from Settings)
 
@@ -45,12 +45,14 @@ Open the Pages URL in **Safari** → Share → **Add to Home Screen**. After the
 ## Gemini setup (optional)
 
 1. Create a free API key at [Google AI Studio](https://aistudio.google.com/). **Do not enable billing.**
-2. In Philip: Settings → Photo analysis → paste the key → **Test key**.
+2. In Philip: Settings → Photo & text analysis → paste the key → **Test key**.
 3. If Google retires the default model, pick another from the Model list (populated from your key after a successful test).
 
 The key is stored only in this browser's IndexedDB. It is never committed or sent anywhere except `generativelanguage.googleapis.com`. Client-side keys can be read by anyone with access to the device/browser, so restrict the key to the Gemini API in Google Cloud console. Photos sent to the free tier may be used by Google to improve its products.
 
-Everything except photo analysis works without Gemini.
+Everything except photo/text analysis and "What should I eat?" works without Gemini (typed text falls back to local parsing).
+
+If a Gemini call fails, the error box has a **What Gemini said** line with the raw reason — use it when reporting problems.
 
 ## Docs
 

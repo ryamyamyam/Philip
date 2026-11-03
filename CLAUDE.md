@@ -31,7 +31,8 @@ If a required document is missing or contradicts the code, stop and tell the PM/
 ## Current stage
 Stages 0–7 implemented; Stage 8 (QA) partially done. QA round 2 (branch `qa-round-2`): photo-first add sheet with a text box, weight log, Katch–McArdle, QA archive.
 Story 3 (branch `story-3-simplify`, on top of `qa-round-2`): 3 tabs (Today · Progress · Settings; Meals folded into Today; Targets moved to Settings › `#/targets`), Take photo + Log food on Today, compact review rows, saved meals (Dexie v3 `savedMeals`), weight on-track status, optional Gemini “What should I eat?”, QA only from Settings with archive asked after generation. See docs/ARCHITECTURE.md.
-**Neither branch is merged into `main` or pushed** — `main`/production is still round 1. See docs/PROJECT_CONTEXT.md §Branches.
+Owner feedback round (Nov 2026): Today has Take photo · Choose photo · Enter yourself (inline `AddPanel`; Log food removed), Targets has a metric ⇄ imperial switch + 1-month target suggestion, Gemini 3+ requests use the default temperature, and the copy uses the dominant/campy coach voice with emoji (D-017 – D-020).
+**All of the above is merged into `main` and deployed** (owner pushed 2026-11-03). See docs/PROJECT_CONTEXT.md §Branches.
 
 ## Stack & constraints
 - React 19 + TypeScript (strict) + Vite 7, plain CSS with tokens, Dexie 4 (IndexedDB) + `useLiveQuery`
@@ -56,7 +57,7 @@ Story 3 (branch `story-3-simplify`, on top of `qa-round-2`): 3 tabs (Today · Pr
 - AI results are never saved without the review sheet (`src/views/photo/ReviewSheet.tsx`).
 - No `any`. Don't suppress TS errors. Keep components small; no UI libraries.
 - Touch targets ≥ 44px, labels wrap (no fixed text heights), tabular numerals for numbers.
-- Copy uses Philip's voice (bossy, sassy coach), but error, data-loss, delete/replace, safety and backup text stays plain. Never comment on body, weight or appearance.
+- Copy uses Philip's voice (dominant, campy, bossy gay coach; short; an emoji where it replaces words — D-020), but error, data-loss, delete/replace, safety and backup text stays plain. Never comment on body, weight or appearance; no sexual content. Decorative emoji in markup are `aria-hidden`.
 - `src/modules/qa-feedback/` is a portable module: it must not import from Philip code. Its strings live in `ui/strings.ts` (not `en.ts`) and its styles use `qa-` classes. Philip-specific wiring belongs in `src/qaFeedback.config.ts`.
 
 ## Commands
@@ -69,12 +70,13 @@ Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, b
 - QA voice capture uses the Web Speech API; not yet tested on a real iPhone home-screen install.
 - WebKit e2e not yet run (only Chromium mobile emulation in the build sandbox). Real-iPhone pass pending.
 - Swipe-left row actions and the bottom-sheet QA panel are tested with synthetic touch events in Chromium only; check on a real iPhone.
-- Gemini default model (`gemini-3.1-flash-lite`) not yet verified against a live key.
-- Today scrolls once several meals are logged; the card and the Take photo / Log food buttons stay above the fold at 393×793 (e2e). Food names are truncated to one line.
+- Gemini default model (`gemini-3.1-flash-lite`, a stable ID per Google's models page, Oct 2026) not yet verified against a live key. "What should I eat?" was reported failing by the owner; temperature fix + retry + error detail shipped, root cause unconfirmed until the owner sends the "What Gemini said" text.
+- Today scrolls once several meals are logged; the card and the Take photo / Choose photo / Enter yourself buttons stay above the fold at 393×793 (e2e). Food names are truncated to one line.
+- The iOS date-input fix on Targets (`.input-date`) is untested in WebKit/Safari.
 - QA observations captured from Settings record “Settings” as the screen (the floating button that captured the current screen is off).
 - SW cache matching doesn't ignore `Vary`; if a host sends `Vary: Origin`, lazy chunks (Progress, Settings) can miss the cache offline. Today, the log sheet and the review sheet are bundled eagerly.
 - Export uses the Web Share sheet when available; if iOS rejects the share after the async DB read, it falls back to a download.
 - `node_modules` on the Mac is built for macOS; a Linux sandbox (e.g. Cowork's shell) can't run `npm test` against it. Run tests in Terminal on the Mac or in a separate clone.
 
 ## Next task
-See docs/TASK_ASSIGNMENTS.md (registry) and docs/ROADMAP.md (current milestone: verify and merge `story-3-simplify`).
+See docs/TASK_ASSIGNMENTS.md (registry) and docs/ROADMAP.md (current milestone: M2 — real-device, WebKit and live-Gemini verification).

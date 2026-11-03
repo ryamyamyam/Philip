@@ -104,18 +104,46 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Reason:** Simplify around the daily logging workflow (Story 3).
 - **Alternatives:** Round 2's 4-tab layout (supersedes it); round 1's Today · History · + · Targets · Settings.
 - **Consequences:** Logging starts on Today; Progress is weight-only.
-- **Date:** 2026-11-02 · **By:** Ryan (owner), implemented in Story 3 · **Status:** ❓ Implemented on `story-3-simplify`, confirm at merge
+- **Date:** 2026-11-02 · **By:** Ryan (owner), implemented in Story 3 · **Status:** Accepted — shipped to `main` by the owner (2026-11-03)
 
 ### D-015 — Today may scroll
-- **Decision:** Today scrolls when many foods are logged; the card and the Take photo / Log food buttons must stay above the fold at 393×793. Replaces the earlier "Today and Meals fit 393×793 without scrolling" rule.
+- **Decision:** Today scrolls when many foods are logged; the card and the log buttons (now Take photo / Choose photo / Enter yourself, D-017) must stay above the fold at 393×793. Replaces the earlier "Today and Meals fit 393×793 without scrolling" rule.
 - **Reason:** Meals folded into Today (D-014).
 - **Alternatives:** Keep no-scroll by capping visible foods.
 - **Consequences:** e2e asserts above-the-fold actions instead of no-scroll.
-- **Date:** 2026-11-02 · **By:** Story 3 session · **Status:** ❓ Proposed — awaiting owner confirmation
+- **Date:** 2026-11-02 · **By:** Story 3 session · **Status:** Shipped to `main` (2026-11-03); explicit owner confirmation ❓
 
 ### D-016 — Development operating system
 - **Decision:** Adopt the four-role model (PM, Core, Feature, QA), the task registry, worktree-per-session parallel development, and the docs set referenced from CLAUDE.md.
 - **Reason:** Safe parallel development with multiple Claude Code sessions.
 - **Alternatives:** Single-session development (still allowed for small changes via the simplified process).
 - **Consequences:** Every session follows CLAUDE.md's startup procedure; shared files are coordinated by the PM.
-- **Date:** 2026-11-02 · **By:** Ryan (owner) request; drafted by PM session · **Status:** ❓ Proposed — awaiting owner review
+- **Date:** 2026-11-02 · **By:** Ryan (owner) request; drafted by PM session · **Status:** Shipped to `main` with the docs (2026-11-03); explicit owner review ❓
+
+### D-017 — Today log buttons: Take photo · Choose photo · Enter yourself
+- **Decision:** Remove the Log food button. Today shows three buttons; Enter yourself toggles an inline panel (text box, saved meals, Type the numbers) instead of opening a sheet. The by-hand entry button is renamed “Type the numbers”.
+- **Reason:** Owner feedback (2026-11-02): fewer taps, typing box only when asked for.
+- **Alternatives:** Keep the Log food sheet.
+- **Consequences:** `AddPanel` shared by Today and the Add food sheet; e2e `openAdd()` opens the inline panel.
+- **Date:** 2026-11-02 · **By:** Ryan (owner) · **Status:** Accepted — shipped (`0cdd351`)
+
+### D-018 — Units switch and 1-month target on the Targets page
+- **Decision:** A metric ⇄ imperial switch lives in the calculator (still also in Settings › Units); switching converts typed values. Lose/Gain shows a 1-month target weight at the default safe pace with a “Use it” button. `SAFETY` is unchanged.
+- **Reason:** Owner feedback (2026-11-02).
+- **Alternatives:** Units only in Settings; free-form target weight only.
+- **Consequences:** Suggestion uses `resolveRate()`; no new safety rules.
+- **Date:** 2026-11-02 · **By:** Ryan (owner) · **Status:** Accepted — shipped (`0cdd351`)
+
+### D-019 — Gemini 3+ uses the default temperature
+- **Decision:** Omit `temperature` for Gemini 3 and later; keep 0.2 for older models. Suggestions retry once on an unreadable reply; errors show the raw message.
+- **Reason:** Google advises keeping Gemini 3 at the default temperature; low values can make replies loop and get cut off. Owner reported “What should I eat?” not working.
+- **Alternatives:** Keep 0.2 everywhere.
+- **Consequences:** Gemini 3 numbers may vary a little more between calls; the review step still applies (D-006). Root cause of the owner's failure unconfirmed until live-key test (T-004).
+- **Date:** 2026-11-02 · **By:** Owner feedback round session · **Status:** Accepted — shipped (`0cdd351`)
+
+### D-020 — Voice: dominant, campy coach; fewer words, more emoji
+- **Decision:** Philip's coaching copy is a dominant, campy, bossy gay coach: short commands, pet names (“sweetie”, “darling”, “good boy”), and an emoji where it replaces a phrase. Meal and macro labels get decorative, `aria-hidden` emoji. Errors, data loss, delete/replace, safety warnings and backup text stay plain. Never comment on body, weight or appearance; no sexual content.
+- **Reason:** Owner feedback (2026-11-02); owner asked on 2026-11-03 to ship the proposed samples in the next update.
+- **Alternatives:** The earlier dry, bossy voice (D-013 — this refines it).
+- **Consequences:** Reviewers check tone and that emoji never carry meaning alone.
+- **Date:** 2026-11-03 · **By:** Ryan (owner) · **Status:** Accepted

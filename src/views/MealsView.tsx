@@ -14,6 +14,9 @@ import { fmtDate, fmtG, fmtKcal } from '../lib/format';
 import { groupByMeal, sumMacros } from '../lib/nutrition';
 import { useUI } from '../ui';
 
+/** Decorative meal symbols (owner feedback, Nov 2026 — fewer words, more emoji). Hidden from screen readers. */
+const MEAL_EMOJI: Record<Meal, string> = { breakfast: '🌅', lunch: '🌞', dinner: '🌙', snack: '🍿' };
+
 /** Foods shown per meal before "+N more" (UX-4: the tab fits on one iPhone screen). */
 export const MEAL_PREVIEW = 2;
 
@@ -65,7 +68,10 @@ export function MealCard({ meal, entries, onAdd, collapse = true }: { meal: Meal
   return (
     <section className="card card-flush meal-card" aria-label={mealName}>
       <div className="meal-head">
-        <h2>{mealName}</h2>
+        <h2>
+          <span aria-hidden="true">{MEAL_EMOJI[meal]} </span>
+          {mealName}
+        </h2>
         {entries.length > 0 && <span className="meal-total num">{t('today.mealTotal', { kcal: fmtKcal(total) })}</span>}
         {onAdd && (
           <button type="button" className="icon-btn" onClick={onAdd} aria-label={t('today.addToMeal', { meal: mealName })}>

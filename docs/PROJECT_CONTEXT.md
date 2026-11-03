@@ -1,10 +1,10 @@
 # Project context
 
-> Snapshot verified 2026-11-02 against `story-3-simplify` (`5f78cb4`). Update this file whenever the state below changes (PM responsibility). Items marked **❓** could not be verified from the repository.
+> Snapshot verified 2026-11-03 against `main` (`0cdd351`) plus the `release/voice-emoji-docs` branch. Update this file whenever the state below changes (PM responsibility). Items marked **❓** could not be verified from the repository.
 
 ## What Philip is
 
-A personal, single-user nutrition tracker for Ryan's iPhone: a local-first PWA that tracks calories, protein, fat and carbs against personal targets, with optional AI food estimates via the Gemini free tier. No backend, no accounts, no paid services. The UI speaks in the voice of "Philip", a bossy, sassy coach.
+A personal, single-user nutrition tracker for Ryan's iPhone: a local-first PWA that tracks calories, protein, fat and carbs against personal targets, with optional AI food estimates via the Gemini free tier. No backend, no accounts, no paid services. The UI speaks in the voice of "Philip", a dominant, campy, bossy coach with short lines and emoji (D-020).
 
 v1 is nutrition-only. Workouts, AI coaching and training plans are planned for later and are **not** implemented (see ROADMAP.md).
 
@@ -12,25 +12,26 @@ v1 is nutrition-only. Workouts, AI coaching and training plans are planned for l
 
 | Ref | Commit | Meaning |
 |---|---|---|
-| `main` = `origin/main` = `qa-fixes-round-1` | `21f75d0` (2026-10-29) | What GitHub Pages deploys on push. Round-1 UI (Today · History · + · Targets · Settings). |
-| `qa-round-2` (local only) | `389c39e` (2026-11-02) | 4-tab layout, photo-first add, weight log, QA archive. |
-| `story-3-simplify` (local only) | `5f78cb4` (2026-11-02) | On top of `qa-round-2`. **Latest code.** 3 tabs. |
-| `docs/dev-os` (local only) | on top of `story-3-simplify` | This documentation system. |
+| `main` = `origin/main` | `0cdd351` (2026-11-03) | **Deployed.** Story 3 + dev-os docs + owner feedback round (units switch, 1-month target, Today log buttons, Gemini temperature). |
+| `fix/owner-feedback-nov2` (pushed) | `0cdd351` | Same commit as `main`; can be deleted. |
+| `release/voice-emoji-docs` | on top of `0cdd351` | Voice/emoji copy (D-020) + this docs refresh. Merge into `main` to deploy. |
+| `story-3-simplify`, `qa-round-2`, `docs/dev-os`, `qa-fixes-round-1` | ancestors of `main` | Merged; kept for history. |
 
-Remote: `https://github.com/ryamyamyam/Philip.git`. Whether GitHub Pages is enabled and serving `main` is **❓ unverified**.
+Remote: `https://github.com/ryamyamyam/Philip.git`. GitHub Pages deploys `main` via `.github/workflows/deploy.yml` (tests → build → Pages). The owner pushed `0cdd351` on 2026-11-03; whether that run went green is **❓ unverified from here** (check the Actions tab).
 
 ## Current development stage
 
 - Stages 0–7 implemented; Stage 8 (QA & polish) partially done; Stage 9 (QA & Feedback module) done.
-- QA round 2 and Story 3 are implemented on unmerged branches. Current milestone: verify and merge them (ROADMAP.md, M1).
+- M1 (QA round 2 + Story 3) and the owner feedback round are merged and deployed. Current milestone: M2 — WebKit, real-iPhone and live-Gemini verification.
 
 ## Current priorities
 
-1. Run WebKit e2e on the Mac against `story-3-simplify`; fix WebKit-only issues.
-2. Merge `story-3-simplify` (includes `qa-round-2`) into `main` and push (deploys).
-3. Real-iPhone pass: install, offline, camera → review → save, saved meals, share-sheet export, Dynamic Type, VoiceOver.
-4. Live Gemini key test (photo, text, "What should I eat?").
-5. Owner decisions listed under "Open questions".
+1. Ship `release/voice-emoji-docs` (merge into `main`, push).
+2. Owner: send the “What Gemini said” text if “What should I eat?” still fails (T-004).
+3. Run WebKit e2e on the Mac against `main`; fix WebKit-only issues (incl. the iOS date-input fix).
+4. Real-iPhone pass: install, offline, camera → review → save, saved meals, share-sheet export, Dynamic Type, VoiceOver.
+5. Live Gemini key test (photo, text, "What should I eat?").
+6. Owner decisions listed under "Open questions".
 
 ## Application architecture (summary — details in ARCHITECTURE.md)
 
@@ -52,22 +53,24 @@ Static single-page React app. Hash routing (`#/today`, `#/progress`, `#/settings
 
 Runtime dependencies: `dexie`, `dexie-react-hooks`, `react`, `react-dom` — nothing else. No linter/formatter is configured.
 
-## Implementation status (on `story-3-simplify`)
+## Implementation status (on `main` unless noted)
 
 | Feature | Status |
 |---|---|
-| Today: kcal + P/F/C eaten/target/left, day's foods by meal, ‹ › date nav, Take photo / Log food | Implemented, tested (Chromium) |
-| Log sheet: photo, choose photo, text box, saved meals, manual entry | Implemented, tested (Chromium) |
+| Today: kcal + P/F/C eaten/target/left, day's foods by meal, ‹ › date nav, Take photo / Choose photo / Enter yourself (inline text panel) | Implemented, tested (Chromium) |
+| Add panel / Add food sheet: text box, saved meals, Type the numbers (sheet also has photo buttons; used by Meals) | Implemented, tested (Chromium) |
+| Targets: metric ⇄ imperial switch, Sex/DOB layout, 1-month target suggestion | Implemented, tested (Chromium); iOS date input ❓ |
+| Voice + emoji copy (D-020) | On `release/voice-emoji-docs`, tested (Chromium) |
 | Review sheet (mandatory for AI), saved meals (Dexie v3) | Implemented, tested (Chromium) |
 | Gemini photo + text analysis, local text fallback, Claude handoff on photo errors | Implemented, mock-tested; live key ❓ |
-| "What should I eat?" suggestions (Gemini) | Implemented, mock-tested; live key ❓ |
+| "What should I eat?" suggestions (Gemini) | Implemented, mock-tested; owner reported a failure — temperature fix, retry and error detail shipped; live key ❓ |
 | Targets calculator + safety rules, manual, weekday plans, adherence (Settings › Targets) | Implemented, tested |
 | Progress: weight log, on-track status, chart, history with delete + Undo | Implemented, tested (Chromium) |
 | Backups (merge/replace), delete-all, backup reminder | Implemented, tested |
 | Offline/PWA | Implemented; Vary caveat (below) |
 | QA & Feedback module (from Settings; archive after prompt) | Implemented, tested (Chromium); iPhone voice ❓ |
 
-Test evidence: 176/176 unit tests and `tsc -b` clean on `5f78cb4` (re-run 2026-11-02 in a clean clone). 52 Chromium-mobile e2e reported passing by the Story 3 session (not re-run). WebKit e2e, a real iPhone and a live Gemini key: **not yet run**.
+Test evidence: on `0cdd351`, `tsc -b` clean, 177/177 unit tests and 54/54 Chromium-mobile e2e passed in a clean Linux clone (2026-11-03); see TASK_ASSIGNMENTS.md for the voice/emoji branch. WebKit e2e, a real iPhone and a live Gemini key: **not yet run**.
 
 ## Known limitations
 
@@ -84,7 +87,7 @@ See CLAUDE.md "Stack & constraints" and "Owner approval required", and DECISIONS
 
 ## Features currently being developed
 
-None in progress. Story 3 is implemented and awaiting verification/merge (TASK_ASSIGNMENTS.md).
+`release/voice-emoji-docs` (T-007, T-008) is ready to ship. Nothing else in progress.
 
 ## Outstanding technical issues
 
@@ -97,8 +100,8 @@ None in progress. Story 3 is implemented and awaiting verification/merge (TASK_A
 
 ## Open questions (owner)
 
-1. Today now scrolls with many foods — confirm this replaces the old "Today fits 393×793 without scrolling" rule.
+1. Today now scrolls with many foods — shipped; confirm it replaces the old "Today fits 393×793 without scrolling" rule.
 2. QA observations now record "Settings" as the screen — acceptable?
 3. Delete the now-unused files listed above?
 4. Should removed History views (30-day averages, weekly planned vs actual) come back?
-5. Is GitHub Pages enabled and serving `main`?
+5. Did the 2026-11-03 Pages deploy succeed (Actions tab)?

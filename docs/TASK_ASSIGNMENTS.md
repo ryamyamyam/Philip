@@ -5,44 +5,32 @@ Shared registry for all sessions. **Update it whenever a task is proposed, assig
 Statuses: **Proposed** → **Approved** → **In progress** → **Ready for QA** → **QA in progress** → **Completed**; or **Blocked** (say on what).
 Roles: PM · Core · Feature · QA · Owner (Ryan, for manual/device work and approvals).
 
-Base branch for new work: `story-3-simplify` until T-001 merges it into `main`; afterwards `main`.
+Base branch for new work: `main`.
 
 ## Active tasks
 
 | ID | Feature | Role | Status | Branch | Depends on |
 |---|---|---|---|---|---|
-| T-000 | Development operating system docs | PM | Ready for owner review | `docs/dev-os` | — |
-| T-001 | Verify & merge QA round 2 + Story 3 into `main` | PM (+ QA) | Blocked | `story-3-simplify` → `main` | T-002, owner decisions |
-| T-002 | WebKit e2e run on `story-3-simplify` | QA | Proposed | `story-3-simplify` (read-only) / `fix/T-002-…` | — |
-| T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | T-001 deployed |
-| T-004 | Live Gemini key verification | Owner + QA | Proposed | — | T-001 deployed |
-| T-005 | Remove unused files | Core | Proposed (needs owner approval: deletion) | `chore/T-005-unused-files` | T-001 |
-| T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | T-001 |
+| T-002 | WebKit e2e run on `main` | QA | Proposed | `main` (read-only) / `fix/T-002-…` | — |
+| T-008 | Voice + emoji copy (D-020) and docs refresh | Feature + PM | Ready to ship (owner merges) | `release/voice-emoji-docs` | — |
+| T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
+| T-004 | Live Gemini key verification (incl. “What should I eat?” failure) | Owner + QA | In progress — waiting for the owner's “What Gemini said” text | — | — |
+| T-005 | Remove unused files | Core | Proposed (needs owner approval: deletion) | `chore/T-005-unused-files` | — |
+| T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
 
 ---
 
-### T-000 — Development operating system docs
-- **Role:** PM
-- **Description:** Create/update CLAUDE.md and docs/* (PROJECT_CONTEXT, ROADMAP, DEVELOPMENT_WORKFLOW, ARCHITECTURE, DEVELOPMENT_RULES, AGENT_ROLES, TASK_ASSIGNMENTS, DECISIONS, QA_STRATEGY); README docs links.
-- **Allowed files:** `CLAUDE.md`, `README.md`, `docs/**`
-- **Excluded:** everything else (no application code, tests or config).
-- **Deliverables:** the docs above, committed on `docs/dev-os`.
-- **Acceptance criteria:** CLAUDE.md points to every doc; no existing information lost; statuses reflect verified evidence only; open questions listed.
-- **Status:** Ready for owner review · **Branch:** `docs/dev-os` (on top of `story-3-simplify`) · **Known conflicts:** CLAUDE.md, README.md, docs/ROADMAP.md, docs/ARCHITECTURE.md also differ between `main` and `story-3-simplify`; merge `docs/dev-os` after (or together with) T-001.
-
-### T-001 — Verify & merge QA round 2 + Story 3
-- **Role:** PM coordinating QA; Ryan approves merge/push.
-- **Description:** After T-002 passes and the owner settles D-014/D-015, merge `story-3-simplify` (contains `qa-round-2`) and `docs/dev-os` into `main`, re-run tests, push (deploys to Pages).
-- **Allowed files:** none edited directly (merge only); conflict fixes require PM approval.
-- **Excluded:** —
-- **Dependencies:** T-002; owner confirmation of PROJECT_CONTEXT.md open questions 1–2.
-- **Deliverables:** `main` at the merged commit, pushed; Pages deploy green.
-- **Acceptance criteria:** `npm test`, `npm run typecheck`, `npm run build`, Chromium + WebKit e2e pass on the merge commit; CI deploy succeeds; app loads from the Pages URL.
-- **Status:** Blocked (T-002, owner decisions) · **Known conflicts:** none expected (`main` is an ancestor of `story-3-simplify`, so a fast-forward is possible).
+### T-008 — Voice + emoji copy and docs refresh
+- **Role:** Feature (copy) + PM (docs)
+- **Description:** Apply D-020 voice/emoji samples in `en.ts`; decorative `aria-hidden` meal/macro emoji in `MealsView`/`TodayCard`; bring README, CLAUDE.md and docs/* up to date with `main` `0cdd351`.
+- **Allowed files:** `src/i18n/en.ts`, `src/views/MealsView.tsx`, `src/components/TodayCard.tsx`, `e2e/**` (string updates), `README.md`, `CLAUDE.md`, `docs/**`
+- **Acceptance criteria:** error/delete/safety/backup strings unchanged; accessible names unchanged by emoji; tsc, unit and Chromium e2e pass.
+- **Status:** Ready to ship · **Branch:** `release/voice-emoji-docs`
+- **Log:** 2026-11-03: tsc clean, 177/177 unit, 54/54 Chromium-mobile e2e in a clean Linux clone (8 e2e assertions updated to the new copy). WebKit not run.
 
 ### T-002 — WebKit e2e run
 - **Role:** QA (on the Mac)
-- **Description:** `npx playwright install webkit` (once), then `npx playwright test --project=webkit-iphone` on `story-3-simplify`. Report failures with the defect template; WebKit-only fixes become a separate Core/Feature task.
+- **Description:** `npx playwright install webkit` (once), then `npx playwright test --project=webkit-iphone` on `main`. Report failures with the defect template; WebKit-only fixes become a separate Core/Feature task. Also check the Targets date-of-birth field (`.input-date`).
 - **Allowed files:** `e2e/**` only if a test itself is wrong (report first).
 - **Excluded:** `src/**`.
 - **Deliverables:** pass/fail report in this entry.
@@ -75,7 +63,9 @@ Base branch for new work: `story-3-simplify` until T-001 merges it into `main`; 
 
 | ID | Summary | Completed | Evidence |
 |---|---|---|---|
-| — | — | — | — |
+| T-000 | Development operating system docs | 2026-11-03 | Shipped in `main` `0cdd351` (owner push) |
+| T-001 | Merge QA round 2 + Story 3 into `main` | 2026-11-03 | Owner fast-forwarded `main` to `0cdd351` and pushed. WebKit (T-002) was **not** run first. |
+| T-007 | Owner feedback round: units switch, DOB layout, 1-month target, Today log buttons, Gemini temperature/retry/error detail | 2026-11-03 | `0cdd351`; tsc clean, 177 unit, 54 Chromium e2e (clean clone) |
 
 ## Entry template
 

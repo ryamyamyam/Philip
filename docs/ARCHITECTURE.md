@@ -47,15 +47,15 @@ src/
 
 | Tab | Route | Content |
 |---|---|---|
-| Today | `#/today` | First screen. Date heading (‹ › and picker for past days) + one card: kcal eaten/left with a bar, P/F/C eaten / target / left with bars (`lib/remaining.ts`); **Take photo** (primary) and **Log food**; the day's foods grouped by meal (tap to edit, swipe to move/delete); optional “What should I eat?” |
+| Today | `#/today` | First screen. Date heading (‹ › and picker for past days) + one card: kcal eaten/left with a bar, P/F/C eaten / target / left with bars (`lib/remaining.ts`); **Take photo** (primary), **Choose photo** and **Enter yourself** (toggles the inline `AddPanel`); the day's foods grouped by meal (tap to edit, swipe to move/delete); optional “What should I eat?” |
 | Progress | `#/progress` | Weight only: on track / ahead / behind (`lib/weight.ts#weightProgress`), actual-vs-plan chart, weigh-in form, collapsed history with delete + Undo |
 | Settings | `#/settings` | Targets & body stats link, data, Gemini, units, QA & Feedback, danger zone |
 | (page) | `#/targets` | Settings › Targets & body stats: current targets, calculator, manual, weekly plan, adherence, history. Tab bar highlights Settings. |
 
 Old routes redirect with `history.replaceState`: `#/history` and `#/meals` → `#/today`. Tapping the Today tab always resets the date to today.
 
-### Logging flow (Story 3)
-Today → Take photo → analyzing (PhotoSheet) → **Review** → Save to {meal}. Log food opens a small sheet: Take photo, Choose photo, a text box, saved meals, Enter it yourself. Every path ends in the Review sheet (meal picker, compact rows: name + grams, nutrition rescales with grams, “Edit nutrition” for direct macro edits, add/remove rows, optional “Also save as a meal”). Saving shows “N kcal logged to {meal}” with Undo. My Foods / recents / favorites and the Claude handoff button were removed from the log sheet (the handoff remains on photo-analysis errors); saved foods stay in the database and backups and still prefill typed text without a key.
+### Logging flow (Story 3, updated Nov 2026)
+Today → Take photo / Choose photo → analyzing (PhotoSheet) → **Review** → Save to {meal}. **Enter yourself** reveals an inline panel on Today (`AddPanel` in `views/AddSheet.tsx`): an autofocused text box, saved meals, and “Type the numbers”. The Add food sheet (`AddSheet`, photo buttons + the same `AddPanel`) remains for Meals. The Log food button was removed (D-017). Every path ends in the Review sheet (meal picker, compact rows: name + grams, nutrition rescales with grams, “Edit nutrition” for direct macro edits, add/remove rows, optional “Also save as a meal”). Saving shows “N kcal logged to {meal}” with Undo. My Foods / recents / favorites and the Claude handoff button were removed from the log sheet (the handoff remains on photo-analysis errors); saved foods stay in the database and backups and still prefill typed text without a key.
 
 ## Data model (IndexedDB `philip`, Dexie v3)
 
@@ -137,7 +137,7 @@ Photos are never stored.
 
 ### Typed text (add sheet and review list)
 
-The log sheet (Story 3) shows Take photo, Choose photo, one text box (“2 eggs, 150 g rice, 1 tbsp olive oil”), saved meals and Enter it yourself (see “Logging flow” above); My Foods, recents and the Claude handoff button are no longer in it. Text goes to `analyzeFoodText()` → `analyzeTextWithGemini()` (same request, schema, error mapping and `validateAnalysis()` as photos; prompt `FOOD_TEXT_INSTRUCTIONS` with the same JSON shape). The review list has the same text box; sending appends rows. Without a key, on any error, or when Gemini finds nothing, `lib/foodText.ts` splits the text locally (g/kg/ml, tbsp 15 g, tsp 5 g, cup 240 g, bare counts), prefills macros from a My Foods / recent-food name match, and leaves the rest empty for the user. Local rows save as `source: 'manual'` with no estimate; AI rows save as `source: 'photo'` with their own provider/model.
+The add panel shows one text box (“2 eggs, 150 g rice, 1 tbsp olive oil”), saved meals and Type the numbers; the photo buttons sit on Today (see “Logging flow” above); My Foods, recents and the Claude handoff button are no longer in it. Text goes to `analyzeFoodText()` → `analyzeTextWithGemini()` (same request, schema, error mapping and `validateAnalysis()` as photos; prompt `FOOD_TEXT_INSTRUCTIONS` with the same JSON shape). The review list has the same text box; sending appends rows. Without a key, on any error, or when Gemini finds nothing, `lib/foodText.ts` splits the text locally (g/kg/ml, tbsp 15 g, tsp 5 g, cup 240 g, bare counts), prefills macros from a My Foods / recent-food name match, and leaves the rest empty for the user. Local rows save as `source: 'manual'` with no estimate; AI rows save as `source: 'photo'` with their own provider/model.
 
 ## QA & Feedback Capture (`src/modules/qa-feedback`)
 
@@ -171,3 +171,10 @@ These are the seams that keep parallel work safe. Changing any of them is an arc
 | QA module | `modules/qa-feedback/` imports nothing from Philip. Philip wiring only in `src/qaFeedback.config.ts` + `<QaFeedback>` in `App.tsx` + Settings card. | `QaFeedbackConfig`, `index.ts` exports |
 | Build / offline | `vite.config.ts` (SW generator plugin, base `./`), `src/sw-template.js`, `public/manifest.webmanifest`. | precache list |
 | Deploy | `.github/workflows/deploy.yml`: push to `main` → `npm ci` → `npm test` → `npm run build` → GitHub Pages. E2E is not run in CI. | `main` branch |
+
+## Owner feedback round (Nov 2026)
+
+- **Targets calculator:** `kg · cm | lb · ft` switch in the card header. `convertForm()` converts the typed, unsaved values, then `updateProfile({ unitPrefs })`; the unit re-sync effect is skipped for that change. Field order: Sex | Date of birth, Weight | Body fat, Height (cm full-width or ft | in). `.input-date` normalizes iOS date inputs.
+- **1-month target suggestion:** for Lose/Gain with a weight entered, `resolveRate(goal, weightKg, null)` (the default safe pace from `SAFETY`, unchanged) × 30/7 weeks → “🎯 1 month: X (rate/wk) · Use it”, which fills target weight and rate.
+- **Gemini:** `usesDefaultTemperature(model)` — Gemini 3+ requests omit `temperature` (Google advises the default 1.0; low values can loop and truncate JSON); older models keep 0.2. Suggestions use `generateWithRetry` (one retry on `invalidResponse`). SuggestSheet shows the raw error message under “What Gemini said”.
+- **Copy:** voice and emoji per D-020; decorative meal (🌅 🌞 🌙 🍿) and macro (🥩 🥑 🍚) symbols are `aria-hidden` spans so accessible names are unchanged.

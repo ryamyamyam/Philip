@@ -595,6 +595,20 @@ button {
 .list-item:first-child {
   border-top: none;
 }
+/* A list inside a padded card: rows align with the card's text, no extra gutter. */
+.list-inset .list-item {
+  min-height: var(--touch);
+  padding-inline: 0;
+}
+.list-inset .list-button {
+  justify-content: space-between;
+}
+.list-inset .list-button svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--color-text-3);
+  flex: none;
+}
 .list-button {
   width: 100%;
   border: none;

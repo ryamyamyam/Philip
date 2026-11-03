@@ -4,6 +4,8 @@ Capture bugs, UI issues, usability problems, optimizations and feature requests 
 
 **Capture → save → organize → select → generate prompt → archive? (asked) → review/edit → copy or export**
 
+The capture form is just your words, an optional type and screenshots. Everything else (title, feature/screen, priority, AI analysis) lives on the observation's detail screen. The panel shows one project: the host app's (`appId`). Archive any observation by hand from its detail screen or the inbox selection; the Inbox count covers active items only. `openQaFeedback('archived')` opens the archived list.
+
 Everything runs in the browser. Data lives in its own IndexedDB database (`qa-feedback`). AI is optional: without it you can still capture, attach, search, filter, select and generate template-based prompts.
 
 ## Files

@@ -177,6 +177,7 @@ export function PromptBuilder() {
     });
 
   if (!observations) return <p className="qa-hint">Loading…</p>;
+  const activeInPrompt = prompt ? observations.filter((o) => !o.archivedAt && prompt.observationIds.includes(o.id)).length : 0;
 
   return (
     <div className="qa-stack">
@@ -312,6 +313,12 @@ export function PromptBuilder() {
             <p className={`qa-banner ${exportMsg.ok ? 'qa-banner-success' : 'qa-banner-danger'}`} role="status">
               {exportMsg.text}
             </p>
+          )}
+          {/* OBS-97D767: "Keep active" was chosen earlier — archive the prompt's items any time after. */}
+          {prompt && !askArchive && activeInPrompt > 0 && (
+            <button type="button" className="qa-btn qa-btn-secondary" onClick={() => void archiveIncluded(prompt.id)}>
+              {ARCHIVE_TEXT.archiveIncluded(activeInPrompt)}
+            </button>
           )}
         </section>
       )}

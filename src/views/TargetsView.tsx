@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
+import { MacroSplitBar } from '../components/MacroSplitBar';
 import { NumberField } from '../components/NumberField';
 import { useToast } from '../components/Toast';
 import { addTargetPlan, updateProfile } from '../db/repo';
@@ -9,6 +10,7 @@ import { t, type StringKey } from '../i18n';
 import { addDays, ageOn, isValidYmd, todayYmd } from '../lib/date';
 import { fmtDate, fmtG, fmtKcal, fmtNum } from '../lib/format';
 import { CM_PER_IN, KG_PER_LB, parseDecimal, validateNumber, type FieldError } from '../lib/numbers';
+import { caloriesFromGrams, gramsFromPercents, MACRO_KEYS, macroPercents, percentTotal, type MacroKey, type MacroPercents } from '../lib/macroSplit';
 import { planForDate } from '../lib/nutrition';
 import { BODY_FAT_RANGE, calculateTargets, manualTargetWarnings, resolveRate, REVIEW_CODES, validateInputs, type CalcInputs, type CalcResult, type CalcWarning } from '../lib/targets';
 
@@ -68,6 +70,8 @@ export function TargetsSections({ showCurrent = true, compact = false }: { showC
 }
 
 export function CurrentCard({ plan }: { plan: TargetPlan | null }) {
+  const split = plan ? macroPercents(plan) : null;
+  const of = (k: MacroKey) => (split ? t('targets.split.ofKcal', { pct: split[k] }) : undefined);
   return (
     <section className="card stack-sm" aria-labelledby="cur-h">
       <h2 id="cur-h">{t('targets.current')}</h2>
@@ -75,9 +79,9 @@ export function CurrentCard({ plan }: { plan: TargetPlan | null }) {
         <>
           <div className="target-grid num">
             <Stat label={t('macro.calories')} value={`${fmtKcal(plan.calories)}`} unit={t('common.kcal')} />
-            <Stat label={t('macro.protein')} value={fmtG(plan.proteinG)} unit="g" />
-            <Stat label={t('macro.fat')} value={fmtG(plan.fatG)} unit="g" />
-            <Stat label={t('macro.carbs')} value={fmtG(plan.carbsG)} unit="g" />
+            <Stat label={t('macro.protein')} value={fmtG(plan.proteinG)} unit="g" sub={of('protein')} />
+            <Stat label={t('macro.fat')} value={fmtG(plan.fatG)} unit="g" sub={of('fat')} />
+            <Stat label={t('macro.carbs')} value={fmtG(plan.carbsG)} unit="g" sub={of('carbs')} />
           </div>
           <p className="subtle">
             {t('targets.from', { date: fmtDate(plan.effectiveFrom) })} · {t(`targets.method.${plan.method}`)}
@@ -91,13 +95,14 @@ export function CurrentCard({ plan }: { plan: TargetPlan | null }) {
   );
 }
 
-function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
+function Stat({ label, value, unit, sub }: { label: string; value: string; unit: string; sub?: string }) {
   return (
     <div className="stat">
       <span className="stat-label">{label}</span>
       <span className="stat-value">
         {value} <span className="stat-unit">{unit}</span>
       </span>
+      {sub && <span className="stat-sub">{sub}</span>}
     </div>
   );
 }
@@ -501,7 +506,7 @@ function CalculatorForm({ profile, onAdjust }: { profile: Profile; onAdjust: (m:
             <label className="field-label" htmlFor={ids.eff}>
               {t('targets.effectiveFrom')}
             </label>
-            <input id={ids.eff} className="input" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+            <input id={ids.eff} className="input input-date" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
           </div>
           <button type="button" className="btn btn-primary btn-block" onClick={() => void apply()}>
             {t('targets.apply')}
@@ -589,33 +594,158 @@ function MacroInputs({ v, errors, onChange }: { v: MacroStrings; errors: Partial
   );
 }
 
+/* PFC ratio ⇄ grams (OBS-E49D0F). Grams stay what's saved; "% of calories" is another way to enter them. */
+type SplitMode = 'grams' | 'percent';
+type PercentStrings = Record<MacroKey, string>;
+const PCT_RULE = { min: 0, max: 100, required: true };
+
+function parsePercents(v: PercentStrings): { pct: MacroPercents | null; errors: Partial<Record<MacroKey, FieldError>> } {
+  const errors: Partial<Record<MacroKey, FieldError>> = {};
+  const out: Partial<MacroPercents> = {};
+  for (const k of MACRO_KEYS) {
+    const r = validateNumber(v[k], PCT_RULE);
+    if (r.error) errors[k] = r.error;
+    else out[k] = r.value!;
+  }
+  return Object.keys(errors).length ? { pct: null, errors } : { pct: out as MacroPercents, errors };
+}
+
+const pctStrings = (p: MacroPercents | null): PercentStrings => ({
+  protein: p ? String(p.protein) : '',
+  fat: p ? String(p.fat) : '',
+  carbs: p ? String(p.carbs) : '',
+});
+
 function ManualForm({ initial }: { initial: Macros | null }) {
   const toast = useToast();
   const [v, setV] = useState<MacroStrings>(() => toStrings(initial));
   const [errors, setErrors] = useState<Partial<Record<keyof MacroStrings, FieldError>>>({});
+  const [mode, setMode] = useState<SplitMode>('grams');
+  const [pct, setPct] = useState<PercentStrings>(() => pctStrings(initial ? macroPercents(initial) : null));
+  const [pctErrors, setPctErrors] = useState<Partial<Record<MacroKey, FieldError>>>({});
+  const [totalError, setTotalError] = useState(false);
   const [effectiveFrom, setEffectiveFrom] = useState(todayYmd());
   const effId = useId();
-  const parsed = useMemo(() => parseMacroStrings(v).macros, [v]);
+
+  const kcal = validateNumber(v.calories, RULES.calories).value;
+  const parsedPct = useMemo(() => parsePercents(pct).pct, [pct]);
+  const pctSum = parsedPct ? percentTotal(parsedPct) : null;
+  // Grams the ratio gives at the current calorie target (percent mode only).
+  const pctGrams = mode === 'percent' && parsedPct && kcal != null ? gramsFromPercents(kcal, parsedPct) : null;
+  // What would be saved right now.
+  const parsed = useMemo(() => {
+    if (mode === 'grams') return parseMacroStrings(v).macros;
+    return pctGrams && kcal != null && pctSum === 100 ? { calories: kcal, ...pctGrams } : null;
+  }, [mode, v, pctGrams, kcal, pctSum]);
+  const split = parsed ? macroPercents(parsed) : null;
   const warnings = parsed ? manualTargetWarnings(parsed) : [];
+  const implied = mode === 'grams' && parsed ? caloriesFromGrams(parsed) : null;
+
+  const switchMode = (next: SplitMode) => {
+    if (next === mode) return;
+    if (next === 'percent') {
+      // Start from the grams typed so far, so switching never loses the split.
+      const g = parseMacroStrings(v).macros;
+      const p = g ? macroPercents(g) : null;
+      if (p) setPct(pctStrings(p));
+    } else if (pctGrams && pctSum === 100) {
+      setV((x) => ({ ...x, proteinG: String(pctGrams.proteinG), fatG: String(pctGrams.fatG), carbsG: String(pctGrams.carbsG) }));
+    }
+    setErrors({});
+    setPctErrors({});
+    setTotalError(false);
+    setMode(next);
+  };
 
   const save = async () => {
-    const r = parseMacroStrings(v);
-    setErrors(r.errors);
-    if (!r.macros || !isValidYmd(effectiveFrom)) return;
-    await addTargetPlan({ effectiveFrom, ...r.macros, method: 'manual', inputsSnapshot: null, weekdayOverrides: null });
+    let macros: Macros | null;
+    if (mode === 'grams') {
+      const r = parseMacroStrings(v);
+      setErrors(r.errors);
+      macros = r.macros;
+    } else {
+      const c = validateNumber(v.calories, RULES.calories);
+      const r = parsePercents(pct);
+      setErrors(c.error ? { calories: c.error } : {});
+      setPctErrors(r.errors);
+      const off = !!r.pct && percentTotal(r.pct) !== 100;
+      setTotalError(off);
+      macros = !c.error && r.pct && !off ? { calories: c.value!, ...gramsFromPercents(c.value!, r.pct) } : null;
+    }
+    if (!macros || !isValidYmd(effectiveFrom)) return;
+    await addTargetPlan({ effectiveFrom, ...macros, method: 'manual', inputsSnapshot: null, weekdayOverrides: null });
     toast(t('targets.saved'));
+  };
+
+  const setGrams = (k: keyof MacroStrings, s: string) => {
+    setV((x) => ({ ...x, [k]: s }));
+    setErrors((e) => ({ ...e, [k]: undefined }));
   };
 
   return (
     <section className="card stack" aria-label={t('targets.manual')}>
-      <MacroInputs
-        v={v}
-        errors={errors}
-        onChange={(k, s) => {
-          setV((x) => ({ ...x, [k]: s }));
-          setErrors((e) => ({ ...e, [k]: undefined }));
-        }}
+      <NumberField
+        label={t('entry.calories')}
+        value={v.calories}
+        onChange={(s) => setGrams('calories', s)}
+        error={errors.calories}
+        min={RULES.calories.min}
+        max={RULES.calories.max}
       />
+      <div className="field">
+        <span className="field-label" id={`${effId}-by`}>
+          {t('targets.split.by')}
+        </span>
+        <div className="segmented" role="group" aria-labelledby={`${effId}-by`}>
+          {(['grams', 'percent'] as const).map((m) => (
+            <button key={m} type="button" aria-pressed={mode === m} onClick={() => switchMode(m)}>
+              {t(`targets.split.${m}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {mode === 'grams' ? (
+        <div className="macro-grid">
+          <NumberField label={t('entry.protein')} value={v.proteinG} onChange={(s) => setGrams('proteinG', s)} error={errors.proteinG} max={1000} />
+          <NumberField label={t('entry.fat')} value={v.fatG} onChange={(s) => setGrams('fatG', s)} error={errors.fatG} max={1000} />
+          <NumberField label={t('entry.carbs')} value={v.carbsG} onChange={(s) => setGrams('carbsG', s)} error={errors.carbsG} max={1000} />
+        </div>
+      ) : (
+        <>
+          <p className="subtle">{t('targets.split.percentHint')}</p>
+          <div className="macro-grid">
+            {MACRO_KEYS.map((k) => (
+              <NumberField
+                key={k}
+                label={t(`targets.split.${k}`)}
+                value={pct[k]}
+                onChange={(s) => {
+                  setPct((x) => ({ ...x, [k]: s }));
+                  setPctErrors((e) => ({ ...e, [k]: undefined }));
+                  setTotalError(false);
+                }}
+                error={pctErrors[k]}
+                max={100}
+                hint={pctGrams ? t('targets.split.gramsHint', { g: fmtG(pctGrams[`${k}G`]) }) : undefined}
+              />
+            ))}
+          </div>
+          {pctSum != null && (
+            <p className={`split-total num${pctSum === 100 ? '' : ' split-total-off'}`} role={totalError ? 'alert' : undefined}>
+              {pctSum === 100 ? t('targets.split.total', { total: pctSum }) : t('targets.split.totalOff', { total: pctSum })}
+            </p>
+          )}
+        </>
+      )}
+      {split && <MacroSplitBar split={split} />}
+      {implied != null && kcal != null && implied !== kcal && (
+        <div className="split-sum">
+          <span className="subtle num">{t('targets.split.sum', { kcal: fmtKcal(implied) })}</span>
+          <button type="button" className="btn btn-ghost split-use" onClick={() => setGrams('calories', String(implied))}>
+            {t('targets.split.useKcal', { kcal: fmtKcal(implied) })}
+          </button>
+        </div>
+      )}
       {warnings.map((w) => (
         <div key={w.code} className={`banner ${w.code === 'manualLow' ? 'banner-danger' : 'banner-warning'}`} role="note">
           <Icon name="warning" />
@@ -626,7 +756,7 @@ function ManualForm({ initial }: { initial: Macros | null }) {
         <label className="field-label" htmlFor={effId}>
           {t('targets.effectiveFrom')}
         </label>
-        <input id={effId} className="input" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+        <input id={effId} className="input input-date" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
       </div>
       <button type="button" className="btn btn-primary btn-block" onClick={() => void save()}>
         {t('common.save')}
@@ -730,7 +860,7 @@ function WeeklyPlanning({ plan }: { plan: TargetPlan }) {
         <label className="field-label" htmlFor={effId}>
           {t('targets.effectiveFrom')}
         </label>
-        <input id={effId} className="input" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+        <input id={effId} className="input input-date" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
       </div>
       <button type="button" className="btn btn-secondary btn-block" onClick={() => void save()}>
         {t('targets.weeklySave')}

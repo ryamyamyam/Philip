@@ -39,9 +39,16 @@ async function capture(page: Page, text: string, opts: { type?: string; feature?
   const panel = page.getByRole('dialog', { name: 'QA & Feedback' });
   await panel.getByLabel('What did you notice?').fill(text);
   if (opts.type) await panel.getByRole('button', { name: opts.type, exact: true }).click();
-  if (opts.feature !== undefined) await panel.getByLabel('Feature or screen').fill(opts.feature);
   await panel.getByRole('button', { name: 'Save observation' }).click();
   await expect(panel.getByText(/Saved “/)).toBeVisible();
+  // OBS-A09A21: Feature or screen is no longer on the capture form; it's set on the detail screen.
+  if (opts.feature !== undefined) {
+    await panel.getByRole('button', { name: 'open it' }).click();
+    await panel.getByLabel('Feature or screen').fill(opts.feature);
+    await panel.getByRole('button', { name: 'Save changes' }).click();
+    await expect(panel.getByRole('button', { name: 'Saved' })).toBeDisabled();
+    await panel.getByRole('button', { name: 'Capture', exact: true }).click();
+  }
 }
 
 async function setGeminiKey(page: Page) {
@@ -61,7 +68,12 @@ test.beforeEach(async ({ page }) => {
 
 test('quick capture without AI: save, screenshots, persistence, edit keeps original words', async ({ page }) => {
   const panel = await openCapture(page);
-  await expect(panel.getByLabel('Feature or screen')).toHaveValue('Settings'); // Story 3: opened from Settings
+  // OBS-A09A21: no project picker, Feature or screen, Structure with AI or More details on the form.
+  await expect(panel.getByLabel('What did you notice?')).toBeVisible();
+  await expect(panel.getByLabel('Project', { exact: true })).toHaveCount(0);
+  await expect(panel.getByLabel('Feature or screen')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Structure with AI' })).toHaveCount(0);
+  await expect(panel.getByText('More details (optional)')).toHaveCount(0);
   await panel.getByLabel('What did you notice?').fill('The calorie ring overlaps the date when text is large. It should sit below it.');
   await panel.getByRole('button', { name: 'Bug', exact: true }).click();
   await panel.getByTestId('qa-screenshot-input').setInputFiles([SHOT, SHOT2]);
@@ -117,7 +129,7 @@ test('quick capture without AI: save, screenshots, persistence, edit keeps origi
   await expect(detail.locator('.qa-shot')).toHaveCount(1);
 });
 
-test('projects isolate observations; search and filters', async ({ page }) => {
+test('search and filters (single project, no picker)', async ({ page }) => {
   const panel = await openCapture(page);
   await capture(page, 'Export button does nothing on iOS', { type: 'Bug', feature: 'Settings' });
   await capture(page, 'Add a dark mode', { type: 'Feature request', feature: 'App' });
@@ -139,18 +151,9 @@ test('projects isolate observations; search and filters', async ({ page }) => {
   await expect(list.getByRole('listitem')).toHaveCount(1);
   await panel.getByRole('button', { name: 'Reset filters' }).click();
 
-  // New project is empty and separate.
-  await panel.getByLabel('Project', { exact: true }).selectOption('__new');
-  await panel.getByLabel('New project name').fill('Side project');
-  await panel.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(panel.getByText('Nothing waiting. Capture a bug or idea first.')).toBeVisible();
-  await panel.getByRole('button', { name: 'Capture', exact: true }).click();
-  await capture(page, 'Login screen typo');
-  await panel.getByRole('button', { name: /^Inbox/ }).click();
-  await expect(list.getByRole('listitem')).toHaveCount(1);
-  await panel.getByLabel('Project', { exact: true }).selectOption({ label: 'Philip' });
-  await expect(list.getByRole('listitem')).toHaveCount(3);
-  await expect(list).not.toContainText('Login screen typo');
+  // OBS-A09A21: one project per app — there is no project picker any more.
+  await expect(panel.getByLabel('Project', { exact: true })).toHaveCount(0);
+  await expect(panel.getByRole('option', { name: '+ New project…' })).toHaveCount(0);
 });
 
 test('batch select → template prompt → edit protection → copy and .txt export', async ({ page, context, browserName }) => {
@@ -214,7 +217,7 @@ test('batch select → template prompt → edit protection → copy and .txt exp
   await expect(page.getByRole('dialog').getByLabel(/^Prompt/)).toHaveValue(/MY NOTE$/);
 });
 
-test('AI structuring and AI prompt help are optional and failures never block saving', async ({ page }) => {
+test('AI analysis (detail screen) and AI prompt help are optional and failures never block saving', async ({ page }) => {
   let mode: 'ok' | 'fail' = 'ok';
   const bodies: string[] = [];
   await page.route('https://generativelanguage.googleapis.com/**', async (route) => {
@@ -254,34 +257,39 @@ test('AI structuring and AI prompt help are optional and failures never block sa
 
   const panel = await openCapture(page);
   const words = 'calorie ring overlaps the date when text is big, it should be under it';
+  // OBS-A09A21: no AI on the capture form, even with a key. Capture never calls the AI.
+  await expect(panel.getByRole('button', { name: 'Structure with AI' })).toHaveCount(0);
   await panel.getByLabel('What did you notice?').fill(words);
-  await panel.getByRole('button', { name: 'Structure with AI' }).click();
-  await expect(panel.getByText('AI reading of your words')).toBeVisible();
-  await panel.getByText('More details (optional)').click();
-  await expect(panel.getByLabel(/^Title/)).toHaveValue('Ring overlaps date');
-  // Feature was prefilled by the user context and must not be overwritten.
-  await expect(panel.getByLabel('Feature or screen')).toHaveValue('Settings'); // Story 3: opened from Settings
-  // Critical without a reason is not suggested.
-  await expect(panel.getByText('Suggested priority')).toHaveCount(0);
-  await expect(panel.getByLabel('Priority')).toHaveValue('');
-  expect(bodies[0]).toContain('<user_data');
-  expect(bodies[0]).not.toContain('test-key-123');
   await panel.getByRole('button', { name: 'Save observation' }).click();
-  await expect(panel.getByText('Saved “Ring overlaps date”')).toBeVisible();
-
-  // AI failure: message shown, save still works.
-  mode = 'fail';
+  await expect(panel.getByText(/Saved “calorie ring overlaps/)).toBeVisible();
   await panel.getByLabel('What did you notice?').fill('Second note while AI is down');
-  await panel.getByRole('button', { name: 'Structure with AI' }).click();
-  await expect(panel.getByRole('alert')).toContainText('server error');
   await panel.getByRole('button', { name: 'Save observation' }).click();
   await expect(panel.getByText('Saved “Second note while AI is down”')).toBeVisible();
+  expect(bodies).toHaveLength(0);
 
-  // Original words preserved next to AI-drafted fields.
+  // AI analysis is still available on the detail screen and only fills empty fields.
   await panel.getByRole('button', { name: /^Inbox/ }).click();
-  await panel.getByRole('button', { name: /Ring overlaps date/ }).click();
+  await panel.getByRole('button', { name: /calorie ring overlaps/ }).click();
+  await panel.getByLabel(/^Title/).fill('Ring overlaps date');
+  await panel.getByRole('button', { name: 'Analyze with AI' }).click();
+  await expect(panel.getByText(/suggestions, not facts/)).toBeVisible();
+  // Critical without a reason is not suggested.
+  await expect(panel.getByText(/priority: Critical/)).toHaveCount(0);
+  expect(bodies[0]).toContain('<user_data');
+  expect(bodies[0]).not.toContain('test-key-123');
+  await panel.getByRole('button', { name: 'Fill empty fields from suggestions' }).click();
+  await expect(panel.getByLabel(/^Title/)).toHaveValue('Ring overlaps date');
+  await expect(panel.getByLabel(/^Description/)).toHaveValue('Calorie ring overlaps the date header at large text sizes.');
+  await panel.getByRole('button', { name: 'Save changes' }).click();
+  await expect(panel.getByRole('button', { name: 'Saved' })).toBeDisabled();
   await expect(panel.locator('blockquote').first()).toHaveText(words);
   await expect(panel.locator('.qa-badge-ai').first()).toBeVisible();
+
+  // AI failure: message shown, nothing lost.
+  mode = 'fail';
+  await panel.getByRole('button', { name: 'Re-analyze' }).click();
+  await expect(panel.getByRole('alert')).toContainText('server error');
+  await expect(panel.getByLabel(/^Title/)).toHaveValue('Ring overlaps date');
 
   // Prompt: AI failure falls back to template; AI success never drops an observation.
   await panel.getByRole('button', { name: /^Inbox/ }).click();
@@ -494,4 +502,71 @@ test('Story 3: generating a prompt asks to archive; yes archives only the includ
   await expect(items).toHaveCount(1);
   await panel.getByRole('tab', { name: 'Active' }).click();
   await expect(items).toHaveCount(2);
+});
+
+test('OBS-A09A21 / OBS-97D767: archive feedback already turned into a prompt; counts exclude archived; archive view', async ({ page }) => {
+  const panel = await openCapture(page);
+  await capture(page, 'First suggestion');
+  await capture(page, 'Second suggestion');
+  await capture(page, 'Third suggestion');
+  const inboxTab = panel.getByRole('button', { name: /^Inbox/ });
+  await expect(inboxTab).toHaveText('Inbox (3)');
+
+  // Turn two into a prompt and keep them active.
+  await inboxTab.click();
+  const list = panel.getByRole('list', { name: 'Observations' });
+  await list.getByRole('checkbox', { name: 'Select First suggestion' }).check();
+  await list.getByRole('checkbox', { name: 'Select Second suggestion' }).check();
+  await panel.getByRole('button', { name: 'Build prompt from 2 selected' }).click();
+  await panel.getByRole('button', { name: 'Generate prompt' }).click();
+  await keepActive(page);
+  const promptText = await panel.getByLabel(/^Prompt \(template\)/).inputValue();
+  expect(promptText).toContain('First suggestion');
+
+  // Converted items are marked in the inbox, and the detail screen offers Archive.
+  await inboxTab.click();
+  await expect(list.getByRole('listitem').filter({ hasText: 'First suggestion' })).toContainText('In a prompt');
+  await expect(list.getByRole('listitem').filter({ hasText: 'Third suggestion' })).not.toContainText('In a prompt');
+  await list.getByRole('button', { name: /First suggestion/ }).click();
+  await expect(panel.getByText('Already turned into a prompt.', { exact: false })).toBeVisible();
+  await panel.getByRole('button', { name: 'Archive', exact: true }).first().click();
+  await expect(page.getByRole('status').filter({ hasText: '1 observation archived' })).toBeVisible();
+  await expect(panel.getByText(/^Archived .+\.$/)).toBeVisible();
+  await expect(inboxTab).toHaveText('Inbox (2)');
+
+  // Back in the prompt builder, the remaining included item can be archived from there.
+  await panel.getByRole('button', { name: /^Prompt/ }).click();
+  await page.getByText('Recent prompts').click();
+  await page.getByRole('button', { name: /2 observations · template/ }).click();
+  await panel.getByRole('button', { name: 'Archive the 1 in this prompt' }).click();
+  await expect(inboxTab).toHaveText('Inbox (1)');
+
+  // Archived list: both are there; the prompt is untouched.
+  await inboxTab.click();
+  await expect(panel.getByRole('tab', { name: 'Active · 1' })).toBeVisible();
+  await panel.getByRole('tab', { name: 'Archived · 2' }).click();
+  await expect(list.getByRole('listitem').filter({ hasText: /suggestion/ })).toHaveCount(2);
+  await panel.getByRole('button', { name: /^Prompt/ }).click();
+  await page.getByText('Recent prompts').click();
+  await page.getByRole('button', { name: /2 observations · template/ }).click();
+  await expect(panel.getByLabel(/^Prompt \(template\)/)).toHaveValue(promptText);
+
+  // Bulk: archive the last active one from the inbox, then undo.
+  await inboxTab.click();
+  await panel.getByRole('tab', { name: /^Active/ }).click();
+  await list.getByRole('checkbox', { name: 'Select Third suggestion' }).check();
+  await panel.getByRole('button', { name: 'Archive 1' }).click();
+  await expect(inboxTab).toHaveText('Inbox (0)');
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(inboxTab).toHaveText('Inbox (1)');
+
+  // Settings has a direct way to the archived suggestions; they survive a reload.
+  await page.reload();
+  await tab(page, 'Settings').click();
+  await page.getByRole('button', { name: 'Archived', exact: true }).click();
+  const qa = page.getByRole('dialog', { name: 'QA & Feedback' });
+  await expect(qa.getByRole('tab', { name: 'Archived · 2' })).toHaveAttribute('aria-selected', 'true');
+  await expect(qa.getByRole('list', { name: 'Observations' })).toContainText('First suggestion');
+  await expect(qa.getByRole('button', { name: /^Inbox/ })).toHaveText('Inbox (1)');
+  await noHorizontalScroll(page);
 });

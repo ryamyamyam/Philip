@@ -398,14 +398,23 @@ function QaSection() {
     <section className="card stack" aria-labelledby="qa-h">
       <h2 id="qa-h">{t('settings.qa')}</h2>
       <p className="small muted">{t('settings.qaNote')}</p>
-      <div className="row-wrap">
-        <button type="button" className="btn btn-secondary" onClick={() => openQaFeedback('capture')}>
-          {t('settings.qaCapture')}
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => openQaFeedback('inbox')}>
-          {t('settings.qaInbox')}
-        </button>
-      </div>
+      {/* One row per destination (iOS settings pattern) instead of three wrapping buttons. OBS-A09A21 adds Archived. */}
+      <ul className="list list-inset">
+        {(
+          [
+            ['capture', 'settings.qaCapture'],
+            ['inbox', 'settings.qaInbox'],
+            ['archived', 'settings.qaArchived'],
+          ] as const
+        ).map(([view, key]) => (
+          <li key={view} className="list-item">
+            <button type="button" className="list-button" onClick={() => openQaFeedback(view)}>
+              <span className="list-title">{t(key)}</span>
+              <Icon name="chevronRight" />
+            </button>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

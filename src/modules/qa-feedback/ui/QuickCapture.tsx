@@ -1,22 +1,22 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { structureObservation } from '../ai/analysis';
-import { AiError } from '../ai/provider';
 import { QaError, addAttachments, createObservation, getMetaValue, setMetaValue } from '../repository';
 import { webSpeechProvider, type TranscriptionErrorCode, type TranscriptionSession } from '../transcription';
-import { OBSERVATION_TYPES, type AiObservationAnalysis, type ObservationType, type Priority, type StructuredField } from '../types';
+import { OBSERVATION_TYPES, type ObservationType } from '../types';
 import { useQa } from './context';
-import { AiBadge, ListBlock, PrioritySelect, TextField, TypeSelect } from './fields';
 import { META_FAB_HIDDEN } from './QaFeedback';
 import { AddScreenshotButton, PendingScreenshots, imagesFromClipboard, screenFiles, toInputs, useLimits } from './Screenshots';
-import { AI_ERRORS, PRIORITY_LABELS, SPEECH_ERRORS, TYPE_LABELS, fileErrorMessage } from './strings';
+import { SPEECH_ERRORS, TYPE_LABELS, fileErrorMessage } from './strings';
 
-type Details = Record<StructuredField, string>;
-const EMPTY: Details = { title: '', feature: '', description: '', actualBehavior: '', expectedBehavior: '', proposedSolution: '' };
-
-/** Tap → speak → review if needed → save. Everything except the text is optional. */
+/**
+ * Tap → speak or type → save. Everything except the text is optional.
+ * OBS-A09A21: the capture form is only words, a type and screenshots. Feature/screen, "Structure with AI"
+ * and "More details" were removed; title, description, priority etc. can still be filled in later on the
+ * observation's detail screen (AI analysis is available there too). The screen is still recorded
+ * automatically in the captured context.
+ */
 export function QuickCapture() {
-  const { config, db, projectId, openContext, aiAvailable, aiLabel, notify, go } = useQa();
+  const { config, db, projectId, openContext, notify, go } = useQa();
   const { maxBytes, maxCount, maxMb } = useLimits();
   const transcription = config.transcription === undefined ? webSpeechProvider : config.transcription;
   const voiceSupported = useMemo(() => !!transcription?.isSupported(), [transcription]);
@@ -30,17 +30,9 @@ export function QuickCapture() {
   const base = useRef('');
 
   const [type, setType] = useState<ObservationType | null>(null);
-  const [details, setDetails] = useState<Details>(() => ({ ...EMPTY, feature: openContext?.screen ?? '' }));
-  const [priority, setPriority] = useState<Priority | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
-
-  const [analysis, setAnalysis] = useState<AiObservationAnalysis | null>(null);
-  const [aiFields, setAiFields] = useState<StructuredField[]>([]);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const aiAbort = useRef<AbortController | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<{ id: string; title: string; warning: string | null } | null>(null);
@@ -51,7 +43,6 @@ export function QuickCapture() {
   useEffect(
     () => () => {
       session.current?.abort();
-      aiAbort.current?.abort();
     },
     [],
   );
@@ -83,50 +74,10 @@ export function QuickCapture() {
   };
   const stopVoice = () => session.current?.stop();
 
-  const setField = (f: StructuredField, v: string) => {
-    setDetails((d) => ({ ...d, [f]: v }));
-    setAiFields((a) => a.filter((x) => x !== f)); // user edited: no longer an AI draft
-  };
-
   const addFiles = (incoming: File[]) => {
     const { ok, error } = screenFiles(incoming, files.length, maxBytes, maxCount, maxMb);
     setFileError(error);
     if (ok.length) setFiles((f) => [...f, ...ok]);
-  };
-
-  const runAi = async () => {
-    if (!config.ai || !text.trim()) return;
-    aiAbort.current?.abort();
-    const ctrl = new AbortController();
-    aiAbort.current = ctrl;
-    setAiBusy(true);
-    setAiError(null);
-    try {
-      const result = await structureObservation(config.ai, { text, context: openContext, appName: config.appName }, ctrl.signal);
-      if (ctrl.signal.aborted) return;
-      setAnalysis(result);
-      // Fill only empty fields; never overwrite what the user typed.
-      const filled: StructuredField[] = [];
-      setDetails((d) => {
-        const next = { ...d };
-        for (const f of Object.keys(EMPTY) as StructuredField[]) {
-          const s = result.suggested[f];
-          if (s && !d[f].trim()) {
-            next[f] = s;
-            filled.push(f);
-          }
-        }
-        return next;
-      });
-      setAiFields((a) => [...new Set([...a, ...filled])]);
-      if (!type && result.suggested.type) setType(result.suggested.type);
-      setShowDetails(true);
-    } catch (e) {
-      if (ctrl.signal.aborted) return;
-      setAiError(e instanceof AiError ? AI_ERRORS[e.code] : 'AI structuring failed. You can still save.');
-    } finally {
-      if (!ctrl.signal.aborted) setAiBusy(false);
-    }
   };
 
   const reset = () => {
@@ -134,14 +85,9 @@ export function QuickCapture() {
     setRaw(null);
     rawParts.current = [];
     setType(null);
-    setDetails({ ...EMPTY, feature: openContext?.screen ?? '' });
-    setPriority(null);
     setFiles([]);
     setFileError(null);
-    setAnalysis(null);
-    setAiFields([]);
-    setAiError(null);
-    setShowDetails(false);
+    setSaveError(null);
   };
 
   const canSave = (text.trim() || files.length > 0) && !saving && !listening;
@@ -149,20 +95,14 @@ export function QuickCapture() {
   const save = async () => {
     if (!canSave) return;
     session.current?.abort();
-    aiAbort.current?.abort();
-    setAiBusy(false);
     setSaving(true);
     try {
       const obs = await createObservation(db, projectId, {
         originalText: text,
         rawTranscript: raw,
         captureMethod: raw ? 'voice' : 'text',
-        ...details,
         type: type ?? 'other',
-        priority,
         technicalContext: openContext,
-        aiAnalysis: analysis,
-        aiFields,
         userId: config.getUserId?.() ?? null,
       });
       let warning: string | null = null;
@@ -181,7 +121,7 @@ export function QuickCapture() {
       document.getElementById(textId)?.focus();
     } catch {
       setSaved(null);
-      setAiError('Could not save to this device’s storage. Your text is still here — copy it somewhere safe.');
+      setSaveError('Could not save to this device’s storage. Your text is still here — copy it somewhere safe.');
     } finally {
       setSaving(false);
     }
@@ -248,84 +188,36 @@ export function QuickCapture() {
         {raw && <span className="qa-hint">Your words are saved exactly as shown when you tap Save.</span>}
       </div>
 
-      <div className="qa-chips" role="group" aria-label="Type (optional)">
-        {/* Same labels and colors as the inbox badge, so the saved type is recognizable (OBS-EF13DE). */}
-        {OBSERVATION_TYPES.map((t) => (
-          <button key={t} type="button" className={`qa-chip qa-chip-${t}`} aria-pressed={type === t} onClick={() => setType(type === t ? null : t)}>
-            {TYPE_LABELS[t]}
-          </button>
-        ))}
+      <div className="qa-field">
+        {/* A visible label: chips alone didn't say what they were for. */}
+        <span className="qa-label" id={`${textId}-type`}>
+          Type (optional)
+        </span>
+        <div className="qa-chips" role="group" aria-labelledby={`${textId}-type`}>
+          {/* Same labels and colors as the inbox badge, so the saved type is recognizable (OBS-EF13DE). */}
+          {OBSERVATION_TYPES.map((t) => (
+            <button key={t} type="button" className={`qa-chip qa-chip-${t}`} aria-pressed={type === t} onClick={() => setType(type === t ? null : t)}>
+              {TYPE_LABELS[t]}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <TextField
-        label="Feature or screen"
-        value={details.feature}
-        onChange={(v) => setField('feature', v)}
-        ai={aiFields.includes('feature')}
-        hint={openContext?.screen ? 'Filled from where you were. Change it if needed.' : undefined}
-      />
-
-      <div className="qa-row qa-wrap">
+      <div className="qa-field">
         <AddScreenshotButton onFiles={addFiles} />
-        {config.ai && aiAvailable && (
-          <button type="button" className="qa-btn qa-btn-secondary" onClick={() => void runAi()} disabled={aiBusy || !text.trim()}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" />
-            </svg>
-            {aiBusy ? 'Structuring…' : 'Structure with AI'}
-          </button>
-        )}
+        <p className="qa-hint">Take a normal screenshot (iPhone: side + volume up), then add it from Photos. On a computer you can paste one.</p>
       </div>
-      <p className="qa-hint">
-        No screen recording here: take a normal screenshot (iPhone: side + volume up), then add it from Photos. On a computer you can paste an image.
-        {config.ai && aiAvailable ? ` “Structure with AI” sends only your text to ${aiLabel || 'the AI provider'}.` : ''}
-      </p>
       <PendingScreenshots files={files} onRemove={(i) => setFiles((f) => f.filter((_, n) => n !== i))} />
       {fileError && (
         <p className="qa-banner qa-banner-danger" role="alert">
           {fileError}
         </p>
       )}
-      {aiError && (
-        <p className="qa-banner qa-banner-warning" role="alert">
-          {aiError}
+      {saveError && (
+        <p className="qa-banner qa-banner-danger" role="alert">
+          {saveError}
         </p>
       )}
-
-      {analysis && (
-        <div className="qa-ai-box">
-          <span className="qa-label">
-            <AiBadge /> AI reading of your words — check before saving
-          </span>
-          <ListBlock title="You said" items={analysis.facts} />
-          <ListBlock title="Interpretations (not stated by you)" items={analysis.interpretations} />
-          <ListBlock title="Unknown" items={analysis.unknowns} />
-          {analysis.suggested.priority && analysis.suggested.priority !== priority && (
-            <p>
-              Suggested priority: <strong>{PRIORITY_LABELS[analysis.suggested.priority]}</strong>
-              {analysis.priorityReason ? ` — ${analysis.priorityReason}` : ''}{' '}
-              <button type="button" className="qa-link" onClick={() => setPriority(analysis.suggested.priority ?? null)}>
-                Use it
-              </button>
-            </p>
-          )}
-        </div>
-      )}
-
-      <details className="qa-details" open={showDetails} onToggle={(e) => setShowDetails((e.target as HTMLDetailsElement).open)}>
-        <summary>More details (optional)</summary>
-        <div className="qa-stack">
-          <TextField label="Title" value={details.title} onChange={(v) => setField('title', v)} ai={aiFields.includes('title')} placeholder="Defaults to your first sentence" />
-          <TextField label="Description" multiline value={details.description} onChange={(v) => setField('description', v)} ai={aiFields.includes('description')} />
-          <TextField label="What happens (actual)" multiline value={details.actualBehavior} onChange={(v) => setField('actualBehavior', v)} ai={aiFields.includes('actualBehavior')} />
-          <TextField label="What should happen (expected)" multiline value={details.expectedBehavior} onChange={(v) => setField('expectedBehavior', v)} ai={aiFields.includes('expectedBehavior')} />
-          <TextField label="Proposed solution" multiline value={details.proposedSolution} onChange={(v) => setField('proposedSolution', v)} ai={aiFields.includes('proposedSolution')} />
-          <div className="qa-grid-2">
-            <TypeSelect value={type ?? 'other'} onChange={setType} />
-            <PrioritySelect value={priority} onChange={setPriority} />
-          </div>
-        </div>
-      </details>
 
       <div className="qa-sticky-actions">
         <button type="button" className="qa-btn qa-btn-primary qa-btn-block" onClick={() => void save()} disabled={!canSave}>

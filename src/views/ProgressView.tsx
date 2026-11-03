@@ -138,7 +138,7 @@ function WeighIn({ lb, unit }: { lb: boolean; unit: string }) {
           <label className="field-label" htmlFor={dateId}>
             {t('entry.date')}
           </label>
-          <input id={dateId} className="input" type="date" value={date} max={addDays(today, 1)} onChange={(e) => setDate(e.target.value)} />
+          <input id={dateId} className="input input-date" type="date" value={date} max={addDays(today, 1)} onChange={(e) => setDate(e.target.value)} />
         </div>
         <button type="submit" className="btn btn-primary weight-save">
           {t('progress.logWeight')}

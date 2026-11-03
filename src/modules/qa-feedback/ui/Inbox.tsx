@@ -1,6 +1,7 @@
 import { Fragment, useId, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { listFeatures, queryObservations, type ObservationFilter } from '../search';
+import { archiveObservations, unarchiveObservations } from '../repository';
+import { countByArchive, listFeatures, queryObservations, type ObservationFilter } from '../search';
 import { OBSERVATION_TYPES, PRIORITIES, STATUSES, type Observation } from '../types';
 import { useQa } from './context';
 import { ARCHIVE_TEXT, PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS, fmtDay, fmtWhen } from './strings';
@@ -18,7 +19,7 @@ function dayEnd(ymd: string): number | null {
 }
 
 export function Inbox() {
-  const { db, projectId, filter, setFilter, selection, setSelection, go } = useQa();
+  const { db, projectId, filter, setFilter, selection, setSelection, go, notify } = useQa();
   const [limit, setLimit] = useState(PAGE);
   const [showFilters, setShowFilters] = useState(false);
   const [fromYmd, setFromYmd] = useState('');
@@ -29,6 +30,7 @@ export function Inbox() {
   const key = JSON.stringify(effective);
   const results = useLiveQuery(() => queryObservations(db, projectId, effective), [db, projectId, key]);
   const features = useLiveQuery(() => listFeatures(db, projectId), [db, projectId]);
+  const counts = useLiveQuery(() => countByArchive(db, projectId), [db, projectId]);
 
   const archivedView = filter.status === 'archived';
   // Archived view: newest archive first, grouped by the day they were archived (Story 3).
@@ -53,6 +55,20 @@ export function Inbox() {
   const toggle = (id: string) => setSelection(selected.has(id) ? selection.filter((x) => x !== id) : [...selection, id]);
   const addAll = (list: Observation[]) => setSelection([...new Set([...selection, ...list.map((o) => o.id)])]);
 
+  // OBS-97D767: archive (or unarchive) by hand — including items already turned into a prompt.
+  const archiveSelected = async () => {
+    const ids = await archiveObservations(db, projectId, selection);
+    setSelection(selection.filter((id) => !ids.includes(id)));
+    if (ids.length) notify(ARCHIVE_TEXT.archived(ids.length), { label: ARCHIVE_TEXT.undo, run: () => unarchiveObservations(db, projectId, ids) });
+  };
+  const unarchiveSelected = async () => {
+    const ids = selection.filter((id) => results?.some((o) => o.id === id && o.archivedAt));
+    await unarchiveObservations(db, projectId, ids);
+    setSelection(selection.filter((id) => !ids.includes(id)));
+    if (ids.length) notify(ARCHIVE_TEXT.unarchivedN(ids.length));
+  };
+  const selectedHere = results ? results.filter((o) => selected.has(o.id)).length : 0;
+
   const setView = (archived: boolean) => {
     setFilter({ status: archived ? 'archived' : 'open', keyword: filter.keyword });
     setLimit(PAGE);
@@ -62,10 +78,10 @@ export function Inbox() {
     <div className="qa-stack">
       <div className="qa-segmented" role="tablist" aria-label="Feedback list">
         <button type="button" role="tab" aria-selected={!archivedView} onClick={() => setView(false)}>
-          {ARCHIVE_TEXT.active}
+          {ARCHIVE_TEXT.activeN(counts?.active ?? null)}
         </button>
         <button type="button" role="tab" aria-selected={archivedView} onClick={() => setView(true)}>
-          {ARCHIVE_TEXT.filter}
+          {ARCHIVE_TEXT.archivedN(counts?.archived ?? null)}
         </button>
       </div>
       <div className="qa-row">
@@ -161,6 +177,16 @@ export function Inbox() {
             Clear selection
           </button>
         )}
+        {selectedHere > 0 &&
+          (archivedView ? (
+            <button type="button" className="qa-btn qa-btn-small" onClick={() => void unarchiveSelected()}>
+              {ARCHIVE_TEXT.unarchiveSelected(selectedHere)}
+            </button>
+          ) : (
+            <button type="button" className="qa-btn qa-btn-small" onClick={() => void archiveSelected()}>
+              {ARCHIVE_TEXT.archiveSelected(selectedHere)}
+            </button>
+          ))}
       </div>
 
       {results && results.length === 0 && (
@@ -194,10 +220,14 @@ export function Inbox() {
                   {TYPE_LABELS[o.type]}
                 </span>
                 {o.priority && <span className={`qa-badge qa-pri-${o.priority}`}>{PRIORITY_LABELS[o.priority]}</span>}
-                <span className="qa-badge qa-badge-status">
-                  <span className="qa-visually-hidden">Status: </span>
-                  {STATUS_LABELS[o.status]}
-                </span>
+                {/* "New" is the default for everything just captured; showing it on every row was noise. */}
+                {o.status !== 'new' && (
+                  <span className="qa-badge qa-badge-status">
+                    <span className="qa-visually-hidden">Status: </span>
+                    {STATUS_LABELS[o.status]}
+                  </span>
+                )}
+                {o.promptIds.length > 0 && <span className="qa-badge qa-badge-prompt">{ARCHIVE_TEXT.inPrompt}</span>}
                 {o.archivedAt && <span className="qa-badge qa-badge-archived">{ARCHIVE_TEXT.badge}</span>}
                 {o.feature && <span className="qa-item-feature">{o.feature}</span>}
                 {o.attachmentCount > 0 && (
@@ -254,7 +284,7 @@ function DateInput({ label, value, onChange }: { label: string; value: string; o
       <label className="qa-label" htmlFor={id}>
         {label}
       </label>
-      <input id={id} type="date" className="qa-input" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input id={id} type="date" className="qa-input qa-input-date" value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }

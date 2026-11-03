@@ -76,6 +76,7 @@ Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, b
 - QA observations captured from Settings record “Settings” as the screen (the floating button that captured the current screen is off).
 - SW cache matching doesn't ignore `Vary`; if a host sends `Vary: Origin`, lazy chunks (Progress, Settings) can miss the cache offline. Today, the log sheet and the review sheet are bundled eagerly.
 - Export uses the Web Share sheet when available; if iOS rejects the share after the async DB read, it falls back to a download.
+- OBS-AFF348 (Progress date out of screen): fixed with `.input-date` on every date input plus a weigh-in grid that stacks below ~2×9.5rem. Chromium doesn't reproduce iOS's intrinsic date-input width, so the e2e guard (`e2e/obs-nov3.spec.ts`) passes on old and new code; confirm on WebKit and a real iPhone.
 - `node_modules` on the Mac is built for macOS; a Linux sandbox (e.g. Cowork's shell) can't run `npm test` against it. Run tests in Terminal on the Mac or in a separate clone.
 
 ## Next task

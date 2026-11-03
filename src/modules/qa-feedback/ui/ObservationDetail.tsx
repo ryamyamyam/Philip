@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { structureObservation } from '../ai/analysis';
 import { AiError } from '../ai/provider';
-import { deleteObservation, getObservation, unarchiveObservations, updateObservation, type ObservationChanges } from '../repository';
+import { archiveObservations, deleteObservation, getObservation, unarchiveObservations, updateObservation, type ObservationChanges } from '../repository';
 import { STRUCTURED_FIELDS, type Observation, type StructuredField } from '../types';
 import { Confirm } from './Confirm';
 import { useQa } from './context';
@@ -125,6 +125,14 @@ export function ObservationDetail({ id, guardRef }: { id: string; guardRef: Muta
     });
   };
 
+  // OBS-97D767: archive by hand (prompt and promptIds are kept). Leaves the selection like the prompt flow does.
+  const archiveOne = async () => {
+    const ids = await archiveObservations(db, projectId, [id]);
+    if (!ids.length) return;
+    setSelection(selection.filter((x) => x !== id));
+    notify(ARCHIVE_TEXT.archived(1), { label: ARCHIVE_TEXT.undo, run: () => unarchiveObservations(db, projectId, ids) });
+  };
+
   const selected = selection.includes(id);
   const ctx = obs.technicalContext;
   const a = obs.aiAnalysis;
@@ -144,7 +152,7 @@ export function ObservationDetail({ id, guardRef }: { id: string; guardRef: Muta
 
       {obs.archivedAt && (
         <div className="qa-banner qa-archived-note" role="note">
-          <span>{ARCHIVE_TEXT.detailNote(fmtWhen(obs.archivedAt))}</span>
+          <span>{(obs.archivedByPromptId ? ARCHIVE_TEXT.detailNote : ARCHIVE_TEXT.detailNoteManual)(fmtWhen(obs.archivedAt))}</span>
           <button
             type="button"
             className="qa-btn qa-btn-small"
@@ -153,6 +161,15 @@ export function ObservationDetail({ id, guardRef }: { id: string; guardRef: Muta
             }}
           >
             {ARCHIVE_TEXT.unarchive}
+          </button>
+        </div>
+      )}
+
+      {!obs.archivedAt && obs.promptIds.length > 0 && (
+        <div className="qa-banner qa-archived-note" role="note">
+          <span>{ARCHIVE_TEXT.inPromptHint}</span>
+          <button type="button" className="qa-btn qa-btn-small" onClick={() => void archiveOne()}>
+            {ARCHIVE_TEXT.archive}
           </button>
         </div>
       )}
@@ -265,9 +282,16 @@ export function ObservationDetail({ id, guardRef }: { id: string; guardRef: Muta
         </details>
       )}
 
-      <button type="button" className="qa-btn qa-btn-danger-ghost" onClick={() => setConfirmDelete(true)}>
-        Delete observation
-      </button>
+      <div className="qa-row qa-wrap">
+        {!obs.archivedAt && (
+          <button type="button" className="qa-btn qa-btn-secondary" onClick={() => void archiveOne()}>
+            {ARCHIVE_TEXT.archive}
+          </button>
+        )}
+        <button type="button" className="qa-btn qa-btn-danger-ghost" onClick={() => setConfirmDelete(true)}>
+          Delete observation
+        </button>
+      </div>
 
       {saveError && (
         <p className="qa-banner qa-banner-danger" role="alert">

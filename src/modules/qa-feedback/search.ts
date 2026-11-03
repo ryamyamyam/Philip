@@ -80,6 +80,25 @@ export async function listFeatures(db: QaFeedbackDB, projectId: string): Promise
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
+/** Every observation in a project, archived or not. */
 export function countObservations(db: QaFeedbackDB, projectId: string): Promise<number> {
   return db.observations.where('projectId').equals(projectId).count();
+}
+
+/**
+ * Active/archived counts for the inbox tab and its Active · Archived switch (OBS-A09A21).
+ * "Active" uses the same rule as the inbox's default list (open status, not archived), so the
+ * number on the tab always matches what the Active list shows.
+ */
+export async function countByArchive(db: QaFeedbackDB, projectId: string): Promise<{ active: number; archived: number }> {
+  let active = 0;
+  let archived = 0;
+  await db.observations
+    .where('projectId')
+    .equals(projectId)
+    .each((o) => {
+      if (o.archivedAt) archived++;
+      else if (matchesFilter(o, { status: 'open' })) active++;
+    });
+  return { active, archived };
 }

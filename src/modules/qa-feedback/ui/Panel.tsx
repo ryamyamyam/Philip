@@ -1,12 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { createProject, listProjects } from '../repository';
-import { countObservations } from '../search';
+import { countByArchive } from '../search';
 import { useQa } from './context';
 import { QuickCapture } from './QuickCapture';
 import { Inbox } from './Inbox';
 import { ObservationDetail } from './ObservationDetail';
 import { PromptBuilder } from './PromptBuilder';
+import { ARCHIVE_TEXT } from './strings';
 import '../qa-feedback.css';
 
 export default function Panel() {
@@ -14,7 +14,8 @@ export default function Panel() {
   const { db, projectId, view, go, close, selection } = qa;
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  const count = useLiveQuery(() => countObservations(db, projectId), [db, projectId]);
+  // OBS-A09A21: the tab counts only active items; archived ones are counted on the Archived switch.
+  const counts = useLiveQuery(() => countByArchive(db, projectId), [db, projectId]);
   // Detail view registers a guard so Escape/close don't drop unsaved edits.
   const guard = useRef<(() => boolean) | null>(null);
 
@@ -44,7 +45,6 @@ export default function Panel() {
       <header className="qa-header">
         <div className="qa-header-row">
           <h2 id={titleId}>QA &amp; Feedback</h2>
-          <ProjectSwitcher />
           <button
             type="button"
             className="qa-icon-btn"
@@ -60,7 +60,7 @@ export default function Panel() {
           {(
             [
               ['capture', 'Capture'],
-              ['inbox', `Inbox${count != null ? ` (${count})` : ''}`],
+              ['inbox', ARCHIVE_TEXT.tab(counts?.active ?? null)],
               ['prompt', `Prompt${selection.length ? ` (${selection.length})` : ''}`],
             ] as const
           ).map(([k, label]) => (
@@ -83,58 +83,5 @@ export default function Panel() {
       </div>
     </div>
     </>
-  );
-}
-
-function ProjectSwitcher() {
-  const { db, projectId, setProjectId, notify } = useQa();
-  const projects = useLiveQuery(() => listProjects(db), [db]);
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState('');
-  const selectId = useId();
-
-  if (adding) {
-    return (
-      <form
-        className="qa-project-form"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!name.trim()) return;
-          const p = await createProject(db, { name });
-          setProjectId(p.id);
-          setAdding(false);
-          setName('');
-          notify(`Project “${p.name}” created`);
-        }}
-      >
-        <input className="qa-input" aria-label="New project name" placeholder="Project name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <button type="submit" className="qa-btn qa-btn-primary" disabled={!name.trim()}>
-          Add
-        </button>
-        <button type="button" className="qa-btn" onClick={() => setAdding(false)}>
-          Cancel
-        </button>
-      </form>
-    );
-  }
-  return (
-    <div className="qa-project">
-      <label className="qa-visually-hidden" htmlFor={selectId}>
-        Project
-      </label>
-      <select
-        id={selectId}
-        className="qa-select"
-        value={projectId}
-        onChange={(e) => (e.target.value === '__new' ? setAdding(true) : setProjectId(e.target.value))}
-      >
-        {(projects ?? []).map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-        <option value="__new">+ New project…</option>
-      </select>
-    </div>
   );
 }

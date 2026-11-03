@@ -2,7 +2,7 @@
  * QA & Feedback Capture — public entry point.
  * Host apps import from here only. See ./README.md for setup and porting.
  */
-export { QaFeedback, openQaFeedback } from './ui/QaFeedback';
+export { QaFeedback, openQaFeedback, type QaOpenView } from './ui/QaFeedback';
 export type { QaFeedbackConfig } from './config';
 export type { AiProvider, AiJsonRequest, AiJsonResult } from './ai/provider';
 export { AiError } from './ai/provider';

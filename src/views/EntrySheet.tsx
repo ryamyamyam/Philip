@@ -184,7 +184,7 @@ export function EntrySheet({ date, meal, entryId }: Props) {
             </label>
             <input
               id={dateId}
-              className="input"
+              className="input input-date"
               type="date"
               value={dateValue}
               onChange={(e) => isValidYmd(e.target.value) && setDateValue(e.target.value)}

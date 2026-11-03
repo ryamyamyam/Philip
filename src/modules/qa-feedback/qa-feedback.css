@@ -135,21 +135,6 @@
 .qa-header-row > .qa-icon-btn {
   margin-right: -10px;
 }
-.qa-project {
-  order: 3;
-  flex: 1 1 100%;
-  min-width: 0;
-}
-.qa-project .qa-select {
-  min-height: 40px;
-  font-size: max(16px, var(--qa-text-sm));
-}
-.qa-project-form {
-  display: flex;
-  gap: 6px;
-  flex: 1 1 100%;
-  order: 3;
-}
 .qa-tabs {
   max-width: var(--qa-max);
   margin: 8px auto 0;
@@ -875,6 +860,10 @@
 .qa-item-archived .qa-item-main .qa-badge {
   opacity: 0.75;
 }
+.qa-badge-prompt {
+  background: var(--qa-brand-soft);
+  color: var(--qa-action-pressed);
+}
 .qa-badge-archived {
   background: var(--qa-surface-2);
   color: var(--qa-text-2);
@@ -919,4 +908,18 @@
   font-size: 0.8125rem;
   font-weight: 600;
   opacity: 0.75;
+}
+
+/* iOS gives date inputs an intrinsic width that ignores their container (same fix as the host's .input-date). */
+.qa-input-date {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
+.qa-input-date::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
 }

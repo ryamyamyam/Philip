@@ -40,7 +40,7 @@ export function MoveEntryDialog({
           <input
             ref={dateRef}
             id={dateId}
-            className="input"
+            className="input input-date"
             type="date"
             value={date}
             onChange={(e) => isValidYmd(e.target.value) && setDate(e.target.value)}

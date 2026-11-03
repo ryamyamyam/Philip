@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { QaFeedbackConfig } from '../config';
 import { QaFeedbackDB } from '../db';
-import { ensureDefaultProject, getMetaValue, setMetaValue } from '../repository';
+import { ensureDefaultProject, getMetaValue } from '../repository';
 import { captureContext } from '../browser';
 import type { ObservationFilter } from '../search';
 import type { TechnicalContext } from '../types';
@@ -13,12 +13,13 @@ const Panel = lazy(() => import('./Panel'));
 
 export const OPEN_EVENT = 'qa-feedback:open';
 
-/** Opens the QA panel from anywhere in the host app (e.g. a Settings row). */
-export function openQaFeedback(view: 'capture' | 'inbox' | 'prompt' = 'capture'): void {
+export type QaOpenView = 'capture' | 'inbox' | 'archived' | 'prompt';
+
+/** Opens the QA panel from anywhere in the host app (e.g. a Settings row). 'archived' opens the inbox's Archived list. */
+export function openQaFeedback(view: QaOpenView = 'capture'): void {
   window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: { view } }));
 }
 
-const META_PROJECT = 'selectedProjectId';
 const META_FAB_HIDDEN = 'floatingButtonHidden';
 
 /**
@@ -44,9 +45,9 @@ export function QaFeedback({ config }: { config: QaFeedbackConfig }) {
   const ensureProject = useCallback(async () => {
     if (projectId) return projectId;
     try {
-      const saved = await getMetaValue<string>(db, META_PROJECT);
-      const exists = saved ? await db.projects.get(saved) : undefined;
-      const id = exists?.id ?? (await ensureDefaultProject(db, config.appId, config.defaultProjectName ?? config.appName)).id;
+      // OBS-A09A21: one project per app — the project switcher is gone, so always open the host app's
+      // project. Other projects created earlier are kept in the database, just not shown.
+      const id = (await ensureDefaultProject(db, config.appId, config.defaultProjectName ?? config.appName)).id;
       setProjectIdState(id);
       return id;
     } catch {
@@ -56,14 +57,15 @@ export function QaFeedback({ config }: { config: QaFeedbackConfig }) {
   }, [db, projectId, config.appId, config.appName, config.defaultProjectName]);
 
   const show = useCallback(
-    (v: QaView['name'] = 'capture') => {
+    (v: QaOpenView = 'capture') => {
       // Record where the user was *before* the panel covers the screen.
       try {
         setOpenContext(captureContext(config.appVersion, config.getContext?.()));
       } catch {
         setOpenContext(null);
       }
-      setView(v === 'capture' ? { name: 'capture' } : v === 'inbox' ? { name: 'inbox' } : { name: 'prompt' });
+      setView(v === 'capture' ? { name: 'capture' } : v === 'prompt' ? { name: 'prompt' } : { name: 'inbox' });
+      if (v === 'inbox' || v === 'archived') setFilter({ status: v === 'archived' ? 'archived' : 'open' });
       setOpen(true);
       void ensureProject();
       const ai = config.ai;
@@ -76,20 +78,16 @@ export function QaFeedback({ config }: { config: QaFeedbackConfig }) {
   );
 
   useEffect(() => {
-    const onOpen = (e: Event) => show((e as CustomEvent<{ view?: 'capture' | 'inbox' | 'prompt' }>).detail?.view);
+    const onOpen = (e: Event) => show((e as CustomEvent<{ view?: QaOpenView }>).detail?.view);
     window.addEventListener(OPEN_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_EVENT, onOpen);
   }, [show]);
 
-  const setProjectId = useCallback(
-    (id: string) => {
-      setProjectIdState(id);
-      setSelection([]); // selections never cross projects
-      setFilter({ status: 'open' });
-      void setMetaValue(db, META_PROJECT, id);
-    },
-    [db],
-  );
+  const setProjectId = useCallback((id: string) => {
+    setProjectIdState(id);
+    setSelection([]); // selections never cross projects
+    setFilter({ status: 'open' });
+  }, []);
 
   const notify = useCallback((text: string, action?: ToastAction) => {
     window.clearTimeout(toastTimer.current);

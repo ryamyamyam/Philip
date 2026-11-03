@@ -294,11 +294,19 @@
 }
 
 /* Progress tab (OBS-F047E3) */
+/*
+ * OBS-AFF348: two columns only while each can hold a full date. iOS Safari gives a native date
+ * input an intrinsic width that ignores the grid track, so at 393px it pushed past the card; at
+ * 320px (and with large text) the date now drops under the weight. See also .input-date.
+ */
 .weight-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
   gap: var(--space-2) var(--space-3);
   align-items: end;
+}
+.weight-form > .field {
+  min-width: 0;
 }
 .weight-save {
   grid-column: 1 / -1;
@@ -406,4 +414,63 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ---------- PFC split (OBS-E49D0F) ---------- */
+.macro-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+.split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.split-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--color-track);
+}
+.split-seg {
+  flex-basis: 0;
+  min-width: 4px;
+}
+.split-protein {
+  background: var(--color-protein);
+}
+.split-fat {
+  background: var(--color-fat);
+}
+.split-carbs {
+  background: var(--color-carbs);
+}
+.split-legend {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-2);
+}
+.split-total {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+}
+.split-total-off {
+  color: var(--color-danger);
+}
+.split-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--space-2);
+}
+.split-use {
+  min-width: 0;
+  padding-inline: 0;
+  font-size: var(--text-sm);
 }

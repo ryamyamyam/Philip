@@ -440,6 +440,25 @@ export async function archiveForPrompt(db: QaFeedbackDB, projectId: string, prom
   });
 }
 
+/**
+ * Archives observations by hand (inbox "Archive", detail "Archive"), e.g. ones already turned into
+ * a prompt where "Keep active" was chosen (OBS-97D767). Prompts are untouched; `promptIds` stays.
+ * `archivedByPromptId` stays null: no prompt export archived these. Already-archived items are skipped.
+ * Returns the ids archived by this call (for "N archived" + Undo).
+ */
+export async function archiveObservations(db: QaFeedbackDB, projectId: string, ids: string[], now = Date.now()): Promise<string[]> {
+  return db.transaction('rw', db.observations, async () => {
+    const obs = await db.observations.bulkGet(ids);
+    const done: string[] = [];
+    for (const o of obs) {
+      if (!o || o.projectId !== projectId || o.archivedAt) continue;
+      await db.observations.update(o.id, { archivedAt: now, archivedByPromptId: null });
+      done.push(o.id);
+    }
+    return done;
+  });
+}
+
 /** Clears the archive flag (detail screen "Unarchive", or Undo on the toast). Status is untouched. */
 export async function unarchiveObservations(db: QaFeedbackDB, projectId: string, ids: string[]): Promise<void> {
   await db.transaction('rw', db.observations, async () => {

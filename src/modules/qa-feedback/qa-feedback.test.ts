@@ -519,3 +519,40 @@ describe('archive after a prompt is copied/exported (OBS-CDDDEC)', () => {
     db.close();
   });
 });
+
+describe('manual archive and inbox counts (OBS-A09A21, OBS-97D767)', () => {
+  it('archives an observation already turned into a prompt, keeping the prompt and its link', async () => {
+    const { archiveObservations } = await import('./repository');
+    const { db, project } = await fresh();
+    const a = await createObservation(db, project.id, { originalText: 'turned into a prompt' });
+    const p = await savePrompt(db, project.id, { observationIds: [a.id], content: 'the prompt', mode: 'template' });
+    // "Keep active" was chosen: nothing archived by the prompt flow.
+    expect((await db.observations.get(a.id))?.archivedAt).toBeNull();
+    const ids = await archiveObservations(db, project.id, [a.id], 3000);
+    expect(ids).toEqual([a.id]);
+    expect(await db.observations.get(a.id)).toMatchObject({ archivedAt: 3000, archivedByPromptId: null, promptIds: [p.id], status: 'new', originalText: 'turned into a prompt' });
+    expect(await getPrompt(db, project.id, p.id)).toMatchObject({ content: 'the prompt', observationIds: [a.id] });
+    // Idempotent; other projects are refused.
+    expect(await archiveObservations(db, project.id, [a.id], 4000)).toEqual([]);
+    const other = await createProject(db, { name: 'Other' });
+    const b = await createObservation(db, project.id, { originalText: 'b' });
+    expect(await archiveObservations(db, other.id, [b.id])).toEqual([]);
+    expect((await db.observations.get(b.id))?.archivedAt).toBeNull();
+  });
+
+  it('counts active items like the Active list and archived ones separately', async () => {
+    const { archiveObservations } = await import('./repository');
+    const { countByArchive, countObservations } = await import('./search');
+    const { db, project } = await fresh();
+    const ids: string[] = [];
+    for (let i = 0; i < 15; i++) ids.push((await createObservation(db, project.id, { originalText: `item ${i}` })).id);
+    expect(await countByArchive(db, project.id)).toEqual({ active: 15, archived: 0 });
+    await archiveObservations(db, project.id, ids.slice(0, 4));
+    await updateObservation(db, project.id, ids[5]!, { status: 'resolved' });
+    expect(await countByArchive(db, project.id)).toEqual({ active: 10, archived: 4 });
+    expect((await queryObservations(db, project.id, { status: 'open' })).length).toBe(10);
+    expect((await queryObservations(db, project.id, { status: 'archived' })).length).toBe(4);
+    // Nothing is deleted.
+    expect(await countObservations(db, project.id)).toBe(15);
+  });
+});

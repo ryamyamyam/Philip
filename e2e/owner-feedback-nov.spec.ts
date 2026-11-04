@@ -9,7 +9,7 @@ test('Targets: metric ⇄ imperial toggle converts typed values; 1-month target 
   await form.getByLabel('Weight (kg)', { exact: true }).fill('80');
   await form.getByLabel('Height (cm)').fill('180');
   await form.getByRole('radio', { name: 'Lose' }).click();
-  await expect(form.getByText('🎯 1 month: 78.3 kg (0.4 kg/wk)')).toBeVisible();
+  await expect(form.getByText('1 month: 78.3 kg (0.4 kg/wk)')).toBeVisible();
   await form.getByRole('button', { name: 'Use it' }).click();
   await expect(form.getByLabel('Target weight (kg)')).toHaveValue('78.3');
   await page.screenshot({ path: 'e2e/screenshots/owner-targets-metric.png', fullPage: true });

@@ -27,7 +27,7 @@ import { DEFAULT_GEMINI_MODEL, listGeminiModels, normalizeModel, SUGGESTED_GEMIN
 
 export default function SettingsView() {
   return (
-    <div className="view">
+    <div className="view view-settings">
       <header className="view-header">
         <h1>{t('settings.title')}</h1>
       </header>

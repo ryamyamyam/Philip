@@ -204,8 +204,8 @@ test('UX-3: card words and colors follow the phase (cut: left/over; bulk: to go/
 test('UX-3: no target → one call to action that opens Settings › Targets', async ({ page }) => {
   await fresh(page);
   const card = page.getByRole('region', { name: 'What’s left today' });
-  await expect(card.getByText('No target? Cute. 🎯')).toBeVisible();
-  await card.getByRole('button', { name: 'Set targets. Now. 👆' }).click();
+  await expect(card.getByText('No target? Cute.')).toBeVisible();
+  await card.getByRole('button', { name: 'Set targets. Now.' }).click();
   await expect(tab(page, 'Settings')).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
 });
@@ -215,8 +215,8 @@ test('Story 3: daily goal reached shows a calm celebration', async ({ page }) =>
   await seed(page, { perMeal: 2, goal: 'lose', kcal: 290 }); // 2,320 of 2,400; protein 120 of 150 → not yet
   const card = page.getByRole('region', { name: 'What’s left today' });
   // T-009: no separate chip — Philip's line says it.
-  await expect(card.getByText('👑 Goal reached')).toHaveCount(0);
-  await expect(card.getByText('Good boy. Exactly as instructed. 👑')).toHaveCount(0);
+  await expect(card.getByText('Goal reached')).toHaveCount(0);
+  await expect(card.getByText('Good boy. Exactly as instructed.')).toHaveCount(0);
   await page.evaluate(async () => {
     const pad = (n: number) => String(n).padStart(2, '0');
     const d = new Date();
@@ -231,8 +231,8 @@ test('Story 3: daily goal reached shows a calm celebration', async ({ page }) =>
     db.close();
   });
   await page.reload(); // raw IndexedDB writes aren't seen by Dexie live queries
-  await expect(card.getByText('👑 Goal reached')).toHaveCount(0);
-  await expect(card.getByText('Good boy. Exactly as instructed. 👑')).toBeVisible();
+  await expect(card.getByText('Goal reached')).toHaveCount(0);
+  await expect(card.getByText('Good boy. Exactly as instructed.')).toBeVisible();
 });
 
 test('F047E3: log weight (kg), one entry per date (overwrites), chart shows actual vs plan', async ({ page }) => {
@@ -282,7 +282,7 @@ test('F047E3: log weight (kg), one entry per date (overwrites), chart shows actu
   );
   expect(count).toEqual([1, 79.4]);
   // Plan starts at 80 kg today → 79.4 is 0.6 kg below: ahead on a cut.
-  await expect(weight.getByRole('status')).toHaveText('🚀 Ahead of plan by 0.6 kg. Show-off.');
+  await expect(weight.getByRole('status')).toHaveText('Ahead of plan by 0.6 kg. Show-off.');
   await expect(weight.getByText('Plan for today: 80 kg')).toBeVisible();
   const chart = weight.getByRole('img', { name: /Weight in kg, actual against plan/ });
   await expect(chart).toBeVisible();

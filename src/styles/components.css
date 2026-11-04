@@ -18,7 +18,8 @@
 .pm-chip,
 .pm-action,
 .pm-pill,
-.pm-hero {
+.pm-hero,
+.btn {
   --pm-chamfer: polygon(
     var(--pm-c) 0,
     calc(100% - var(--pm-c)) 0,
@@ -298,29 +299,7 @@
 .pm-dialog-action {
   flex: none;
   margin-left: auto;
-  min-height: var(--touch);
-  min-width: var(--touch);
-  padding: 0 var(--space-3);
-  border: var(--border-frame) solid var(--color-on-deck-2);
-  background: transparent;
-  color: var(--color-on-dialog);
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  letter-spacing: var(--display-tracking);
   text-transform: uppercase;
-  transition: transform var(--dur-fast) var(--ease-snap), background-color var(--dur-fast) linear;
-}
-@media (hover: hover) {
-  .pm-dialog-action:hover {
-    background: var(--color-deck-raised);
-  }
-}
-.pm-dialog-action:active {
-  transform: translateY(var(--press-depth));
-}
-.pm-dialog-action:focus-visible {
-  outline: var(--border-thick) solid var(--color-focus-on-dark);
-  outline-offset: var(--space-0-5);
 }
 
 /* Toast = dialog bar at the top of the screen */
@@ -515,28 +494,17 @@
   box-shadow: var(--shadow-inset-frame);
 }
 
-/* ---------- Ambient world ---------- */
+/* ---------- Ambient world (pixel art) ---------- */
 .pm-world {
   display: block;
   width: 100%;
   height: auto;
   max-height: calc(var(--space-12) * 2.5);
 }
-.pm-world * {
-  stroke: var(--world-outline);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-.pm-world .pm-world-sky {
-  fill: var(--world-sky);
-  stroke: none;
-}
-.pm-world .pm-world-shadow {
-  fill: var(--world-shadow);
-  stroke: none;
-}
+.pm-world-sky { fill: var(--world-sky); }
 .pm-world-ground { fill: var(--world-ground); }
 .pm-world-path { fill: var(--world-path); }
+.pm-world-shadow { fill: var(--world-ground-2); }
 .pm-world-leaf { fill: var(--world-foliage); }
 .pm-world-leaf-2 { fill: var(--world-foliage-2); }
 .pm-world-trunk { fill: var(--cat-sand); }
@@ -545,28 +513,240 @@
 .pm-world-food-a { fill: var(--cat-coral); }
 .pm-world-food-b { fill: var(--cat-leaf); }
 .pm-world-food-c { fill: var(--cat-sand); }
-.pm-world-lens-glass {
-  fill: var(--color-lens);
-  stroke-width: 2.5;
-}
-.pm-world-lens-handle {
-  fill: none;
-  stroke-width: 4;
-  stroke-linecap: round;
-}
+.pm-world-outline { fill: var(--world-outline); }
 .pm-world-lens {
   animation: pm-scan var(--dur-loop) steps(8, end) infinite alternate;
 }
+/* In grid cells (1 SVG unit = 1 pixel cell): from 8 cells left to 0. */
 @keyframes pm-scan {
   from {
-    transform: translateX(calc(-7 * var(--space-1)));
+    transform: translateX(calc(-2 * var(--space-1)));
   }
   to {
-    transform: translateX(var(--space-2));
+    transform: translateX(0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .pm-world-lens {
     animation: none;
   }
+}
+
+/* ---------- Buttons app-wide (owner feedback, Nov 3): one slate face for every .btn ---------- */
+.btn {
+  --pm-c: var(--chamfer-sm);
+  --pm-btn-frame: var(--color-ink);
+  position: relative;
+  isolation: isolate;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--cat-slate-ink);
+  font-family: var(--font-display);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--display-tracking-num);
+  filter: drop-shadow(0 var(--space-0-5) 0 var(--color-ink));
+  transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-snap);
+}
+.btn::before,
+.btn::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  clip-path: var(--pm-chamfer);
+  pointer-events: none;
+}
+.btn::before {
+  inset: 0;
+  background: var(--pm-btn-frame);
+}
+.btn::after {
+  inset: var(--border-frame);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--cat-slate) 62%, var(--color-surface)) 0%,
+    var(--cat-slate) 48%,
+    color-mix(in srgb, var(--cat-slate) 82%, var(--color-ink)) 100%
+  );
+}
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger,
+.btn-danger-ghost {
+  background: none;
+  border-color: transparent;
+  color: var(--cat-slate-ink);
+}
+/* Destructive keeps the same face; a red frame marks it (the label says what it does). */
+.btn-danger,
+.btn-danger-ghost {
+  --pm-btn-frame: var(--color-notable-fill);
+}
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    filter: drop-shadow(0 var(--space-0-5) 0 var(--color-ink)) brightness(1.08);
+  }
+}
+.btn:active:not(:disabled),
+.btn-primary:active:not(:disabled) {
+  background: none;
+  transform: translateY(var(--press-depth));
+  filter: none;
+}
+.btn:disabled {
+  filter: none;
+}
+
+/* Toast action: the shared button face, not the old orange link */
+.toast .pm-dialog-action {
+  color: var(--cat-slate-ink);
+  min-height: var(--touch);
+}
+
+/* ---------- Pixel chrome app-wide: sheets, dialogs, banners, inputs, segmented ---------- */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--display-tracking-num);
+}
+.sheet {
+  border-radius: 0;
+  border: var(--border-frame) solid var(--color-ink);
+  border-bottom: none;
+  box-shadow: var(--shadow-deck);
+}
+.sheet-header {
+  background: var(--color-panel-head);
+  color: var(--color-on-deck);
+  border-bottom: var(--border-frame) solid var(--color-ink);
+}
+.sheet-header .icon-btn {
+  color: var(--color-on-deck);
+}
+.sheet-header .icon-btn:focus-visible {
+  outline-color: var(--color-focus-on-dark);
+}
+@media (hover: hover) {
+  .sheet-header .icon-btn:hover {
+    background: var(--color-deck-raised);
+  }
+}
+.sheet-header .icon-btn:active {
+  background: var(--color-deck);
+}
+.sheet-footer {
+  background: var(--color-display-2);
+  border-top: var(--border-frame) solid var(--color-ink);
+}
+.dialog-box {
+  border-radius: 0;
+  border: var(--border-frame) solid var(--color-ink);
+  box-shadow: var(--shadow-hard-lg);
+}
+.banner {
+  border-radius: 0;
+  border: var(--border-frame) solid var(--color-ink);
+}
+.photo-preview {
+  border-radius: 0;
+  border: var(--border-frame) solid var(--color-ink);
+}
+.input,
+.select,
+.textarea {
+  border-radius: 0;
+  border: var(--border-frame) solid var(--color-ink);
+  font-family: var(--font-display);
+}
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline-offset: 0;
+}
+.segmented {
+  border-radius: 0;
+  border: var(--border-frame) solid var(--color-ink);
+  background: var(--color-display-2);
+}
+.segmented button {
+  min-height: var(--touch);
+  border-radius: 0;
+  font-family: var(--font-display);
+  color: var(--color-text-2);
+  transition: transform var(--dur-fast) var(--ease-snap);
+}
+@media (hover: hover) {
+  .segmented button:hover {
+    color: var(--color-text);
+  }
+}
+.segmented button:active {
+  transform: translateY(var(--press-depth));
+}
+.segmented button[aria-pressed='true'],
+.segmented button[aria-checked='true'] {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--cat-slate) 62%, var(--color-surface)) 0%,
+    var(--cat-slate) 48%,
+    color-mix(in srgb, var(--cat-slate) 82%, var(--color-ink)) 100%
+  );
+  color: var(--cat-slate-ink);
+  box-shadow: inset 0 0 0 var(--border-frame) var(--color-ink);
+  animation: pm-bounce var(--dur-slow) var(--ease-bounce);
+}
+.checkbox-row input {
+  accent-color: var(--color-panel-head);
+}
+.chip {
+  border-radius: 0;
+}
+
+/* ---------- Settings: info panels with a dark header bar ---------- */
+.view-settings .card {
+  border: var(--border-frame) solid var(--color-ink);
+  border-radius: 0;
+  box-shadow: var(--shadow-hard);
+  background-color: var(--color-surface);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 var(--space-0-5),
+    var(--color-screen-stripe) var(--space-0-5) var(--space-1)
+  );
+}
+.view-settings .card > h2:first-child {
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-panel-head);
+  color: var(--color-on-deck);
+  font-size: var(--text-md);
+  text-transform: uppercase;
+  letter-spacing: var(--display-tracking);
+}
+.view-settings .card > h2:first-child::before {
+  content: '« ' / ''; /* decorative: empty alt text keeps the heading's name clean */
+  color: var(--color-on-deck-2);
+}
+.view-settings .card > h2:first-child::after {
+  content: ' »' / '';
+  color: var(--color-on-deck-2);
+}
+.view-settings .view-header h1 {
+  font-size: var(--text-xl);
+}
+.view-settings .list-inset {
+  border: var(--border-hair) solid var(--color-ink);
+}
+.view-settings .list-inset .list-item + .list-item {
+  border-top: var(--border-hair) solid var(--color-border-strong);
+}
+.sheet .photo-preview {
+  border-radius: 0;
+}
+/* Bold Pixelify closes the C (reads as 0): macro letters stay regular weight. */
+.macro-chip {
+  font-weight: var(--weight-regular);
 }

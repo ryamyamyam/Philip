@@ -21,7 +21,7 @@ export function DialogBar({ speaker, children, action, live = false, className }
       {speaker && <span className="pm-dialog-speaker">{speaker}</span>}
       <p className="pm-dialog-text">{children}</p>
       {action ? (
-        <button type="button" className="pm-dialog-action" onClick={action.onClick}>
+        <button type="button" className="btn btn-sm pm-dialog-action" onClick={action.onClick}>
           {action.label}
           <span aria-hidden="true"> ▸</span>
         </button>

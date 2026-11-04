@@ -4,7 +4,7 @@ import { Icon, type IconName } from './Icon';
 
 interface ActionLook {
   variant?: 'primary' | 'secondary' | 'quiet';
-  /** Gradient face color; defaults by variant (primary leaf, secondary sky, quiet slate). */
+  /** Gradient face color; every variant defaults to slate (one button color). */
   category?: CategoryKey;
   icon?: IconName;
   size?: 'lg' | 'md';
@@ -12,9 +12,10 @@ interface ActionLook {
   children: ReactNode;
 }
 
+/** One button color app-wide (owner feedback, Nov 3): the slate face. `category` can still override. */
 const DEFAULT_CATEGORY: Record<NonNullable<ActionLook['variant']>, CategoryKey> = {
-  primary: 'leaf',
-  secondary: 'sky',
+  primary: 'slate',
+  secondary: 'slate',
   quiet: 'slate',
 };
 

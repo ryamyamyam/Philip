@@ -716,20 +716,6 @@
   margin-bottom: var(--space-2);
 }
 
-/* Primary buttons inside Today's panels follow the teal label color (global .btn restyle is Phase 3). */
-.view-today .btn-primary {
-  background: var(--color-label);
-  color: var(--color-on-label);
-  border-color: var(--color-ink);
-}
-@media (hover: hover) {
-  .view-today .btn-primary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-label) 85%, var(--color-ink));
-  }
-}
-.view-today .btn-primary:active:not(:disabled) {
-  transform: translateY(var(--press-depth));
-}
 
 /* "What do I eat?" as the dialog bar's action */
 .today-card .today-hint .pm-dialog-action {

@@ -7,6 +7,8 @@ async function setKey(page: Page) {
   await tab(page, 'Settings').click();
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
   await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
+  // Wait for the save to land before leaving Settings (the write is async; leaving early raced the first request).
+  await expect(page.getByRole('status').filter({ hasText: 'Gemini settings saved.' })).toBeVisible();
   await tab(page, 'Today').click();
 }
 
@@ -18,6 +20,11 @@ const reply = {
   total: { calories: 482, protein_g: 50.8, fat_g: 5.9, carbs_g: 51.5 },
   uncertainties: ['Cooking oil not visible'],
 };
+
+// Gemini is mocked with page.route(), which misses fetches a service worker makes. Once the SW took
+// control mid-suite, requests leaked to the real API ("Couldn't reach Gemini") — flaky in Chromium too,
+// the same cause as the WebKit project's setting. Offline is covered in its own spec.
+test.use({ serviceWorkers: 'block' });
 
 test.beforeEach(async ({ page }) => fresh(page));
 
@@ -41,7 +48,7 @@ test('photo, Gemini, review, edit, confirm save', async ({ page }) => {
   });
   await setKey(page);
   await photoFromToday(page);
-  await expect(page.getByText('Judging your plate… 👀')).toBeVisible();
+  await expect(page.getByText('Judging your plate…')).toBeVisible();
   release();
   const review = page.getByRole('dialog', { name: 'Review' });
   await expect(review.getByText('Estimate. Check the portions.')).toBeVisible();
@@ -323,7 +330,7 @@ test('Gemini error on text falls back to local rows with the reason', async ({ p
 test('suggestions: without a key, point to Settings; with a key, options fit what is left and log through review', async ({ page }) => {
   const { setManualTargets } = await import('./helpers');
   await setManualTargets(page, { calories: '2000', protein: '150', fat: '70', carbs: '200' });
-  await page.getByRole('button', { name: '🍽️ What do I eat?' }).click();
+  await page.getByRole('button', { name: 'What do I eat?' }).click();
   await expect(page.getByRole('dialog', { name: 'What to eat next' })).toContainText('Suggestions use Gemini');
   await page.getByRole('button', { name: 'Open Settings' }).click();
   await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
@@ -334,7 +341,7 @@ test('suggestions: without a key, point to Settings; with a key, options fit wha
     await route.fulfill({ json: textReply([{ name: 'Greek yogurt', grams: 250, calories: 150, p: 25, f: 0.5, c: 9 }, { name: 'Tuna sandwich', grams: 200, calories: 420, p: 32, f: 12, c: 40 }]) });
   });
   await setKey(page);
-  await page.getByRole('button', { name: '🍽️ What do I eat?' }).click();
+  await page.getByRole('button', { name: 'What do I eat?' }).click();
   const sheet = page.getByRole('dialog', { name: 'What to eat next' });
   await expect(sheet.getByText('Greek yogurt', { exact: true })).toBeVisible();
   expect(prompt).toContain('Calories: 2000 kcal');

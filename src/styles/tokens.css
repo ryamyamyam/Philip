@@ -15,8 +15,8 @@
   --color-border-strong: #d6d3d1;
   --color-brand: #f97316; /* fills, rings, icons — never small text on white */
   --color-brand-soft: #ffedd5;
-  --color-action: #c2410c; /* buttons, orange text (5.2:1 on white) */
-  --color-action-pressed: #9a3412;
+  --color-action: #3a3f46; /* links, selected states (10.6:1 on white) — D-022: no orange buttons */
+  --color-action-pressed: #1a1d20;
   --color-on-action: #ffffff;
   --color-success: #37704f;
   --color-success-soft: #e7f2ea;
@@ -152,7 +152,7 @@
   /* Typography — fixed six-step scale (px values at default text size) */
   --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto,
     'PingFang TC', 'Hiragino Sans', 'Noto Sans CJK TC', 'Noto Sans JP', sans-serif;
-  --text-xs: 0.765rem; /* 13 */
+  --text-xs: 0.882rem; /* 15 — was 13; pixel type is never smaller than 15px (D-022) */
   --text-sm: 0.882rem; /* 15 */
   --text-md: 1rem; /* 17 */
   --text-lg: 1.176rem; /* 20 */

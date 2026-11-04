@@ -146,7 +146,7 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Reason:** Owner feedback (2026-11-02); owner asked on 2026-11-03 to ship the proposed samples in the next update.
 - **Alternatives:** The earlier dry, bossy voice (D-013 — this refines it).
 - **Consequences:** Reviewers check tone and that emoji never carry meaning alone.
-- **Date:** 2026-11-03 · **By:** Ryan (owner) · **Status:** Accepted
+- **Date:** 2026-11-03 · **By:** Ryan (owner) · **Status:** Accepted — emoji-in-copy part superseded by D-023
 
 ### D-021 — QA capture simplified; manual archive; one project in the UI
 - **Decision:** Remove the project picker, Feature or screen, Structure with AI and More details from the QA capture flow; the panel always uses the host app's project. Add manual archive (detail, inbox selection, prompt builder) that keeps prompts and `promptIds`. Inbox count = active items only. PFC targets can be entered as grams or as % of calories; grams stay the saved values (no schema change).
@@ -154,3 +154,10 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Alternatives:** Keep the fields behind a disclosure; store a ratio on `TargetPlan` (rejected: schema/backup change for no gain, since grams can be derived).
 - **Consequences:** Projects created earlier stay in the `qa-feedback` database but are hidden. No Dexie or backup changes. Detail-screen editing and AI analysis are unchanged.
 - **Date:** 2026-11-03 · **By:** Ryan (owner) request · **Status:** Implemented on `qa-obs-nov3` (not merged)
+
+### D-023 — No emoji in copy (guardrail)
+- **Decision:** No string in `src/i18n/en.ts` contains emoji: sentences in text boxes (Philip's dialog bar, toasts, banners, hints, status lines) and button labels are words only. Words that an emoji replaced were written out (“📸 your next plate” → “Snap your next plate”). Decorative meal/macro emoji stay only on markup chips, `aria-hidden`.
+- **Reason:** Owner feedback (2026-11-03) during the T-009 redesign: emoji clash with the pixel style; owner asked to keep this as a guardrail.
+- **Alternatives:** Keep D-020's emoji-in-copy (superseded in that part).
+- **Consequences:** Supersedes the emoji part of D-020 (voice otherwise unchanged). Enforced by `src/i18n/en.test.ts`. e2e assertions updated.
+- **Date:** 2026-11-03 · **By:** Ryan (owner) · **Status:** Accepted (on `feat/T-009-design-system`)

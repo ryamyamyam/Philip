@@ -57,7 +57,8 @@ Owner feedback round (Nov 2026): Today has Take photo · Choose photo · Enter y
 - AI results are never saved without the review sheet (`src/views/photo/ReviewSheet.tsx`).
 - No `any`. Don't suppress TS errors. Keep components small; no UI libraries.
 - Touch targets ≥ 44px, labels wrap (no fixed text heights), tabular numerals for numbers.
-- Copy uses Philip's voice (dominant, campy, bossy gay coach; short; an emoji where it replaces words — D-020), but error, data-loss, delete/replace, safety and backup text stays plain. Never comment on body, weight or appearance; no sexual content. Decorative emoji in markup are `aria-hidden`.
+- Copy uses Philip's voice (dominant, campy, bossy gay coach; short — D-020), but error, data-loss, delete/replace, safety and backup text stays plain. Never comment on body, weight or appearance; no sexual content.
+- **Guardrail (owner, D-023): no emoji in copy.** Sentences in text boxes, dialog bars, toasts, banners and buttons are words only; `src/i18n/en.test.ts` fails on any emoji in `en.ts`. Decorative meal/macro emoji exist only in markup chips and are `aria-hidden`.
 - `src/modules/qa-feedback/` is a portable module: it must not import from Philip code. Its strings live in `ui/strings.ts` (not `en.ts`) and its styles use `qa-` classes. Philip-specific wiring belongs in `src/qaFeedback.config.ts`.
 
 ## Commands

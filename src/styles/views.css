@@ -139,7 +139,7 @@
   display: block;
 }
 .chart-axis {
-  font-size: 11px;
+  font-size: var(--text-sm); /* pixel type ≥ 15px (D-022) */
   fill: var(--color-text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -473,4 +473,8 @@
   min-width: 0;
   padding-inline: 0;
   font-size: var(--text-sm);
+}
+
+.targets-hist-title {
+  padding: var(--space-4) var(--space-4) var(--space-2);
 }

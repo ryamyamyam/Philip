@@ -13,7 +13,8 @@ These instructions apply to **every** Claude Code session working on Philip. Do 
 7. [`docs/DEVELOPMENT_RULES.md`](docs/DEVELOPMENT_RULES.md) — before modifying application code.
 8. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — before any architectural change (and for any data, routing, sheet or AI work).
 9. [`docs/DECISIONS.md`](docs/DECISIONS.md) — before proposing anything that might conflict with an existing decision.
-10. As relevant: [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md), [`docs/QA_STRATEGY.md`](docs/QA_STRATEGY.md), [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md), `src/modules/qa-feedback/README.md`.
+10. [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) — before any UI or styling change.
+11. As relevant: [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md), [`docs/QA_STRATEGY.md`](docs/QA_STRATEGY.md), `src/modules/qa-feedback/README.md`.
 
 If a required document is missing or contradicts the code, stop and tell the PM/owner (Ryan). The code is the source of truth; fix the doc only when authorized.
 
@@ -57,6 +58,7 @@ Owner feedback round (Nov 2026): Today has Take photo · Choose photo · Enter y
 - AI results are never saved without the review sheet (`src/views/photo/ReviewSheet.tsx`).
 - No `any`. Don't suppress TS errors. Keep components small; no UI libraries.
 - Touch targets ≥ 44px, labels wrap (no fixed text heights), tabular numerals for numbers.
+- **UI follows [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) (D-022):** tokens only (`src/styles/tokens.css`), reuse the components in `src/components/` (Meter, ActionButton, CategoryChip, StatPanel/StatRow, NamePlate, DialogBar, ControlDeck, StatusStrip, CornerButton, DotIndicator, AmbientScene, pixel `Icon`), pixel font everywhere at ≥15px, one slate button face, `pm-` classes in `src/styles/components.css`. Read it before any UI change.
 - Copy uses Philip's voice (dominant, campy, bossy gay coach; short — D-020), but error, data-loss, delete/replace, safety and backup text stays plain. Never comment on body, weight or appearance; no sexual content.
 - **Guardrail (owner, D-023): no emoji in copy.** Sentences in text boxes, dialog bars, toasts, banners and buttons are words only; `src/i18n/en.test.ts` fails on any emoji in `en.ts`. Decorative meal/macro emoji exist only in markup chips and are `aria-hidden`.
 - `src/modules/qa-feedback/` is a portable module: it must not import from Philip code. Its strings live in `ui/strings.ts` (not `en.ts`) and its styles use `qa-` classes. Philip-specific wiring belongs in `src/qaFeedback.config.ts`.
@@ -72,7 +74,7 @@ Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, b
 - WebKit e2e on the Mac (`9d8c052`, 2026-11-03): **51 passed, 3 skipped, 0 failed**. The webkit-iphone project runs with `serviceWorkers: 'block'` (WebKit's `page.route()` misses fetches from SW-controlled pages). Skipped on WebKit with reasons, to verify on a real iPhone: synthetic swipe (no `Touch` constructor), offline reload, clipboard assertions. Real-iPhone pass pending.
 - Swipe-left row actions and the bottom-sheet QA panel are tested with synthetic touch events in Chromium only; check on a real iPhone.
 - Gemini (`gemini-3.1-flash-lite`): owner confirmed "What should I eat?" works on the live app after the temperature fix (2026-11-03). Photo/text analysis, invalid key and rate limit with a live key still unchecked.
-- Today scrolls once several meals are logged; the card and the Take photo / Choose photo / Enter yourself buttons stay above the fold at 393×793 (e2e). Food names are truncated to one line.
+- Today scrolls once several meals are logged; the card and the deck's Choose photo / Enter yourself buttons stay in view at 393×793 (e2e). Since D-022 there is no separate Take photo button (iOS offers the camera from Choose photo) — check on a real iPhone.
 - The iOS date-input fix on Targets (`.input-date`) passes in Playwright WebKit; check its look on a real iPhone.
 - QA observations captured from Settings record “Settings” as the screen (the floating button that captured the current screen is off).
 - SW cache matching doesn't ignore `Vary`; if a host sends `Vary: Origin`, lazy chunks (Progress, Settings) can miss the cache offline. Today, the log sheet and the review sheet are bundled eagerly.

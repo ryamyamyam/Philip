@@ -750,3 +750,237 @@ h3 {
 .macro-chip {
   font-weight: var(--weight-regular);
 }
+
+/* ---------- StatPanel / StatRow / NamePlate (D-022) ---------- */
+/* Panel bodies stay near-white with scanlines: status colors on the #D8DCE0 gray fell under 4.5:1.
+   The gray is used for row plates instead, where only ink text sits. */
+.pm-panel {
+  border: var(--border-frame) solid var(--color-ink);
+  box-shadow: var(--shadow-hard);
+  background-color: var(--color-surface);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 var(--space-0-5),
+    var(--color-screen-stripe) var(--space-0-5) var(--space-1)
+  );
+}
+.pm-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--touch);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-panel-head);
+  color: var(--color-on-deck);
+}
+.pm-panel-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--display-tracking);
+  text-transform: uppercase;
+}
+.pm-panel-title::before {
+  content: '« ' / '';
+  color: var(--color-on-deck-2);
+}
+.pm-panel-title::after {
+  content: ' »' / '';
+  color: var(--color-on-deck-2);
+}
+.pm-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.pm-panel-tabs {
+  display: flex;
+  gap: var(--space-1);
+}
+.pm-panel-tab {
+  min-height: var(--touch);
+  padding: 0 var(--space-2);
+  border: none;
+  background: none;
+  color: var(--color-on-deck-2);
+  font-family: var(--font-display);
+}
+.pm-panel-tab[aria-selected='true'] {
+  color: var(--color-on-deck);
+  box-shadow: inset 0 calc(-1 * var(--space-1)) 0 var(--color-meter-full);
+}
+.pm-panel-tab:focus-visible {
+  outline: var(--border-thick) solid var(--color-focus-on-dark);
+  outline-offset: calc(-1 * var(--border-thick));
+}
+/* <details> panel: the summary is the header bar */
+details.pm-panel > summary.pm-panel-head {
+  cursor: pointer;
+  list-style: none;
+}
+details.pm-panel > summary.pm-panel-head::-webkit-details-marker {
+  display: none;
+}
+details.pm-panel > summary.pm-panel-head::after {
+  content: '▸' / '';
+  color: var(--color-on-deck-2);
+  transition: transform var(--dur-fast) var(--ease-snap);
+}
+details.pm-panel[open] > summary.pm-panel-head::after {
+  transform: rotate(90deg);
+}
+details.pm-panel > summary.pm-panel-head:focus-visible {
+  outline: var(--border-thick) solid var(--color-focus-on-dark);
+  outline-offset: calc(-1 * var(--border-thick));
+}
+
+.pm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+.pm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-panel);
+  border-left: var(--space-1) solid transparent;
+}
+.pm-row-value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  color: var(--color-ink);
+  text-align: right;
+}
+.pm-row-hint {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--color-panel-text-2);
+}
+.pm-row-notable {
+  border-left-color: var(--color-notable);
+}
+.pm-row-notable .pm-row-value {
+  color: var(--color-notable-text);
+}
+.pm-row-notable .pm-pill {
+  background: var(--color-notable-fill);
+  color: var(--color-on-notable);
+}
+
+.pm-plate {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  /* angled plate: slanted right edge */
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--space-4)) 100%, 0 100%);
+  background: linear-gradient(180deg, var(--color-display) 0%, var(--color-display-2) 100%);
+  box-shadow: inset var(--space-1) 0 0 var(--color-label), inset 0 calc(-1 * var(--border-frame)) 0 var(--color-ink);
+}
+.pm-plate-text {
+  flex: 1;
+  min-width: 0;
+}
+.pm-plate-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  color: var(--color-ink);
+}
+.pm-plate-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+}
+.pm-plate-badge {
+  flex: none;
+  margin-right: var(--space-4);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-frame) solid var(--color-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--display-tracking);
+}
+.pm-plate-badge-success {
+  background: var(--color-meter-full);
+  color: var(--color-ink);
+}
+.pm-plate-badge-warning {
+  background: var(--color-meter-mid);
+  color: var(--color-ink);
+}
+.pm-plate-badge-neutral {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.weight-history .list {
+  border-top: none;
+}
+
+/* ---------- Targets: same info panels as Settings ---------- */
+.view-targets .card {
+  border: var(--border-frame) solid var(--color-ink);
+  border-radius: 0;
+  box-shadow: var(--shadow-hard);
+  background-color: var(--color-surface);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 var(--space-0-5),
+    var(--color-screen-stripe) var(--space-0-5) var(--space-1)
+  );
+}
+.view-targets .card > h2:first-child,
+.view-targets details.card > summary {
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  padding: var(--space-2) var(--space-4);
+  min-height: var(--touch);
+  display: flex;
+  align-items: center;
+  background: var(--color-panel-head);
+  color: var(--color-on-deck);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  text-transform: uppercase;
+  letter-spacing: var(--display-tracking);
+}
+.view-targets .card-flush > h2:first-child {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+}
+.view-targets details.card > summary {
+  cursor: pointer;
+}
+.view-targets details.card > summary:focus-visible {
+  outline: var(--border-thick) solid var(--color-focus-on-dark);
+  outline-offset: calc(-1 * var(--border-thick));
+}
+.view-targets .view-header .icon-btn {
+  border: var(--border-frame) solid var(--color-ink);
+  background: var(--color-deck);
+  color: var(--color-on-deck);
+}
+.view-targets .view-header .icon-btn:focus-visible {
+  outline-color: var(--color-focus);
+}
+.view-targets .card > h2:first-child::before {
+  content: '« ' / '';
+  color: var(--color-on-deck-2);
+}
+.view-targets .card > h2:first-child::after {
+  content: ' »' / '';
+  color: var(--color-on-deck-2);
+}

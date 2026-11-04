@@ -14,7 +14,7 @@ Base branch for new work: `main`.
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
-| T-009 | Design system v2 (handheld-RPG look), phase 2: tokens, components, Today | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
+| T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
 
@@ -27,6 +27,7 @@ Base branch for new work: `main`.
 - **Log:** 2026-11-03 Feature: phase 2 done in a clean Linux clone — tsc clean, 196/196 unit (+9), 59/59 Chromium-mobile e2e (no test changed). WebKit and a real iPhone not run.
   2026-11-03 Owner feedback round (phase 2b): pixel font for all Today text (incl. Philip's line, date, food names, inputs; pixel type ≥ 15px); pixel icon set app-wide (`Icon.tsx`, same names); Take photo removed — one photo button without `capture` (iOS offers camera or library; supersedes the three-button part of D-017, to be recorded in D-022); calories show "N left" with "eaten/target" beside the meter; goal-hit chip removed (Philip's line says it); adherence score moved to the panel header; "What do I eat?" moved into Philip's dialog bar. e2e updated for the new copy/layout (food-logging, photo, qa-round-2, screens, owner-feedback-nov). tsc clean, 196/196 unit, 59/59 Chromium-mobile e2e. WebKit and a real iPhone not run.
   2026-11-03 Owner feedback round 3: one button face app-wide (the slate "Enter yourself" look on every `.btn`, ActionButton and dialog action; destructive buttons keep the face with a red frame); no emoji in copy (D-023 guardrail, `src/i18n/en.test.ts`); pixel font app-wide (body, headings, inputs; `--text-xs` raised to 15px); sheets, dialogs, banners, inputs and segmented controls in the pixel chrome; Settings cards as info panels with a dark «header» bar; the ambient scene redrawn as pixel art; Pixelify's capital C opened so it doesn't read as 0. `photo.spec.ts` now blocks the service worker (page.route missed SW fetches → flaky) and waits for "Gemini settings saved." before leaving Settings. tsc clean, 197/197 unit, 59/59 Chromium-mobile e2e (photo spec 3× green). WebKit and a real iPhone not run.
+  2026-11-04 Phase 3: Progress as StatPanels (NamePlate latest vs goal with status badge, StatRows for rates / plan today / goal date, red accent when behind, chart in D-022 colors, history as a panel); Targets cards as info panels; QA module themed via `--qa-*` only (`src/styles/qa-theme.css`); docs/DESIGN_SYSTEM.md rewritten, D-022 added (supersedes the old visual spec and D-017's Take photo), CLAUDE.md reading order + UI convention point to it; ARCHITECTURE/README updated for the single photo button. e2e: Progress plan-number assertions moved to the rows.
 
 ### T-008 — Voice + emoji copy and docs refresh
 - **Role:** Feature (copy) + PM (docs)

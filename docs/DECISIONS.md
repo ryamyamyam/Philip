@@ -125,7 +125,7 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Reason:** Owner feedback (2026-11-02): fewer taps, typing box only when asked for.
 - **Alternatives:** Keep the Log food sheet.
 - **Consequences:** `AddPanel` shared by Today and the Add food sheet; e2e `openAdd()` opens the inline panel.
-- **Date:** 2026-11-02 · **By:** Ryan (owner) · **Status:** Accepted — shipped (`0cdd351`)
+- **Date:** 2026-11-02 · **By:** Ryan (owner) · **Status:** Accepted — shipped (`0cdd351`); Take photo removed by D-022
 
 ### D-018 — Units switch and 1-month target on the Targets page
 - **Decision:** A metric ⇄ imperial switch lives in the calculator (still also in Settings › Units); switching converts typed values. Lose/Gain shows a 1-month target weight at the default safe pace with a “Use it” button. `SAFETY` is unchanged.
@@ -154,6 +154,13 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Alternatives:** Keep the fields behind a disclosure; store a ratio on `TargetPlan` (rejected: schema/backup change for no gain, since grams can be derived).
 - **Consequences:** Projects created earlier stay in the `qa-feedback` database but are hidden. No Dexie or backup changes. Detail-screen editing and AI analysis are unchanged.
 - **Date:** 2026-11-03 · **By:** Ryan (owner) request · **Status:** Implemented on `qa-obs-nov3` (not merged)
+
+### D-022 — Handheld-RPG design system (T-009)
+- **Decision:** Replace the orange-and-white look with an original design system inspired by DS-era handheld monster-RPG interfaces: top display zone + dark bottom control deck; HP-style meters (ceilings drain green→yellow→red, minimums fill blue→green); chamfered buttons with one slate face for every button; category chips (8-color palette); info panels with a dark «header» bar; angled name plate; Philip's dialog bar; pixel-art ambient scenes; a self-hosted OFL pixel font for all text (15px floor) and a 12×12 pixel icon set. Today shows one photo button (no `capture`: iOS offers camera or library), "N left" with eaten/target beside the meter, no goal chip, adherence in the panel header, "What do I eat?" inside the dialog bar. Spec: docs/DESIGN_SYSTEM.md.
+- **Reason:** Owner request and feedback rounds (2026-11-03/04).
+- **Alternatives:** Keep the minimal orange look; flat-vector scenes (replaced by pixel art on owner feedback); system font for body text (replaced on owner feedback).
+- **Consequences:** Supersedes the visual part of the earlier DESIGN_SYSTEM.md and the three-button part of D-017. Visual layer only: no data, storage, AI or QA-module logic changed; no dependencies. Macro color tokens keep their names with new values. The QA module is themed only through `--qa-*` variables (`src/styles/qa-theme.css`). Copy changes: short labels appended to `en.ts`; e2e assertions updated for the new copy and layout.
+- **Date:** 2026-11-04 · **By:** Ryan (owner) · **Status:** Accepted (on `feat/T-009-design-system`)
 
 ### D-023 — No emoji in copy (guardrail)
 - **Decision:** No string in `src/i18n/en.ts` contains emoji: sentences in text boxes (Philip's dialog bar, toasts, banners, hints, status lines) and button labels are words only. Words that an emoji replaced were written out (“📸 your next plate” → “Snap your next plate”). Decorative meal/macro emoji stay only on markup chips, `aria-hidden`.

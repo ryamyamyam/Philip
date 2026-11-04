@@ -15,7 +15,7 @@ export default function TargetsPage() {
   const plans = useTargetPlans();
   const current = plans ? planForDate(plans, todayYmd()) : null;
   return (
-    <div className="view">
+    <div className="view view-targets">
       <header className="view-header view-header-back">
         <button type="button" className="icon-btn" onClick={() => navigate('settings')} aria-label={t('targets.backToSettings')}>
           <Icon name="chevronLeft" />

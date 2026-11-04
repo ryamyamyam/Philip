@@ -1,0 +1,25 @@
+/*
+ * QA & Feedback look in Philip (T-009 / D-022). The module itself stays untouched and portable:
+ * this file only re-maps its public --qa-* variables. `:root:root` outranks the module's own
+ * :root defaults, which load later with the lazy panel.
+ */
+:root:root {
+  --qa-bg: var(--color-display);
+  --qa-surface: var(--color-surface);
+  --qa-surface-2: var(--color-display-2);
+  --qa-text: var(--color-ink);
+  --qa-text-2: var(--color-text-2);
+  --qa-text-3: var(--color-text-3);
+  --qa-border: var(--color-ink);
+  --qa-border-strong: var(--color-ink);
+  --qa-brand: var(--color-label);
+  --qa-brand-soft: var(--color-display-2);
+  --qa-action: var(--color-panel-head);
+  --qa-action-pressed: var(--color-ink);
+  --qa-radius-sm: 0px;
+  --qa-radius: 0px;
+  --qa-radius-lg: 0px;
+  --qa-shadow: var(--shadow-hard);
+  --qa-shadow-2: var(--shadow-deck);
+  --qa-scrim: var(--color-scrim);
+}

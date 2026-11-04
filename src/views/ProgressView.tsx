@@ -1,5 +1,8 @@
 import { useId, useMemo, useState } from 'react';
 import { Icon } from '../components/Icon';
+import { NamePlate } from '../components/NamePlate';
+import { StatPanel } from '../components/StatPanel';
+import { StatRow } from '../components/StatRow';
 import { NumberField } from '../components/NumberField';
 import { useToast } from '../components/Toast';
 import { WeightChart } from '../components/WeightChart';
@@ -20,6 +23,22 @@ const STATUS_KEY: Record<WeightStatus, StringKey> = {
   off: 'progress.status.off',
   reached: 'progress.status.reached',
   needMore: 'progress.status.needMore',
+};
+const BADGE_KEY: Record<WeightStatus, StringKey> = {
+  onTrack: 'progress.badge.onTrack',
+  ahead: 'progress.badge.ahead',
+  behind: 'progress.badge.behind',
+  off: 'progress.badge.off',
+  reached: 'progress.badge.reached',
+  needMore: 'progress.badge.needMore',
+};
+const BADGE_TONE: Record<WeightStatus, 'success' | 'warning' | 'neutral'> = {
+  onTrack: 'success',
+  reached: 'success',
+  ahead: 'warning',
+  behind: 'warning',
+  off: 'warning',
+  needMore: 'neutral',
 };
 const STATUS_TONE: Record<WeightStatus, string> = {
   onTrack: 'tone-success',
@@ -52,25 +71,45 @@ export default function ProgressView() {
 
   if (!profile || !plans || !entries || !progress) return <div className="view" />;
 
+  const latest = entries[entries.length - 1] ?? null;
+  const goalKg = line?.targetKg ?? profile.targetWeightKg ?? null;
+  // The one red accent: behind plan or off maintenance (the status line says it in words).
+  const notable = progress.status === 'behind' || progress.status === 'off';
+
   return (
-    <div className="view">
+    <div className="view view-progress">
       <header className="view-header">
         <h1>{t('progress.title')}</h1>
       </header>
       <div className="stack">
-        <section className="card stack-sm" aria-labelledby="weight-h">
-          <h2 id="weight-h">{t('progress.weight')}</h2>
+        <StatPanel title={t('progress.weight')}>
+          {latest && (
+            <NamePlate
+              title={t('progress.plate.latest', { value: fmtW(latest.weightKg), unit })}
+              subtitle={goalKg != null ? t('progress.plate.goal', { value: fmtW(goalKg), unit }) : t('progress.plate.noGoal')}
+              badge={{ label: t(BADGE_KEY[progress.status]), tone: BADGE_TONE[progress.status] }}
+            />
+          )}
           <p className={`progress-status ${STATUS_TONE[progress.status]}`} role="status">
             <strong>{t(STATUS_KEY[progress.status], { value: fmtNum(Math.abs(toUnit(progress.diffKg ?? 0)), 1), unit })}</strong>
           </p>
-          {line && progress.actualRateKg != null && (
-            <p className="subtle num">
-              {t('progress.rate', { actual: signed(toUnit(progress.actualRateKg)), plan: signed(toUnit(line.rateKg)), unit })}
-            </p>
+          {line && (progress.actualRateKg != null || progress.expectedTodayKg != null || (reach && line.targetKg != null)) && (
+            <dl className="pm-rows">
+              {progress.actualRateKg != null && (
+                <>
+                  <StatRow label={t('progress.row.rate')} value={t('progress.perWeek', { value: signed(toUnit(progress.actualRateKg)), unit })} notable={notable} />
+                  <StatRow label={t('progress.row.planRate')} value={t('progress.perWeek', { value: signed(toUnit(line.rateKg)), unit })} />
+                </>
+              )}
+              {progress.expectedTodayKg != null && (
+                <StatRow label={t('progress.row.today')} value={`${fmtW(progress.expectedTodayKg)} ${unit}`} />
+              )}
+              {reach && line.targetKg != null && (
+                <StatRow label={t('progress.row.reach')} value={`${fmtW(line.targetKg)} ${unit} · ${fmtDate(reach)}`} />
+              )}
+            </dl>
           )}
           {(entries.length > 0 || line) && <WeightChart entries={entries} line={line} today={today} toUnit={toUnit} unit={unit} />}
-          {line && progress.expectedTodayKg != null && <p className="subtle num">{t('progress.expectedToday', { value: fmtW(progress.expectedTodayKg), unit })}</p>}
-          {line && reach && line.targetKg != null && <p className="subtle num">{t('progress.reach', { value: fmtW(line.targetKg), unit, date: fmtDate(reach) })}</p>}
           {!line && (
             <>
               <p className="subtle">{t('progress.noLine')}</p>
@@ -79,7 +118,7 @@ export default function ProgressView() {
               </button>
             </>
           )}
-        </section>
+        </StatPanel>
         <WeighIn lb={lb} unit={unit} />
         {entries.length > 0 && <WeightHistory entries={entries} fmtW={fmtW} unit={unit} />}
       </div>
@@ -115,7 +154,7 @@ function WeighIn({ lb, unit }: { lb: boolean; unit: string }) {
   };
 
   return (
-    <section className="card stack-sm" aria-label={t('progress.logWeight')}>
+    <StatPanel title={t('progress.logWeight')}>
       <form
         className="weight-form"
         onSubmit={(e) => {
@@ -144,7 +183,7 @@ function WeighIn({ lb, unit }: { lb: boolean; unit: string }) {
           {t('progress.logWeight')}
         </button>
       </form>
-    </section>
+    </StatPanel>
   );
 }
 
@@ -156,8 +195,10 @@ function WeightHistory({ entries, fmtW, unit }: { entries: WeightEntry[]; fmtW: 
     if (removed) toast(t('progress.deleted', { date: fmtDate(date) }), { label: t('common.undo'), run: () => void restoreWeight(removed) });
   };
   return (
-    <details className="card card-flush weight-history">
-      <summary>{t('progress.history')}</summary>
+    <details className="pm-panel weight-history">
+      <summary className="pm-panel-head">
+        <span className="pm-panel-title">{t('progress.history')}</span>
+      </summary>
       <ul className="list">
         {recent.map((e) => (
           <li key={e.date} className="list-item">

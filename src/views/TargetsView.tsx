@@ -895,7 +895,7 @@ function TargetHistory({ plans }: { plans: TargetPlan[] }) {
   const sorted = [...plans].sort((a, b) => (b.effectiveFrom === a.effectiveFrom ? b.createdAt - a.createdAt : b.effectiveFrom.localeCompare(a.effectiveFrom)));
   return (
     <section className="card card-flush" aria-labelledby="hist-h" role="region">
-      <h2 id="hist-h" style={{ padding: 'var(--space-4) var(--space-4) var(--space-2)' }}>
+      <h2 id="hist-h" className="targets-hist-title">
         {t('targets.history')}
       </h2>
       <ul className="list">

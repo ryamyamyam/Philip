@@ -47,7 +47,7 @@ src/
 
 | Tab | Route | Content |
 |---|---|---|
-| Today | `#/today` | First screen. Date heading (‹ › and picker for past days) + one card: kcal eaten/left with a bar, P/F/C eaten / target / left with bars (`lib/remaining.ts`); **Take photo** (primary), **Choose photo** and **Enter yourself** (toggles the inline `AddPanel`); the day's foods grouped by meal (tap to edit, swipe to move/delete); optional “What should I eat?” |
+| Today | `#/today` | First screen. Date heading (‹ › and picker for past days) + one card: kcal eaten/left with a bar, P/F/C eaten / target / left with bars (`lib/remaining.ts`); **Choose photo** (camera or library on iOS) and **Enter yourself** (toggles the inline `AddPanel`) on the bottom control deck (D-022); the day's foods grouped by meal (tap to edit, swipe to move/delete); optional “What should I eat?” |
 | Progress | `#/progress` | Weight only: on track / ahead / behind (`lib/weight.ts#weightProgress`), actual-vs-plan chart, weigh-in form, collapsed history with delete + Undo |
 | Settings | `#/settings` | Targets & body stats link, data, Gemini, units, QA & Feedback, danger zone |
 | (page) | `#/targets` | Settings › Targets & body stats: current targets, calculator, manual, weekly plan, adherence, history. Tab bar highlights Settings. |
@@ -55,7 +55,7 @@ src/
 Old routes redirect with `history.replaceState`: `#/history` and `#/meals` → `#/today`. Tapping the Today tab always resets the date to today.
 
 ### Logging flow (Story 3, updated Nov 2026)
-Today → Take photo / Choose photo → analyzing (PhotoSheet) → **Review** → Save to {meal}. **Enter yourself** reveals an inline panel on Today (`AddPanel` in `views/AddSheet.tsx`): an autofocused text box, saved meals, and “Type the numbers”. The Add food sheet (`AddSheet`, photo buttons + the same `AddPanel`) remains for Meals. The Log food button was removed (D-017). Every path ends in the Review sheet (meal picker, compact rows: name + grams, nutrition rescales with grams, “Edit nutrition” for direct macro edits, add/remove rows, optional “Also save as a meal”). Saving shows “N kcal logged to {meal}” with Undo. My Foods / recents / favorites and the Claude handoff button were removed from the log sheet (the handoff remains on photo-analysis errors); saved foods stay in the database and backups and still prefill typed text without a key.
+Today → Choose photo (camera or library; D-022) → analyzing (PhotoSheet) → **Review** → Save to {meal}. **Enter yourself** reveals an inline panel on Today (`AddPanel` in `views/AddSheet.tsx`): an autofocused text box, saved meals, and “Type the numbers”. The Add food sheet (`AddSheet`, photo buttons + the same `AddPanel`) remains for Meals. The Log food button was removed (D-017). Every path ends in the Review sheet (meal picker, compact rows: name + grams, nutrition rescales with grams, “Edit nutrition” for direct macro edits, add/remove rows, optional “Also save as a meal”). Saving shows “N kcal logged to {meal}” with Undo. My Foods / recents / favorites and the Claude handoff button were removed from the log sheet (the handoff remains on photo-analysis errors); saved foods stay in the database and backups and still prefill typed text without a key.
 
 ## Data model (IndexedDB `philip`, Dexie v3)
 

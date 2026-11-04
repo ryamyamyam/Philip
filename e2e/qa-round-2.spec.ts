@@ -283,12 +283,13 @@ test('F047E3: log weight (kg), one entry per date (overwrites), chart shows actu
   expect(count).toEqual([1, 79.4]);
   // Plan starts at 80 kg today → 79.4 is 0.6 kg below: ahead on a cut.
   await expect(weight.getByRole('status')).toHaveText('Ahead of plan by 0.6 kg. Show-off.');
-  await expect(weight.getByText('Plan for today: 80 kg')).toBeVisible();
+  // T-009: plan numbers are label/value rows on the panel.
+  await expect(weight.locator('.pm-row', { hasText: 'Plan today' })).toContainText('80 kg');
   const chart = weight.getByRole('img', { name: /Weight in kg, actual against plan/ });
   await expect(chart).toBeVisible();
   await expect(chart.locator('circle')).toHaveCount(1);
   await expect(chart.locator('path[stroke-dasharray]')).toHaveCount(1);
-  await expect(weight.getByText(/On plan: 76 kg around/)).toBeVisible();
+  await expect(weight.locator('.pm-row', { hasText: 'Goal by' })).toContainText('76 kg ·');
   await weight.screenshot({ path: 'e2e/screenshots/375-s3-weight.png' });
 
   // History: delete a weigh-in, then undo.

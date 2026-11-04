@@ -479,6 +479,20 @@ export const en = {
   'today.kcalShort.reached': '{kcal} over',
   'today.kcalOfShort': '{consumed}/{target}',
   'deck.log': 'Log food',
+  'progress.plate.latest': '{value} {unit}',
+  'progress.plate.goal': 'Goal {value} {unit}',
+  'progress.plate.noGoal': 'No goal weight yet',
+  'progress.badge.onTrack': 'On track',
+  'progress.badge.ahead': 'Ahead',
+  'progress.badge.behind': 'Behind',
+  'progress.badge.off': 'Off',
+  'progress.badge.reached': 'Goal hit',
+  'progress.badge.needMore': 'Warm-up',
+  'progress.row.rate': 'Your rate',
+  'progress.row.planRate': 'Plan rate',
+  'progress.row.today': 'Plan today',
+  'progress.row.reach': 'Goal by',
+  'progress.perWeek': '{value} {unit}/wk',
 } as const;
 
 export type StringKey = keyof typeof en;

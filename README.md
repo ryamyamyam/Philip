@@ -6,7 +6,7 @@ Personal nutrition tracker. Local-first PWA for iPhone: calories, protein, fat a
 
 > Describes `main` (deployed to GitHub Pages). See [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md).
 
-- **Today**: kcal and protein/fat/carbs eaten, target and left; the day's foods by meal (tap to edit, swipe to move/delete); date navigation; **Take photo**, **Choose photo** and **Enter yourself** (opens an inline text box, saved meals and "Type the numbers"); optional "What should I eat?" (Gemini)
+- **Today**: kcal and protein/fat/carbs eaten, target and left; the day's foods by meal (tap to edit, swipe to move/delete); date navigation; **Choose photo** (camera or library) and **Enter yourself** (opens an inline text box, saved meals and "Type the numbers"); optional "What should I eat?" (Gemini)
 - **Logging**: photo, typed text (Gemini or local parsing without a key), saved meals, or manual entry, always ending in a review step
 - **Photo/text estimates**: Gemini analysis → mandatory review & edit → save. Claude-app copy/paste handoff as a fallback on photo errors
 - **Saved meals**: save a reviewed set of foods and re-log it

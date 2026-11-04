@@ -6,12 +6,12 @@ import { fmtDate, fmtNum } from '../lib/format';
 import { expectedWeightOn, type WeightPlanLine } from '../lib/weight';
 
 const H = 150;
-const PAD = { top: 10, right: 8, bottom: 22, left: 40 };
+const PAD = { top: 10, right: 8, bottom: 24, left: 52 };
 const MIN_SPAN_DAYS = 14;
 
 /**
  * Actual weight (dots + line) against the expected line from the plan (dashed). Inline SVG,
- * same SVG conventions as the old calorie chart. `toUnit` converts kg to the display unit.
+ * same SVG conventions as the old calorie chart. Colors follow D-022 (sky line, ink outline, slate plan). `toUnit` converts kg to the display unit.
  */
 export function WeightChart({
   entries,
@@ -57,7 +57,7 @@ export function WeightChart({
       <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label={label}>
         {[lo, (lo + hi) / 2, hi].map((tv) => (
           <g key={tv}>
-            <line x1={PAD.left} x2={width - PAD.right} y1={y(tv)} y2={y(tv)} stroke="var(--color-border)" strokeWidth={1} />
+            <line x1={PAD.left} x2={width - PAD.right} y1={y(tv)} y2={y(tv)} stroke="var(--color-border-strong)" strokeWidth={1} shapeRendering="crispEdges" />
             <text x={PAD.left - 6} y={y(tv)} dy="0.32em" textAnchor="end" className="chart-axis">
               {fmtNum(tv, 1)}
             </text>
@@ -73,19 +73,19 @@ export function WeightChart({
           <path
             d={`M${x(expFrom)},${y(toUnit(expectedWeightOn(line, expFrom)))} L${x(end)},${y(expEnd!)}`}
             fill="none"
-            stroke="var(--color-text)"
-            strokeWidth={1.5}
+            stroke="var(--color-panel-head)"
+            strokeWidth={2}
             strokeDasharray="4 3"
           />
         )}
-        {entries.length > 1 && <path d={actualPath} fill="none" stroke="var(--color-brand)" strokeWidth={2} />}
+        {entries.length > 1 && <path d={actualPath} fill="none" stroke="var(--color-meter-fill-up)" strokeWidth={3} strokeLinejoin="miter" />}
         {entries.map((e) => (
-          <circle key={e.date} cx={x(e.date)} cy={y(toUnit(e.weightKg))} r={3.5} fill="var(--color-action)" />
+          <circle key={e.date} cx={x(e.date)} cy={y(toUnit(e.weightKg))} r={4} fill="var(--color-meter-fill-up)" stroke="var(--color-ink)" strokeWidth={2} />
         ))}
       </svg>
       <div className="chart-legend" aria-hidden="true">
         <span>
-          <i className="swatch" style={{ background: 'var(--color-action)' }} /> {t('progress.actual')}
+          <i className="swatch" style={{ background: 'var(--color-meter-fill-up)' }} /> {t('progress.actual')}
         </span>
         {line && (
           <span>

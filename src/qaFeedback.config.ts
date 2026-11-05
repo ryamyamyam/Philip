@@ -6,10 +6,12 @@ import { getProfile } from './db/repo';
 import { createGeminiProvider, type QaFeedbackConfig } from './modules/qa-feedback';
 
 const TAB_NAMES: Record<string, string> = {
-  today: 'Today',
+  home: 'Home',
+  meals: 'Meal log',
+  workout: 'Workout',
   progress: 'Progress',
   settings: 'Settings',
-  targets: 'Settings › Targets',
+  targets: 'Targets',
 };
 
 export const qaFeedbackConfig: QaFeedbackConfig = {
@@ -31,7 +33,7 @@ export const qaFeedbackConfig: QaFeedbackConfig = {
   // Story 3: no floating button over the nutrition screens. QA opens from Settings → QA & Feedback.
   floatingButton: false,
   getContext: () => {
-    const tab = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0] || 'today';
+    const tab = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0] || 'home';
     const sheet = document.querySelector('.sheet[role="dialog"] h2')?.textContent?.trim();
     const screen = TAB_NAMES[tab] ?? tab;
     return { screen: sheet ? `${screen} › ${sheet}` : screen };

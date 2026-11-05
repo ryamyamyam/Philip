@@ -40,3 +40,18 @@ describe('inProgress', () => {
     expect(inProgress([done('a', '2026-11-06', 8)])).toBeNull();
   });
 });
+
+describe('workoutCardState', () => {
+  it('setup → briefing → next day → resume → cycle done', async () => {
+    const { workoutCardState } = await import('./progress');
+    expect(workoutCardState(null, []).kind).toBe('setup');
+    expect(workoutCardState({ currentCycle: 0 }, [])).toEqual({ kind: 'briefing', cycle: 1 });
+    expect(workoutCardState({ currentCycle: 1 }, [])).toEqual({ kind: 'next', cycle: 1, week: 1, day: 1 });
+    const open = done('x', '2026-11-06', null, 'in_progress');
+    expect(workoutCardState({ currentCycle: 1 }, [open]).kind).toBe('resume');
+    const all = ([1, 2, 3, 4] as const).flatMap((week) =>
+      ([1, 2, 3, 4] as const).map((day) => ({ ...done(`${week}${day}`, '2026-11-06', 5), week, day })),
+    );
+    expect(workoutCardState({ currentCycle: 1 }, all)).toEqual({ kind: 'cycleDone', cycle: 1 });
+  });
+});

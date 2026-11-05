@@ -45,6 +45,8 @@ src/
 
 ## Navigation
 
+**Story 5 (T-011):** the app opens on **Home** (`#/home`). Tab bar: Home · Progress · Settings. The former Today screen is the **Meal log** (`#/meals`), entered from Home's Meal log cartridge (always on today's date); **Workout** is `#/workout` and `#/workout/plan`. `#/today` and `#/history` redirect to `#/meals`; empty or unknown hashes go to Home. Philip's tour starts on Home and walks into the Meal log (`TourStep.screen`). The notes below predate Story 5 where they mention the Today tab.
+
 | Tab | Route | Content |
 |---|---|---|
 | Today | `#/today` | First screen. Date heading (‹ › and picker for past days) + one card: kcal eaten/left with a bar, P/F/C eaten / target / left with bars (`lib/remaining.ts`); **Choose photo** (camera or library on iOS) and **Enter yourself** (toggles the inline `AddPanel`) on the bottom control deck (D-022); the day's foods grouped by meal (tap to edit, swipe to move/delete); optional “What should I eat?” |

@@ -5,6 +5,7 @@ import { useRoute, type Tab } from './hooks/useRoute';
 import { todayYmd } from './lib/date';
 import { UICtx, type SheetState, type UI } from './ui';
 import { TodayView } from './views/TodayView';
+import { HomeView } from './views/HomeView';
 import { SheetHost } from './views/SheetHost';
 import { OfflineBanner } from './components/OfflineBanner';
 import { QaFeedback } from './modules/qa-feedback';
@@ -13,11 +14,12 @@ import { TutorialOverlay, type TourEnd } from './components/TutorialOverlay';
 import { META, setMeta } from './db/repo';
 import { useMeta, useProfile, useTargetPlans } from './hooks/useData';
 import { targetForDate } from './lib/nutrition';
-import type { TourContext } from './lib/tutorial';
+import type { TourContext, TourScreen } from './lib/tutorial';
 
 const ProgressView = lazy(() => import('./views/ProgressView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 const TargetsPage = lazy(() => import('./views/TargetsPage'));
+const WorkoutView = lazy(() => import('./views/WorkoutView'));
 
 export function App() {
   const [tab, navigate] = useRoute();
@@ -43,15 +45,15 @@ export function App() {
   }, []);
 
   const closeSheet = useCallback(() => setSheet(null), []);
-  // UX-2: tapping Today always shows Today *and* resets the date — even when already on that tab.
+  // UX-2 (Story 5): entering the Meal log always starts on today's date.
   const onTab = useCallback(
     (next: Tab) => {
-      if (next === 'today') setDate(todayYmd());
+      if (next === 'meals') setDate(todayYmd());
       navigate(next);
     },
     [navigate],
   );
-  // Philip's tour (T-010): shows on Today while `tutorialSeenAt` is unset (first launch, every existing
+  // Philip's tour (T-010; Story 5: starts on Home, then walks into the Meal log): shows while `tutorialSeenAt` is unset (first launch, every existing
   // install once, or after Settings › Replay tutorial clears it), once targets and profile have loaded.
   const seenAt = useMeta<number>(META.tutorialSeenAt);
   const plans = useTargetPlans();
@@ -79,7 +81,15 @@ export function App() {
     },
     [navigate],
   );
-  const showTour = tab === 'today' && !sheet && seenAt === null && !tourEnded && tourCtx !== null;
+  const tourScreen: TourScreen | null = tab === 'home' || tab === 'meals' ? tab : null;
+  const showTour = tourScreen !== null && !sheet && seenAt === null && !tourEnded && tourCtx !== null;
+  const onTourScreen = useCallback(
+    (s: TourScreen) => {
+      if (s === 'meals') setDate(todayYmd());
+      navigate(s);
+    },
+    [navigate],
+  );
 
   const ui: UI = useMemo(() => ({ date, setDate, openSheet: setSheet, closeSheet, navigate }), [date, closeSheet, navigate]);
 
@@ -89,8 +99,11 @@ export function App() {
         <div className="app">
           <OfflineBanner />
           <main>
-            {tab === 'today' && <TodayView />}
+            {tab === 'home' && <HomeView />}
+            {tab === 'meals' && <TodayView />}
             <Suspense fallback={null}>
+              {tab === 'workout' && <WorkoutView />}
+              {tab === 'workoutPlan' && <WorkoutView plan />}
               {tab === 'progress' && <ProgressView />}
               {tab === 'settings' && <SettingsView />}
               {tab === 'targets' && <TargetsPage />}
@@ -98,7 +111,7 @@ export function App() {
           </main>
           <TabBar tab={tab} onTab={onTab} />
           {sheet && <SheetHost sheet={sheet} />}
-          {showTour && <TutorialOverlay ctx={tourCtx} onEnd={endTour} />}
+          {showTour && <TutorialOverlay ctx={tourCtx} onEnd={endTour} screen={tourScreen ?? undefined} onScreen={onTourScreen} />}
           <QaFeedback config={qaFeedbackConfig} />
         </div>
       </ToastProvider>

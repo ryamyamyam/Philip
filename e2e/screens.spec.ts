@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, openAdd, openTargets, tab } from './helpers';
+import { fresh, noHorizontalScroll, openAdd, openTargets, tab, openMealLog } from './helpers';
 
 /** Seeds realistic data straight into IndexedDB (same schema Dexie uses). */
 async function seed(page: Page) {
@@ -97,6 +97,6 @@ test('targets calculator end to end', async ({ page }) => {
   await page.getByRole('button', { name: 'Use these targets' }).click();
   await page.getByText('Weekly plan, adherence, history').click();
   await expect(page.getByRole('region', { name: 'Target history' }).getByText(/Calculated/)).toBeVisible();
-  await tab(page, 'Today').click();
+  await openMealLog(page);
   await expect(page.getByRole('region', { name: 'What’s left today' }).locator('.today-big')).toHaveText(/^[\d,]+ left$/);
 });

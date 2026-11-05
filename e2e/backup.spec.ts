@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { addManualFood, fresh, skipTour, tab } from './helpers';
+import { addManualFood, fresh, skipTour, tab, openMealLog } from './helpers';
 
 test('export, delete all, import round trip', async ({ page }, info) => {
   await fresh(page);
@@ -24,9 +24,10 @@ test('export, delete all, import round trip', async ({ page }, info) => {
   await expect(dlg.getByRole('button', { name: 'Delete' })).toBeDisabled();
   await dlg.getByRole('textbox').fill('DELETE');
   await dlg.getByRole('button', { name: 'Delete' }).click();
-  await tab(page, 'Today').click();
-  // Delete all clears the tour flag too, so Philip's tour starts again (T-010).
+  // Delete all clears the tour flag too, so Philip's tour starts again on Home (T-010, Story 5).
+  await tab(page, 'Home').click();
   await skipTour(page);
+  await openMealLog(page);
   await expect(page.getByText(/^Nothing yet\./)).toBeVisible();
   await expect(page.getByText('Banana')).toHaveCount(0);
 
@@ -43,6 +44,6 @@ test('export, delete all, import round trip', async ({ page }, info) => {
   await expect(restore).toContainText('1 food entries');
   await restore.getByRole('radio', { name: 'Replace' }).click();
   await restore.getByRole('button', { name: 'Restore' }).click();
-  await tab(page, 'Today').click();
+  await openMealLog(page);
   await expect(page.getByText('Banana')).toBeVisible();
 });

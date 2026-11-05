@@ -4,7 +4,7 @@ import { expect, type Page } from '@playwright/test';
  * Clean install. Philip's tour (T-010) shows on a fresh install; it is skipped here so specs that
  * aren't about the tour start on a plain Today. Pass `{ tour: true }` to keep it (tutorial.spec.ts).
  */
-export async function fresh(page: Page, opts: { tour?: boolean } = {}) {
+export async function fresh(page: Page, opts: { tour?: boolean; at?: 'home' | 'meals' } = {}) {
   await page.goto('./');
   await page.evaluate(async () => {
     await new Promise<void>((res) => {
@@ -14,7 +14,17 @@ export async function fresh(page: Page, opts: { tour?: boolean } = {}) {
   });
   await page.reload();
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
-  if (!opts.tour) await skipTour(page);
+  if (opts.tour) return;
+  await skipTour(page);
+  // Story 5: the app opens on Home. Most specs are about the Meal log, so they start there.
+  if ((opts.at ?? 'meals') === 'meals') await openMealLog(page);
+}
+
+/** Home › Meal log (the former Today screen; Story 5). Always shows today's date. */
+export async function openMealLog(page: Page) {
+  await tab(page, 'Home').click();
+  await page.getByRole('main').getByRole('button', { name: /^Meal log/ }).click();
+  await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible();
 }
 
 /** Philip's guided tour overlay. */
@@ -31,7 +41,7 @@ export async function skipTour(page: Page) {
 
 /** Opens the inline "Enter yourself" panel on Today (owner feedback, Nov 2026). Keeps the selected date. */
 export async function openAdd(page: Page) {
-  if ((await tab(page, 'Today').getAttribute('aria-current')) !== 'page') await tab(page, 'Today').click();
+  if (!(await page.locator('.view-today').isVisible())) await openMealLog(page);
   const btn = page.getByRole('main').getByRole('button', { name: 'Enter yourself' });
   if ((await btn.getAttribute('aria-expanded')) !== 'true') await btn.click();
   await expect(addPanel(page)).toBeVisible();
@@ -82,7 +92,7 @@ export async function setManualTargets(page: Page, m: { calories: string; protei
   await form.getByLabel('Fat (g)').fill(m.fat);
   await form.getByLabel('Carbs (g)').fill(m.carbs);
   await form.getByRole('button', { name: 'Save', exact: true }).click();
-  await tab(page, 'Today').click();
+  await openMealLog(page);
 }
 
 export async function noHorizontalScroll(page: Page) {
@@ -92,7 +102,7 @@ export async function noHorizontalScroll(page: Page) {
 
 /** UX-2: the Today tab always resets the date to today. */
 export async function backToToday(page: Page) {
-  await tab(page, 'Today').click();
+  await openMealLog(page);
   await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible();
 }
 
@@ -119,6 +129,6 @@ export function pageToday(page: Page): Promise<string> {
   });
 }
 
-export function tab(page: Page, name: 'Today' | 'Progress' | 'Settings') {
+export function tab(page: Page, name: 'Home' | 'Progress' | 'Settings') {
   return page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true });
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addManualFood, addPanel, fresh, openAdd, pickMeal, tab } from './helpers';
+import { addManualFood, addPanel, fresh, openAdd, pickMeal, tab, openMealLog } from './helpers';
 
 const PHOTO = 'public/icon-512.png';
 
@@ -9,7 +9,7 @@ async function setKey(page: Page) {
   await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
   // Wait for the save to land before leaving Settings (the write is async; leaving early raced the first request).
   await expect(page.getByRole('status').filter({ hasText: 'Gemini settings saved.' })).toBeVisible();
-  await tab(page, 'Today').click();
+  await openMealLog(page);
 }
 
 const reply = {
@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => fresh(page));
 
 /** Story 3: the photo button sits on Today — one tap from opening the app (T-009: one button, no `capture`). */
 async function photoFromToday(page: Page) {
-  if ((await tab(page, 'Today').getAttribute('aria-current')) !== 'page') await tab(page, 'Today').click();
+  if (!(await page.locator('.view-today').isVisible())) await openMealLog(page);
   await page.getByRole('main').locator('label.log-photo input[type=file]').setInputFiles(PHOTO);
 }
 

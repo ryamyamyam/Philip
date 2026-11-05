@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addManualFood, backToToday, fresh, tab } from './helpers';
+import { addManualFood, backToToday, fresh, tab, openMealLog } from './helpers';
 
 /** Fires a horizontal touch drag on an element (Chromium touch emulation). */
 async function swipe(page: Page, selector: string, dx: number) {
@@ -96,7 +96,7 @@ test('OBS-3AD584: backup reminder is a dismissable pop-up that explains why and 
   for (let i = 1; i <= 5; i++) {
     await addManualFood(page, { name: `Food ${i}`, calories: '100', protein: '5', fat: '2', carbs: '10' });
   }
-  await tab(page, 'Today').click();
+  await openMealLog(page);
   await page.reload();
   const pop = page.getByRole('dialog', { name: 'Back up your food log' });
   await expect(pop).toBeVisible();
@@ -117,7 +117,7 @@ test('OBS-3AD584: "Back up now" goes to the backup section in Settings', async (
   for (let i = 1; i <= 5; i++) {
     await addManualFood(page, { name: `Food ${i}`, calories: '100', protein: '5', fat: '2', carbs: '10' });
   }
-  await tab(page, 'Today').click();
+  await openMealLog(page);
   await page.reload();
   await page.getByRole('dialog', { name: 'Back up your food log' }).getByRole('button', { name: 'Back up now' }).click();
   await expect(page.getByRole('button', { name: 'Export backup' })).toBeInViewport();

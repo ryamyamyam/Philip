@@ -3,9 +3,9 @@ import { t } from '../i18n';
 import { ControlDeck } from './ControlDeck';
 import { Icon, type IconName } from './Icon';
 
-const ICONS: Partial<Record<Tab, IconName>> = { today: 'today', progress: 'progress', settings: 'settings' };
+const ICONS: Partial<Record<Tab, IconName>> = { home: 'home', progress: 'progress', settings: 'settings' };
 
-/** Three tabs: Today · Progress · Settings (Story 3), on the control deck (D-022). Logging starts on Today. */
+/** Three tabs: Home · Progress · Settings (Story 5), on the control deck (D-022). Meal log and Workout open from Home. */
 export function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   return (
     <ControlDeck label={t('nav.main')}>
@@ -18,8 +18,8 @@ export function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
             aria-current={TAB_FOR[tab] === id ? 'page' : undefined}
             onClick={() => onTab(id)}
           >
-            <Icon name={ICONS[id] ?? 'today'} />
-            <span>{t(`nav.${id}`)}</span>
+            <Icon name={ICONS[id] ?? 'home'} />
+            <span>{t(id === 'home' ? 'nav.home' : id === 'progress' ? 'nav.progress' : 'nav.settings')}</span>
           </button>
         ))}
     </ControlDeck>

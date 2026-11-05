@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, markBackedUp, openAdd, openTargets, pageToday, tab } from './helpers';
+import { fresh, markBackedUp, openAdd, openTargets, pageToday, tab, openMealLog } from './helpers';
 
 /**
  * QA round 2 + Story 3: navigation (Today · Progress · Settings), UX-1 heading, UX-2 Today reset,
@@ -95,16 +95,17 @@ test.describe('393×793 (iPhone 15 Pro, default text)', () => {
   }
 });
 
-test('Nav (Story 3): Today · Progress · Settings; opens on Today; #/meals and #/history go to Today; #/targets is under Settings', async ({ page }) => {
-  await fresh(page);
+test('Nav (Story 5): Home · Progress · Settings; opens on Home; #/today and #/history go to the Meal log; #/targets is under Settings', async ({ page }) => {
+  await fresh(page, { at: 'home' });
   const nav = page.getByRole('navigation', { name: 'Main' });
-  await expect(nav.getByRole('button')).toHaveText(['Today', 'Progress', 'Settings']);
-  await expect(tab(page, 'Today')).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible();
-  for (const old of ['meals', 'history']) {
+  await expect(nav.getByRole('button')).toHaveText(['Home', 'Progress', 'Settings']);
+  await expect(tab(page, 'Home')).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'Philip', level: 1 })).toBeVisible();
+  for (const old of ['today', 'history']) {
     await page.goto(`./#/${old}`);
-    await expect(tab(page, 'Today')).toHaveAttribute('aria-current', 'page');
-    expect(page.url()).toMatch(/#\/today$/);
+    await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible();
+    await expect(tab(page, 'Home')).toHaveAttribute('aria-current', 'page');
+    expect(page.url()).toMatch(/#\/meals$/);
   }
   await page.goto('./#/targets');
   await expect(tab(page, 'Settings')).toHaveAttribute('aria-current', 'page');
@@ -112,7 +113,7 @@ test('Nav (Story 3): Today · Progress · Settings; opens on Today; #/meals and 
   await page.getByRole('button', { name: 'Back to Settings' }).click();
   await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
   // No floating QA button over the nutrition screens.
-  await tab(page, 'Today').click();
+  await openMealLog(page);
   await expect(page.getByRole('button', { name: 'Capture feedback' })).toHaveCount(0);
 });
 
@@ -138,8 +139,8 @@ test('UX-1: heading text on today, ±1 and +2 days (never repeats the date)', as
     await expect(head.getByRole('heading')).toHaveText(title);
     await expect(head.locator('.subtle')).toHaveText(sub);
   };
-  for (const where of ['Today'] as const) {
-    await tab(page, where).click();
+  {
+    await openMealLog(page);
     await check('Today', expected.today);
     await page.getByRole('button', { name: 'Next day' }).click();
     await check('Tomorrow', expected.tomorrow);
@@ -147,12 +148,12 @@ test('UX-1: heading text on today, ±1 and +2 days (never repeats the date)', as
     await check(expected.plus2Title, expected.plus2Sub);
     const sub = await head.locator('.subtle').innerText();
     expect(sub).not.toContain(expected.plus2Title);
-    await page.locator('.date-nav').screenshot({ path: `e2e/screenshots/375-r2-heading-plus2-${where.toLowerCase()}.png` });
+    await page.locator('.date-nav').screenshot({ path: `e2e/screenshots/375-r2-heading-plus2-meals.png` });
     await page.getByRole('button', { name: 'Previous day' }).click();
     await page.getByRole('button', { name: 'Previous day' }).click();
     await page.getByRole('button', { name: 'Previous day' }).click();
     await check('Yesterday', expected.yesterday);
-    await tab(page, 'Today').click();
+    await openMealLog(page);
   }
 });
 
@@ -163,13 +164,13 @@ test('UX-2: tapping Today resets the date — from another tab and when already 
   await expect(page.getByRole('heading', { name: 'Today' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Back to today' })).toHaveCount(0);
   // Already on Today: tapping it again resets.
-  await tab(page, 'Today').click();
+  await openMealLog(page);
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   // From another tab, the Today tab resets too.
   await page.getByRole('button', { name: 'Previous day' }).click();
   await expect(page.getByRole('heading', { name: 'Yesterday' })).toBeVisible();
   await tab(page, 'Progress').click();
-  await tab(page, 'Today').click();
+  await openMealLog(page);
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
 });
 

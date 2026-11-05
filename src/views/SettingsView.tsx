@@ -396,9 +396,9 @@ function UnitsSection() {
 
 function HelpSection() {
   const { navigate } = useUI();
-  // Clearing the flag makes App show Philip's tour again; it runs over Today, so go there.
+  // Clearing the flag makes App show Philip's tour again; it starts on Home.
   const replay = () => {
-    void setMeta(META.tutorialSeenAt, null).then(() => navigate('today'));
+    void setMeta(META.tutorialSeenAt, null).then(() => navigate('home'));
   };
   return (
     <section className="card stack" aria-labelledby="help-h">

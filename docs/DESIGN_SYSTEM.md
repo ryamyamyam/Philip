@@ -73,7 +73,8 @@ The old orange tokens (`--color-brand`, `-soft`) remain only for legacy fills. `
 | `ControlDeck` / `DeckActions` | `label` | the deck nav (TabBar) and the actions strip docked above it. Publishes `--deck-actions-h` |
 | `StatusStrip`, `CornerButton`, `DotIndicator` | — | date strip with half-circle prev/next buttons and week dots (decorative) |
 | `AmbientScene` | `variant: 'empty'|'analyzing'` | pixel-art world on an 80×30 grid with 1-cell outlines. Only for empty states, onboarding and the photo-analysis wait |
-| `Icon` | `name, label?` | pixel icons on a 12×12 grid (keep sizes at multiples of 12px) |
+| `.pm-cart` (CSS, Home) | button with `pm-cat-*` | Story 5 "cartridge": a big chamfered white screen with a category stripe on the left, label row (`.pm-cart-head`), big line (`.pm-cart-big`), small lines (`.pm-cart-sub`), optional meter. Meal log = coral, Workout = sky |
+| `Icon` | `name, label?` | pixel icons on a 12×12 grid (keep sizes at multiples of 12px). Story 5 adds `home` and `dumbbell` |
 
 Settings and Targets cards get the panel look through `.view-settings .card` / `.view-targets .card`: their first `h2` becomes the header bar. New screens should use `StatPanel` instead.
 

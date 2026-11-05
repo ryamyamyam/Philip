@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { fresh, noHorizontalScroll, tab } from './helpers';
+import { fresh, noHorizontalScroll, tab, openMealLog } from './helpers';
 
 const SHOT = 'public/icon-512.png';
 const SHOT2 = 'public/icon-192.png';
@@ -55,7 +55,7 @@ async function setGeminiKey(page: Page) {
   await tab(page, 'Settings').click();
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
   await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
-  await tab(page, 'Today').click();
+  await openMealLog(page);
 }
 
 const gemini = (data: unknown) => ({ json: { candidates: [{ content: { parts: [{ text: JSON.stringify(data) }] }, finishReason: 'STOP' }] } });
@@ -431,7 +431,7 @@ test('OBS-748382: a recognizer that never starts or ends can still be stopped', 
 });
 
 test('Story 3: no floating button; QA & Feedback opens from Settings and the app keeps working', async ({ page }) => {
-  for (const where of ['Today', 'Progress', 'Settings'] as const) {
+  for (const where of ['Home', 'Progress', 'Settings'] as const) {
     await tab(page, where).click();
     await expect(page.getByRole('button', { name: 'Capture feedback' })).toHaveCount(0);
   }

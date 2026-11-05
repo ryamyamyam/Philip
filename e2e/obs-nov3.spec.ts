@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, openTargets, tab } from './helpers';
+import { fresh, noHorizontalScroll, openTargets, tab, openMealLog } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await fresh(page);
@@ -48,7 +48,7 @@ test('OBS-E49D0F: set targets by PFC ratio; grams follow the calorie target and 
   await expect(form.getByLabel('Carbs (g)')).toHaveValue('225');
 
   // Today uses the saved grams.
-  await tab(page, 'Today').click();
+  await openMealLog(page);
   await expect(page.getByRole('main')).toContainText('150 g to go');
 });
 

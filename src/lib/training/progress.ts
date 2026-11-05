@@ -75,3 +75,26 @@ export function e1rmPoints(sessions: readonly WorkoutSession[], liftOf: (exercis
   }
   return pts.sort((a, b) => a.date.localeCompare(b.date));
 }
+
+/* ---------------- Home card (T-011) ---------------- */
+
+export type WorkoutCardState =
+  | { kind: 'setup' }
+  | { kind: 'briefing'; cycle: number }
+  | { kind: 'resume'; session: WorkoutSession }
+  | { kind: 'next'; cycle: number; week: Week; day: Day }
+  | { kind: 'cycleDone'; cycle: number };
+
+/** What the Workout card on Home shows, from stored records. */
+export function workoutCardState(
+  program: { currentCycle: number } | null,
+  sessions: readonly WorkoutSession[],
+): WorkoutCardState {
+  if (!program) return { kind: 'setup' };
+  if (program.currentCycle < 1) return { kind: 'briefing', cycle: 1 };
+  const open = inProgress(sessions);
+  if (open) return { kind: 'resume', session: open };
+  const next = nextSessionRef(sessions, program.currentCycle);
+  if (!next) return { kind: 'cycleDone', cycle: program.currentCycle };
+  return { kind: 'next', cycle: program.currentCycle, week: next.week, day: next.day };
+}

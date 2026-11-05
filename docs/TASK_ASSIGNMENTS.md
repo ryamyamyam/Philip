@@ -14,11 +14,21 @@ Base branch for new work: `main`.
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
+| T-011 | Story 5 Home hub + navigation (Home · Progress · Settings; Meal log and Workout from Home; tour starts on Home) | Core | Phase A — screenshots for owner review | `feat/T-011-home` | T-012 (`d535ce9`) |
 | T-012 | Story 5 training engine + data (Dexie v4, `lib/training/*`, backup block) | Core | Ready for review (no UI) | `feat/T-012-training-engine` | T-010 commit `8a70d20` |
 | T-010 | Philip's guided tutorial (NDS-style): overlay, spotlight, typewriter, pixel portrait, replay from Settings | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-010-tutorial` | T-009 (in `main`) |
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-011 — Story 5 Home hub and navigation
+- **Role:** Core. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §2, §3, §9 (tutorial).
+- **Files:** `src/hooks/useRoute.ts`, `src/App.tsx`, `src/components/{TabBar,Icon,TutorialOverlay}.tsx`, `src/views/{HomeView,WorkoutView}.tsx` (new; Workout is a placeholder for T-013/T-014), `src/views/SettingsView.tsx` (Replay → Home), `src/lib/tutorial.ts`, `src/lib/training/progress.ts` (`workoutCardState`), `src/qaFeedback.config.ts`, `src/styles/{today,components,global}.css`, `src/i18n/en.ts`, e2e helpers/specs.
+- **Routes:** `#/home` (default; empty/unknown → Home), `#/meals` (the former Today screen), `#/workout`, `#/workout/plan`, `#/progress`, `#/settings`, `#/targets`. Redirects `#/today`, `#/history` → `#/meals`. Tab bar Home · Progress · Settings; Meal log/Workout highlight Home. No photo shortcut on Home (owner).
+- **Tour:** steps carry a `screen`; it starts on Home (both cartridges, phase chip), then walks into the Meal log (first Meal-log line has no anchor while the screen loads).
+- **Also:** font ligatures off app-wide (`body { font-variant-ligatures: none }`): Pixelify's "fi" drew as "A" in new copy ("Protein first"). e2e `fresh()` now lands on the Meal log unless `{ at: 'home' }`; `openMealLog()` helper replaces the old Today tab.
+- **Status:** Phase A for review · **Branch:** `feat/T-011-home` from `d535ce9`.
+- **Log:** 2026-11-05 Core: built in a Cowork cloud clone (byte-identical tree to the worktree). tsc clean, 270/270 unit, build OK, Chromium e2e 72/72 (+6: `home.spec.ts`, tour-on-Home). Home fits 393×793 with no scroll, no horizontal scroll at 375/393/440. The Mac's node_modules are macOS builds now, so the Linux VM can't run vitest there.
 
 ### T-012 — Story 5 training engine and data (D-025)
 - **Role:** Core. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §4, §8, Appendix A.

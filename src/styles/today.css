@@ -740,3 +740,105 @@
 .today-card .today-hint .pm-dialog-text {
   flex: 1 1 100%;
 }
+
+/* ---------- Home (Story 5, T-011) ---------- */
+.home-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: var(--touch);
+  justify-content: center;
+}
+.home-title h1 {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-tight);
+}
+.home-title .subtle {
+  font-size: var(--text-xs);
+}
+.home-phase {
+  flex: none;
+  min-height: var(--touch);
+  padding-inline: var(--space-3);
+  border: none;
+  font: inherit;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.home-goal {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+}
+/* Cartridge: a big chamfered button in a category color with a white screen inside. */
+.pm-cart {
+  --pm-c: var(--chamfer-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: calc(var(--touch) * 2.5);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  clip-path: var(--pm-chamfer);
+  background-color: var(--color-surface);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 var(--space-0-5),
+    var(--color-screen-stripe) var(--space-0-5) var(--space-1)
+  );
+  box-shadow:
+    inset var(--space-2) 0 0 var(--pm-cat),
+    var(--shadow-inset-frame);
+  padding-left: calc(var(--space-2) + var(--space-4));
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-snap);
+}
+.pm-cart:active {
+  transform: translateY(var(--space-0-5));
+}
+.pm-cart:focus-visible {
+  outline: var(--border-thick) solid var(--color-focus);
+  outline-offset: var(--space-0-5);
+}
+.pm-cart-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.pm-cart-label {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: var(--display-tracking-num);
+}
+.pm-cart-head .pm-pill {
+  margin-left: auto;
+}
+.pm-cart-big {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-tight);
+}
+.pm-cart-sub {
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+}
+.pm-cart-meter {
+  display: block;
+}
+.pm-cart-head svg {
+  width: 24px;
+  height: 24px;
+  color: var(--pm-cat);
+}
+.pm-cart-label {
+  min-width: 0;
+}

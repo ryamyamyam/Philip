@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dayHeading } from './format';
-import { resolveHash } from '../hooks/useRoute';
+import { resolveHash, TAB_FOR, TABS } from '../hooks/useRoute';
 
 describe('UX-1 date heading never repeats itself', () => {
   const today = '2026-11-01'; // a Sunday
@@ -17,15 +17,22 @@ describe('UX-1 date heading never repeats itself', () => {
   });
 });
 
-describe('navigation routes', () => {
-  it('maps the three tabs + Targets page and redirects the old History/Meals routes', () => {
-    expect(resolveHash('#/today')).toEqual({ tab: 'today', redirected: false });
-    expect(resolveHash('#/meals')).toEqual({ tab: 'today', redirected: true });
+describe('navigation routes (Story 5)', () => {
+  it('opens on Home; Meal log, Workout and Plan are routes; old Today/History go to the Meal log', () => {
+    expect(resolveHash('')).toEqual({ tab: 'home', redirected: false });
+    expect(resolveHash('#/home')).toEqual({ tab: 'home', redirected: false });
+    expect(resolveHash('#/meals')).toEqual({ tab: 'meals', redirected: false });
+    expect(resolveHash('#/today')).toEqual({ tab: 'meals', redirected: true });
+    expect(resolveHash('#/history')).toEqual({ tab: 'meals', redirected: true });
+    expect(resolveHash('#/workout')).toEqual({ tab: 'workout', redirected: false });
+    expect(resolveHash('#/workout/plan')).toEqual({ tab: 'workoutPlan', redirected: false });
     expect(resolveHash('#/progress')).toEqual({ tab: 'progress', redirected: false });
     expect(resolveHash('#/settings')).toEqual({ tab: 'settings', redirected: false });
-    expect(resolveHash('#/history')).toEqual({ tab: 'today', redirected: true });
     expect(resolveHash('#/targets')).toEqual({ tab: 'targets', redirected: false });
-    expect(resolveHash('')).toEqual({ tab: 'today', redirected: false });
-    expect(resolveHash('#/nope')).toEqual({ tab: 'today', redirected: false });
+    expect(resolveHash('#/nope')).toEqual({ tab: 'home', redirected: false });
+  });
+  it('highlights Home for its sections and Settings for Targets', () => {
+    expect([TAB_FOR.meals, TAB_FOR.workout, TAB_FOR.workoutPlan, TAB_FOR.targets]).toEqual(['home', 'home', 'home', 'settings']);
+    expect(TABS).toEqual(['home', 'progress', 'settings']);
   });
 });

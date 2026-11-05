@@ -8,13 +8,13 @@ const ids = (ctx: { hasTarget: boolean; hasKey: boolean }) => stepsFor(ctx).map(
 describe('stepsFor', () => {
   it('with a target and no key: fuel, protein, dialog and the key step, no choice step', () => {
     expect(ids({ hasTarget: true, hasKey: false })).toEqual([
-      'hello', 'what', 'fuel', 'protein', 'photo', 'type', 'dialog', 'progress', 'key', 'bye',
+      'hello', 'what', 'homeMeals', 'homeWorkout', 'phase', 'mealsIntro', 'fuel', 'protein', 'photo', 'type', 'dialog', 'progress', 'key', 'bye',
     ]);
   });
 
   it('with no target: the choice step replaces the target steps', () => {
     expect(ids({ hasTarget: false, hasKey: false })).toEqual([
-      'hello', 'what', 'noTarget', 'photo', 'type', 'progress', 'key', 'bye',
+      'hello', 'what', 'homeMeals', 'homeWorkout', 'phase', 'mealsIntro', 'noTarget', 'photo', 'type', 'progress', 'key', 'bye',
     ]);
   });
 
@@ -37,6 +37,16 @@ describe('stepsFor', () => {
     const withChoices = TUTORIAL_STEPS.filter((s) => s.choices);
     expect(withChoices.map((s) => s.id)).toEqual(['noTarget']);
     expect(withChoices[0]?.choices).toEqual(['setTargets', 'later']);
+  });
+});
+
+describe('screens (Story 5)', () => {
+  it('starts on Home, then moves to the Meal log once, with an anchor-less first line there', () => {
+    const screens = TUTORIAL_STEPS.map((s) => s.screen);
+    const firstMeals = screens.indexOf('meals');
+    expect(screens.slice(0, firstMeals).every((s) => s === 'home')).toBe(true);
+    expect(screens.slice(firstMeals).every((s) => s === 'meals')).toBe(true);
+    expect(TUTORIAL_STEPS[firstMeals]?.anchor).toBeNull();
   });
 });
 

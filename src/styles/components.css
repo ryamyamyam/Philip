@@ -19,6 +19,7 @@
 .pm-action,
 .pm-pill,
 .pm-hero,
+.pm-cart,
 .btn {
   --pm-chamfer: polygon(
     var(--pm-c) 0,

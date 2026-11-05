@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react';
 import { t } from '../i18n';
-import { stepsFor, type TourChoice, type TourContext } from '../lib/tutorial';
+import { stepsFor, type TourChoice, type TourContext, type TourScreen } from '../lib/tutorial';
 import { GymCharacter } from './GymCharacter';
 import { prefersReducedMotion, useTypewriter } from './useTypewriter';
 
@@ -21,7 +21,18 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), [tabin
  * talks in a bottom dialog box with his portrait. Tap (or Next / Enter / Space) finishes the line,
  * then advances; Skip or Escape ends it. Never changes data — the caller records the end.
  */
-export function TutorialOverlay({ ctx, onEnd }: { ctx: TourContext; onEnd: (how: TourEnd) => void }) {
+export function TutorialOverlay({
+  ctx,
+  onEnd,
+  screen,
+  onScreen,
+}: {
+  ctx: TourContext;
+  onEnd: (how: TourEnd) => void;
+  /** The screen showing now; when a step belongs to another one, `onScreen` is asked to go there. */
+  screen?: TourScreen;
+  onScreen?: (screen: TourScreen) => void;
+}) {
   const steps = useMemo(() => stepsFor(ctx), [ctx]);
   const [index, setIndex] = useState(0);
   const step = steps[Math.min(index, steps.length - 1)];
@@ -47,6 +58,13 @@ export function TutorialOverlay({ ctx, onEnd }: { ctx: TourContext; onEnd: (how:
 
   const choose = (c: TourChoice) => (c === 'setTargets' ? onEnd('setTargets') : next());
 
+  // Steps say which screen they run on (Story 5): walk there before pointing at anything.
+  const stepScreen = step?.screen;
+  const onWrongScreen = !!(screen && stepScreen && screen !== stepScreen);
+  useEffect(() => {
+    if (onWrongScreen && stepScreen) onScreen?.(stepScreen);
+  }, [onWrongScreen, stepScreen, onScreen]);
+
   // Focus moves in on open and goes back to Today on close.
   useEffect(() => {
     returnTo.current = document.activeElement;
@@ -67,6 +85,10 @@ export function TutorialOverlay({ ctx, onEnd }: { ctx: TourContext; onEnd: (how:
   useLayoutEffect(() => {
     setPlaceTop(false);
     const anchor = step?.anchor;
+    if (onWrongScreen) {
+      setSpot(null);
+      return;
+    }
     if (!anchor) {
       setSpot(null);
       return;
@@ -98,7 +120,7 @@ export function TutorialOverlay({ ctx, onEnd }: { ctx: TourContext; onEnd: (how:
       window.removeEventListener('scroll', measure, true);
       ro?.disconnect();
     };
-  }, [step]);
+  }, [step, onWrongScreen]);
 
   // The dialog never covers the spotlit element: if it would, it moves to the top of the screen.
   useLayoutEffect(() => {

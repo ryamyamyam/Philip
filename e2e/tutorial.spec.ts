@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, setManualTargets, skipTour, tab, tour } from './helpers';
+import { fresh, noHorizontalScroll, setManualTargets, skipTour, tab, tour, openMealLog } from './helpers';
 
 /** The full current line (the visually hidden live region; the typed copy is aria-hidden). */
 const line = (page: Page) => tour(page).locator('[aria-live="polite"]');
@@ -7,8 +7,10 @@ const step = (page: Page) => tour(page).getAttribute('data-step');
 /** Untyped rest of the line; empty once the line is complete. */
 const rest = (page: Page) => tour(page).locator('.pm-tour-rest');
 const next = (page: Page) => tour(page).getByRole('button', { name: 'Next' });
+/** Story 5: the tour starts on Home, then walks into the Meal log. */
+const HOME_STEPS = ['hello', 'what', 'homeMeals', 'homeWorkout', 'phase', 'mealsIntro'] as const;
 
-test.describe('Philip’s tour (T-010)', () => {
+test.describe('Philip’s tour (T-010, Story 5)', () => {
   test('fresh install starts the tour on Today with line 1', async ({ page }) => {
     await fresh(page, { tour: true });
     await expect(tour(page)).toBeVisible();
@@ -28,7 +30,7 @@ test.describe('Philip’s tour (T-010)', () => {
 
   test('no target: the choice step offers Set targets, which opens targets and ends the tour', async ({ page }) => {
     await fresh(page, { tour: true });
-    for (const id of ['hello', 'what']) {
+    for (const id of HOME_STEPS) {
       await expect.poll(() => step(page)).toBe(id);
       await next(page).click(); // finish typing
       await next(page).click(); // advance
@@ -39,7 +41,7 @@ test.describe('Philip’s tour (T-010)', () => {
     await expect(tour(page)).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
     await page.reload();
-    await tab(page, 'Today').click();
+    await openMealLog(page);
     await expect(tour(page)).toHaveCount(0);
   });
 
@@ -50,6 +52,25 @@ test.describe('Philip’s tour (T-010)', () => {
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
     await page.waitForTimeout(500);
     await expect(tour(page)).toHaveCount(0);
+  });
+
+  test('starts on Home, spotlights both cartridges and the phase chip, then walks into the Meal log', async ({ page }) => {
+    await fresh(page, { tour: true });
+    await expect(tab(page, 'Home')).toHaveAttribute('aria-current', 'page');
+    for (const id of ['hello', 'what']) {
+      await expect.poll(() => step(page)).toBe(id);
+      await next(page).click();
+      await next(page).click();
+    }
+    for (const id of ['homeMeals', 'homeWorkout', 'phase']) {
+      await expect.poll(() => step(page)).toBe(id);
+      await expect(tour(page).locator('.pm-tour-spot')).toBeVisible();
+      await next(page).click();
+      await next(page).click();
+    }
+    await expect.poll(() => step(page)).toBe('mealsIntro');
+    await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible();
+    expect(page.url()).toMatch(/#\/meals$/);
   });
 
   test('Escape skips', async ({ page }) => {
@@ -67,7 +88,7 @@ test.describe('Philip’s tour (T-010)', () => {
     await page.getByRole('button', { name: 'Replay tutorial' }).click();
     await expect(tour(page)).toBeVisible();
     expect(await step(page)).toBe('hello');
-    for (const id of ['hello', 'what']) {
+    for (const id of HOME_STEPS) {
       await expect.poll(() => step(page)).toBe(id);
       await next(page).click();
       await next(page).click();

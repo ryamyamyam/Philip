@@ -1,16 +1,67 @@
+import { CornerButton } from '../components/CornerButton';
 import { DialogBar } from '../components/DialogBar';
 import { GymCharacter } from '../components/GymCharacter';
-import { CornerButton } from '../components/CornerButton';
 import { StatusStrip } from '../components/StatusStrip';
+import {
+  useCycles,
+  useProfile,
+  useSlotChoices,
+  useTmHistory,
+  useTrainingProgram,
+  useWeightEntries,
+  useWorkoutSessions,
+} from '../hooks/useData';
 import { t } from '../i18n';
+import type { ExerciseId } from '../lib/training/exercises';
+import { workoutCardState } from '../lib/training/progress';
 import { useUI } from '../ui';
+import { SessionView } from './workout/SessionView';
+import { SetupView } from './workout/SetupView';
+import { StartCycleView } from './workout/StartCycleView';
 
 /**
- * Workout section (Story 5). T-011 ships the route and the frame; Today's session (T-013) and the
- * cycle plan with the goal briefing (T-014) fill it in.
+ * Workout section (Story 5). Setup → cycle start → today's session (T-013). The cycle plan and the
+ * full goal briefing arrive with T-014; `plan` shows a placeholder until then.
  */
 export default function WorkoutView({ plan = false }: { plan?: boolean }) {
   const { navigate } = useUI();
+  const program = useTrainingProgram();
+  const sessions = useWorkoutSessions();
+  const cycles = useCycles();
+  const tmHistory = useTmHistory();
+  const choices = useSlotChoices();
+  const profile = useProfile();
+  const weights = useWeightEntries();
+  const loaded = program !== undefined && sessions && cycles && tmHistory && choices && profile && weights;
+
+  let body: React.ReactNode = null;
+  if (plan) {
+    body = (
+      <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose="phone" framing="bust" scale={2} className="pm-dialog-portrait" />}>
+        {t('workout.comingSoon')}
+      </DialogBar>
+    );
+  } else if (loaded) {
+    const state = workoutCardState(program, sessions);
+    const cycle = cycles.find((c) => c.index === program?.currentCycle) ?? null;
+    const choiceMap = Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>;
+    if (!program || state.kind === 'setup') body = <SetupView />;
+    else if (state.kind === 'briefing' || state.kind === 'cycleDone' || !cycle) {
+      body = <StartCycleView profile={profile} weights={weights} cycles={cycles} sessions={sessions} tmHistory={tmHistory} />;
+    } else {
+      body = (
+        <SessionView
+          program={program}
+          cycle={cycle}
+          sessions={sessions}
+          tmHistory={tmHistory}
+          choices={choiceMap}
+          open={state.kind === 'resume' ? state.session : null}
+        />
+      );
+    }
+  }
+
   return (
     <div className="view view-workout">
       <StatusStrip
@@ -20,17 +71,15 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
             <h1 className="pm-display">{t(plan ? 'workout.planTitle' : 'workout.title')}</h1>
           </div>
         }
+        right={
+          !plan && program ? (
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => navigate('workoutPlan')}>
+              {t('workout.openPlan')}
+            </button>
+          ) : undefined
+        }
       />
-      <div className="stack">
-        <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose="phone" framing="bust" scale={2} className="pm-dialog-portrait" />}>
-          {t('workout.comingSoon')}
-        </DialogBar>
-        {!plan && (
-          <button type="button" className="btn btn-secondary btn-block" onClick={() => navigate('workoutPlan')}>
-            {t('workout.openPlan')}
-          </button>
-        )}
-      </div>
+      {body}
     </div>
   );
 }

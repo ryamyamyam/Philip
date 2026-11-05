@@ -202,6 +202,8 @@ export interface SessionExercise {
   prescription: Prescribed[];
   /** The owner's log. */
   actual: ActualSet[];
+  /** The owner skipped this exercise today (its sets stay unlogged). */
+  skipped?: boolean;
 }
 
 export type SessionStatus = 'in_progress' | 'done' | 'skipped';

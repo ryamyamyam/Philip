@@ -4,7 +4,19 @@
  * or skipped. Missing a calendar day never skips or resets anything.
  */
 import type { TmRecord, WorkoutSession } from '../../db/types';
-import { epley, EPLEY_MAX_REPS, isKeySet, LIFTS, type Day, type LiftId, type Week } from './program';
+import {
+  cycleOutcome,
+  DAY_LIFT,
+  epley,
+  EPLEY_MAX_REPS,
+  isKeySet,
+  LIFTS,
+  type CycleOutcome,
+  type Day,
+  type LiftId,
+  type LoggedMainSet,
+  type Week,
+} from './program';
 
 /** TM per lift for a cycle: the latest record (by createdAt) with effectiveCycle ≤ cycle. Missing lift → null. */
 export function tmsForCycle(records: readonly TmRecord[], cycle: number): Record<LiftId, number | null> {
@@ -97,4 +109,29 @@ export function workoutCardState(
   const next = nextSessionRef(sessions, program.currentCycle);
   if (!next) return { kind: 'cycleDone', cycle: program.currentCycle };
   return { kind: 'next', cycle: program.currentCycle, week: next.week, day: next.day };
+}
+
+/* ---------------- Cycle results (TM progression at the next cycle) ---------------- */
+
+/** Each lift's outcome in a cycle, from the main-lift sets of its sessions (§4.5). */
+export function cycleOutcomes(sessions: readonly WorkoutSession[], cycle: number): Record<LiftId, CycleOutcome> {
+  const sets: Record<LiftId, LoggedMainSet[]> = { squat: [], bench: [], rdl: [], ohp: [] };
+  for (const s of sessions) {
+    if (s.cycle !== cycle || s.status !== 'done') continue;
+    for (const ex of s.exercises) {
+      if (ex.slot !== 'main') continue;
+      const lift = DAY_LIFT[s.day];
+      for (const a of ex.actual) {
+        const p = ex.prescription.find((x) => x.order === a.order);
+        if (!p || p.kind === 'accessory') continue;
+        sets[lift].push({ kind: p.kind, targetReps: p.repMin, actualReps: a.reps, done: a.done, pain: a.pain });
+      }
+    }
+  }
+  return {
+    squat: cycleOutcome(sets.squat),
+    bench: cycleOutcome(sets.bench),
+    rdl: cycleOutcome(sets.rdl),
+    ohp: cycleOutcome(sets.ohp),
+  };
 }

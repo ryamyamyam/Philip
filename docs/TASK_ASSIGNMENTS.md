@@ -14,12 +14,20 @@ Base branch for new work: `main`.
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
+| T-013 | Story 5 setup, cycle start (minimum briefing) and Today's session | Feature | Phase A — screenshots for owner review | `feat/T-013-session` | T-011 (`7668646`) |
 | T-011 | Story 5 Home hub + navigation (Home · Progress · Settings; Meal log and Workout from Home; tour starts on Home) | Core | Phase A — screenshots for owner review | `feat/T-011-home` | T-012 (`d535ce9`) |
 | T-012 | Story 5 training engine + data (Dexie v4, `lib/training/*`, backup block) | Core | Ready for review (no UI) | `feat/T-012-training-engine` | T-010 commit `8a70d20` |
 | T-010 | Philip's guided tutorial (NDS-style): overlay, spotlight, typewriter, pixel portrait, replay from Settings | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-010-tutorial` | T-009 (in `main`) |
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-013 — Story 5 setup and Today's session
+- **Role:** Feature. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §4.1, §4.7, §5.
+- **Files:** `src/views/WorkoutView.tsx` (router: setup → cycle start → session), `src/views/workout/{SetupView,StartCycleView,SessionView,ExerciseCard,units}.tsx|ts` (new), `src/lib/training/sessionLog.ts` + test (new), `src/lib/training/progress.ts` (`cycleOutcomes`), `src/db/{types,repo}.ts` (`SessionExercise.skipped`; autosave keeps frozen orders unless the slot was swapped), `trainingBackup.ts` (`skipped`), `src/styles/workout.css` (new, imported in `main.tsx`), `src/i18n/en.ts`, `e2e/workout.spec.ts` (new), `e2e/helpers.ts` (`seedWeights`).
+- **Built:** setup (1RM or weight × reps per lift, kg/lb, e1RM + TM shown, blank → calibration; bar + plate unit); minimum cycle start (Philip's §4.8 goal, needs 3 weigh-ins in 7 days, applies last cycle's TM progression; "Set my own" and the target plan come with T-014); start screen (day preview, minutes, Start / Skip this day); calibration card for a lift with no TM; live session (orders read-only with plate line in both units, YOUR LIFT inputs empty with placeholders, As ordered, Done needs reps + weight, + sets need typed reps, rest timer bar, elapsed vs estimate, 45-min nudge, Swap from approved options with sticky pick, Skip, Note, Hurts → plain-text stop); autosave/resume; finish summary (sets, time, e1RM, PR, miss, pain).
+- **Status:** Phase A for review · **Branch:** `feat/T-013-session` from `7668646`.
+- **Log:** 2026-11-05 Feature: built in the Cowork cloud clone (byte-identical tree). tsc clean, 278/278 unit (+8), build OK, Chromium e2e 75/75 (+3 `workout.spec.ts`). Screenshots: setup, briefing, live session.
 
 ### T-011 — Story 5 Home hub and navigation
 - **Role:** Core. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §2, §3, §9 (tutorial).

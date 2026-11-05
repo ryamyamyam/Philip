@@ -132,3 +132,23 @@ export function pageToday(page: Page): Promise<string> {
 export function tab(page: Page, name: 'Home' | 'Progress' | 'Settings') {
   return page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true });
 }
+
+/** Writes weigh-ins straight into IndexedDB (n days back from today). Test data only. */
+export async function seedWeights(page: Page, kgs: number[]) {
+  await page.evaluate(async (list) => {
+    const db = await new Promise<IDBDatabase>((res, rej) => {
+      const r = indexedDB.open('philip');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    const tx = db.transaction('weightEntries', 'readwrite');
+    list.forEach((kg, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      tx.objectStore('weightEntries').put({ date: ymd, weightKg: kg, createdAt: 1, updatedAt: 1 });
+    });
+    await new Promise((res) => (tx.oncomplete = res));
+    db.close();
+  }, kgs);
+}

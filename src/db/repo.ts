@@ -374,8 +374,12 @@ export function allCycles(database: PhilipDB = db): Promise<CycleRecord[]> {
 export async function saveWorkoutSession(session: WorkoutSession, database: PhilipDB = db): Promise<void> {
   const existing = await database.workoutSessions.get(session.id);
   if (existing) {
-    // The frozen orders win: callers can only change the log, notes, swaps and status.
-    const exercises = session.exercises.map((e, i) => ({ ...e, prescription: existing.exercises[i]?.prescription ?? e.prescription }));
+    // The frozen orders win: callers can only change the log, notes, swaps and status. A swap (new
+    // exercise in the slot, chosen from Philip's approved list) brings that exercise's own orders.
+    const exercises = session.exercises.map((e, i) => {
+      const old = existing.exercises[i];
+      return { ...e, prescription: old && old.exerciseId === e.exerciseId ? old.prescription : e.prescription };
+    });
     await database.workoutSessions.put({ ...session, exercises });
   } else {
     await database.workoutSessions.put(session);

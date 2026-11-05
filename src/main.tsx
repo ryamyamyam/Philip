@@ -4,6 +4,7 @@ import './styles/global.css';
 import './styles/components.css';
 import './styles/today.css';
 import './styles/views.css';
+import './styles/workout.css';
 import './styles/qa-theme.css';
 import { App } from './App';
 import { initDatabase } from './db/db';

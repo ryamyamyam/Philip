@@ -19,8 +19,7 @@ test.describe('Home (Story 5, T-011)', () => {
     await home(page).getByRole('button', { name: /^Workout/ }).click();
     await expect(page.getByRole('heading', { name: 'Workout', level: 1 })).toBeVisible();
     expect(page.url()).toMatch(/#\/workout$/);
-    await page.getByRole('button', { name: 'Cycle plan' }).click();
-    expect(page.url()).toMatch(/#\/workout\/plan$/);
+    await expect(page.getByRole('heading', { name: 'Your lifts' })).toBeVisible();
     await page.getByRole('button', { name: 'Back to Home' }).click();
     await expect(page.getByRole('heading', { name: 'Philip', level: 1 })).toBeVisible();
   });

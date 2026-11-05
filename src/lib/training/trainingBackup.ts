@@ -188,6 +188,7 @@ function exercise(x: unknown, path: string): SessionExercise {
     note: o.note == null ? '' : str(o, 'note', path, 1000),
     prescription: list(o.prescription, `${path}.prescription`).map((s, i) => prescribed(s, `${path}.prescription[${i}]`)),
     actual: list(o.actual, `${path}.actual`).map((s, i) => actual(s, `${path}.actual[${i}]`)),
+    ...(o.skipped === true ? { skipped: true } : {}),
   };
 }
 

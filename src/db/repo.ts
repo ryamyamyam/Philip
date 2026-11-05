@@ -1,6 +1,22 @@
 /** Data access functions. UI components call these instead of touching tables directly. */
 import { db, newId, defaultProfile, type PhilipDB } from './db';
-import type { FoodEntry, Macros, Meal, Profile, SavedFood, SavedMeal, SavedMealItem, TargetPlan, WeightEntry, YMD } from './types';
+import type {
+  CycleRecord,
+  FoodEntry,
+  Macros,
+  Meal,
+  Profile,
+  SavedFood,
+  SavedMeal,
+  SavedMealItem,
+  TargetPlan,
+  TmRecord,
+  TrainingProgram,
+  WeightEntry,
+  WorkoutSession,
+  YMD,
+} from './types';
+import type { LiftId } from '../lib/training/program';
 import { roundMacros } from '../lib/nutrition';
 
 export type NewFoodEntry = Omit<FoodEntry, 'id' | 'createdAt' | 'updatedAt'>;
@@ -289,3 +305,104 @@ export const META = {
   /** T-010: when Philip's tour was finished or skipped (ms). null = show it (Settings › Replay sets null). Not in backups. */
   tutorialSeenAt: 'tutorialSeenAt',
 } as const;
+
+/* ---------------- Training (Story 5, T-012) ---------------- */
+
+/** The training program row, or undefined before setup. */
+export function getTrainingProgram(database: PhilipDB = db): Promise<TrainingProgram | undefined> {
+  return database.trainingProgram.get('me');
+}
+
+/**
+ * Setup: creates (or updates) the program and records each entered TM as a `setup` row. Lifts left
+ * out get Calibration in their first session. The first cycle starts with the goal briefing.
+ */
+export async function setUpTraining(
+  input: { bar: TrainingProgram['bar']; weightUnit: TrainingProgram['weightUnit']; tms: Partial<Record<LiftId, number>> },
+  database: PhilipDB = db,
+): Promise<void> {
+  const now = Date.now();
+  await database.transaction('rw', [database.trainingProgram, database.tmHistory], async () => {
+    const existing = await database.trainingProgram.get('me');
+    await database.trainingProgram.put({
+      id: 'me',
+      startedAt: existing?.startedAt ?? now,
+      bar: input.bar,
+      weightUnit: input.weightUnit,
+      unavailableEquipment: existing?.unavailableEquipment ?? [],
+      currentCycle: existing?.currentCycle ?? 0,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    });
+    const cycle = Math.max(1, existing?.currentCycle ?? 1);
+    for (const lift of Object.keys(input.tms) as LiftId[]) {
+      const tmKg = input.tms[lift];
+      if (tmKg != null) await database.tmHistory.add({ lift, tmKg, effectiveCycle: cycle, reason: 'setup', createdAt: now });
+    }
+  });
+}
+
+export async function updateTrainingProgram(
+  changes: Partial<Omit<TrainingProgram, 'id' | 'createdAt'>>,
+  database: PhilipDB = db,
+): Promise<void> {
+  await database.trainingProgram.update('me', { ...changes, updatedAt: Date.now() });
+}
+
+/** Appends a TM row (cycle progression, miss, pain hold or re-test). TM history is never edited. */
+export async function addTm(record: Omit<TmRecord, 'id' | 'createdAt'>, database: PhilipDB = db): Promise<number> {
+  return (await database.tmHistory.add({ ...record, createdAt: Date.now() })) as number;
+}
+
+export function allTmHistory(database: PhilipDB = db): Promise<TmRecord[]> {
+  return database.tmHistory.orderBy('effectiveCycle').toArray();
+}
+
+/** Starts a cycle after the briefing: snapshots phase, TMs and goal, and moves the program to it. */
+export async function startCycle(record: CycleRecord, database: PhilipDB = db): Promise<void> {
+  await database.transaction('rw', [database.cycles, database.trainingProgram], async () => {
+    await database.cycles.put(record);
+    await database.trainingProgram.update('me', { currentCycle: record.index, updatedAt: Date.now() });
+  });
+}
+
+export function allCycles(database: PhilipDB = db): Promise<CycleRecord[]> {
+  return database.cycles.orderBy('index').toArray();
+}
+
+/** Saves a session (autosave on every input). Orders are written once at creation and never changed here. */
+export async function saveWorkoutSession(session: WorkoutSession, database: PhilipDB = db): Promise<void> {
+  const existing = await database.workoutSessions.get(session.id);
+  if (existing) {
+    // The frozen orders win: callers can only change the log, notes, swaps and status.
+    const exercises = session.exercises.map((e, i) => ({ ...e, prescription: existing.exercises[i]?.prescription ?? e.prescription }));
+    await database.workoutSessions.put({ ...session, exercises });
+  } else {
+    await database.workoutSessions.put(session);
+  }
+}
+
+export function allWorkoutSessions(database: PhilipDB = db): Promise<WorkoutSession[]> {
+  return database.workoutSessions.orderBy('date').toArray();
+}
+
+/** Owner's sticky swap for a menu slot. Only approved swaps are honoured when sessions are built. */
+export async function setSlotChoice(slotKey: string, exerciseId: string, database: PhilipDB = db): Promise<void> {
+  await database.slotChoices.put({ slotKey, exerciseId, chosenAt: Date.now() });
+}
+
+export async function slotChoiceMap(database: PhilipDB = db): Promise<Record<string, string>> {
+  return Object.fromEntries((await database.slotChoices.toArray()).map((c) => [c.slotKey, c.exerciseId]));
+}
+
+/** Reset program: removes the program, TMs, cycles and swaps; session logs are kept (spec §7). */
+export async function resetTrainingProgram(database: PhilipDB = db): Promise<void> {
+  await database.transaction('rw', [database.trainingProgram, database.tmHistory, database.cycles, database.slotChoices], async () => {
+    await Promise.all([
+      database.trainingProgram.clear(),
+      database.tmHistory.clear(),
+      database.cycles.clear(),
+      database.slotChoices.clear(),
+    ]);
+  });
+}

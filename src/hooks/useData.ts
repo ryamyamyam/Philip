@@ -1,6 +1,19 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import type { FoodEntry, Profile, SavedFood, SavedMeal, TargetPlan, WeightEntry, YMD } from '../db/types';
+import type {
+  CycleRecord,
+  FoodEntry,
+  Profile,
+  SavedFood,
+  SavedMeal,
+  SlotChoice,
+  TargetPlan,
+  TmRecord,
+  TrainingProgram,
+  WeightEntry,
+  WorkoutSession,
+  YMD,
+} from '../db/types';
 import { allSavedMeals, getMeta, META } from '../db/repo';
 
 export function useEntriesForDate(date: YMD): FoodEntry[] | undefined {
@@ -46,4 +59,31 @@ export function useWeightEntries(): WeightEntry[] | undefined {
 
 export function useSavedMeals(): SavedMeal[] | undefined {
   return useLiveQuery(() => allSavedMeals(), []);
+}
+
+/* ---------------- Training (Story 5) ---------------- */
+
+/** The training program; null before setup. */
+export function useTrainingProgram(): TrainingProgram | null | undefined {
+  return useLiveQuery(async () => (await db.trainingProgram.get('me')) ?? null, []);
+}
+
+export function useTmHistory(): TmRecord[] | undefined {
+  return useLiveQuery(() => db.tmHistory.toArray(), []);
+}
+
+export function useCycles(): CycleRecord[] | undefined {
+  return useLiveQuery(() => db.cycles.orderBy('index').toArray(), []);
+}
+
+export function useWorkoutSessions(): WorkoutSession[] | undefined {
+  return useLiveQuery(() => db.workoutSessions.orderBy('date').toArray(), []);
+}
+
+export function useWorkoutSession(id: string | undefined): WorkoutSession | null | undefined {
+  return useLiveQuery(async () => (id ? ((await db.workoutSessions.get(id)) ?? null) : null), [id]);
+}
+
+export function useSlotChoices(): SlotChoice[] | undefined {
+  return useLiveQuery(() => db.slotChoices.toArray(), []);
 }

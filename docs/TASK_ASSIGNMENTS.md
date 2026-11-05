@@ -14,10 +14,18 @@ Base branch for new work: `main`.
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
+| T-012 | Story 5 training engine + data (Dexie v4, `lib/training/*`, backup block) | Core | Ready for review (no UI) | `feat/T-012-training-engine` | T-010 commit `8a70d20` |
 | T-010 | Philip's guided tutorial (NDS-style): overlay, spotlight, typewriter, pixel portrait, replay from Settings | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-010-tutorial` | T-009 (in `main`) |
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-012 — Story 5 training engine and data (D-025)
+- **Role:** Core. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §4, §8, Appendix A.
+- **Files:** `src/lib/training/*` (new), `src/db/{db,types,repo}.ts`, `src/hooks/useData.ts`, `src/lib/backup.ts`, `src/lib/targets.ts` (`BODY_FAT_TARGET` only, owner-approved), `src/i18n/en.ts` (append `exercise.*`, `cue.*`, `why.*`), tests, docs.
+- **Interfaces:** Dexie v4; backup `schemaVersion` stays 1 (optional `training` block); `RestoreSummary.sessionsAdded` added.
+- **Status:** Ready for review · **Branch:** `feat/T-012-training-engine`, branched from the T-010 commit `8a70d20` (worked in the `../philip-T010` worktree folder). Merge after T-010.
+- **Log:** 2026-11-05 Core: engine, data layer, backup and copy. tsc clean, 267/267 unit (+58), build OK, Chromium e2e 66/66. No UI yet (T-011, T-013, T-014).
 
 ### T-010 — Philip's guided tutorial (Story 4, NDS-style)
 - **Role:** Feature, with shared-file edits listed below (owner kickoff 2026-11-04).

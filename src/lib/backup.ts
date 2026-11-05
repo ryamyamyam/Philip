@@ -12,6 +12,8 @@
  * QA round 2 added `weightEntries` and `profile.bodyFatPct` as OPTIONAL fields without bumping
  * schemaVersion: older backups (without them) import unchanged, and older app builds ignore them.
  * Story 3 added `savedMeals` the same way (optional, schemaVersion still 1).
+ * Story 5 added `training` (program, TM history, cycles, workout sessions, menu swaps) and
+ * `profile.targetBodyFatPct` the same way (optional, schemaVersion still 1).
  */
 import type { PhilipDB } from '../db/db';
 import { defaultProfile } from '../db/db';
@@ -32,6 +34,14 @@ import {
   type WeightEntry,
 } from '../db/types';
 import { isValidYmd } from './date';
+import {
+  emptyTraining,
+  exportTraining,
+  parseTraining,
+  restoreTraining,
+  TrainingBackupError,
+  type TrainingBackup,
+} from './training/trainingBackup';
 
 export const BACKUP_FORMAT = 'philip-backup';
 export const BACKUP_SCHEMA_VERSION = 1;
@@ -45,6 +55,8 @@ export interface BackupData {
   weightEntries: WeightEntry[];
   /** Optional in files: backups made before Story 3 don't have it. */
   savedMeals: SavedMeal[];
+  /** Optional in files: backups made before Story 5 don't have it. */
+  training?: TrainingBackup;
 }
 
 export interface BackupFile {
@@ -70,7 +82,7 @@ export class BackupError extends Error {
 /* ---------------- Export ---------------- */
 
 export async function createBackup(database: PhilipDB, opts: { includeApiKey?: boolean; now?: Date } = {}): Promise<BackupFile> {
-  return database.transaction('r', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals], async () => {
+  return database.transaction('r', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.trainingProgram, database.tmHistory, database.cycles, database.workoutSessions, database.slotChoices], async () => {
     const profile = (await database.profile.get('me')) ?? null;
     return {
       format: BACKUP_FORMAT,
@@ -83,6 +95,7 @@ export async function createBackup(database: PhilipDB, opts: { includeApiKey?: b
         savedFoods: await database.savedFoods.toArray(),
         weightEntries: await database.weightEntries.orderBy('date').toArray(),
         savedMeals: await database.savedMeals.toArray(),
+        training: await exportTraining(database),
       },
     };
   });
@@ -264,6 +277,7 @@ function validateProfile(raw: unknown): Profile | null {
     goal: v.oneOfOrNull<Goal>(raw, 'goal', ['lose', 'maintain', 'gain']),
     targetWeightKg: v.numOrNull(raw, 'targetWeightKg', 20, 400),
     weeklyRateKg: v.numOrNull(raw, 'weeklyRateKg', -5, 5),
+    targetBodyFatPct: v.numOrNull(raw, 'targetBodyFatPct', 3, 60),
     unitPrefs: {
       weight: units.weight === 'kg' ? 'kg' : units.weight === 'lb' ? 'lb' : d.unitPrefs.weight,
       height: units.height === 'cm' ? 'cm' : units.height === 'in' ? 'in' : d.unitPrefs.height,
@@ -311,6 +325,13 @@ export function parseBackup(text: string): ParsedBackup {
   if (d.weightEntries != null && !Array.isArray(d.weightEntries)) throw new BackupError('invalid', 'weightEntries must be a list');
   if (d.savedMeals != null && !Array.isArray(d.savedMeals)) throw new BackupError('invalid', 'savedMeals must be a list');
   const meals = dedupe(((d.savedMeals as unknown[] | undefined) ?? []).map(validateSavedMeal));
+  let training: TrainingBackup;
+  try {
+    training = parseTraining(d.training);
+  } catch (e) {
+    if (e instanceof TrainingBackupError) throw new BackupError('invalid', e.message);
+    throw e;
+  }
   const entries = dedupe((d.foodEntries as unknown[]).map(validateEntry));
   // One weight per date: keep the first, count the rest as duplicates.
   const weightsRaw = ((d.weightEntries as unknown[] | undefined) ?? []).map(validateWeight);
@@ -342,6 +363,7 @@ export function parseBackup(text: string): ParsedBackup {
         savedFoods: saved.items,
         weightEntries: weights.items.map(({ id: _id, ...w }) => w),
         savedMeals: meals.items,
+        training,
       },
     },
     duplicatesSkipped: entries.skipped + saved.skipped + planDupes + weights.skipped + meals.skipped,
@@ -359,6 +381,8 @@ export interface RestoreSummary {
   savedAdded: number;
   weightsAdded: number;
   mealsAdded: number;
+  /** Workout sessions added (Story 5). */
+  sessionsAdded: number;
 }
 
 const planKey = (p: TargetPlan) =>
@@ -373,7 +397,7 @@ const planKey = (p: TargetPlan) =>
  */
 export async function restoreBackup(database: PhilipDB, backup: BackupFile, mode: RestoreMode): Promise<RestoreSummary> {
   const { data } = backup;
-  return database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals], async () => {
+  return database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.trainingProgram, database.tmHistory, database.cycles, database.workoutSessions, database.slotChoices], async () => {
     if (mode === 'replace') {
       const localKey = (await database.profile.get('me'))?.geminiKey ?? null;
       await Promise.all([
@@ -391,6 +415,8 @@ export async function restoreBackup(database: PhilipDB, backup: BackupFile, mode
       await database.savedFoods.bulkAdd(data.savedFoods);
       await database.weightEntries.bulkAdd(data.weightEntries);
       await database.savedMeals.bulkAdd(data.savedMeals);
+      // A backup without a training block (pre-Story 5) leaves training empty.
+      const sessionsAdded = await restoreTraining(database, data.training ?? emptyTraining(), 'replace');
       return {
         entriesAdded: data.foodEntries.length,
         entriesUpdated: 0,
@@ -398,6 +424,7 @@ export async function restoreBackup(database: PhilipDB, backup: BackupFile, mode
         savedAdded: data.savedFoods.length,
         weightsAdded: data.weightEntries.length,
         mealsAdded: data.savedMeals.length,
+        sessionsAdded,
       };
     }
 
@@ -463,13 +490,15 @@ export async function restoreBackup(database: PhilipDB, backup: BackupFile, mode
 
     if (!(await database.profile.get('me')) && data.profile) await database.profile.put(data.profile);
 
-    return { entriesAdded, entriesUpdated, plansAdded: newPlans.length, savedAdded, weightsAdded, mealsAdded };
+    const sessionsAdded = data.training ? await restoreTraining(database, data.training, 'merge') : 0;
+
+    return { entriesAdded, entriesUpdated, plansAdded: newPlans.length, savedAdded, weightsAdded, mealsAdded, sessionsAdded };
   });
 }
 
 /** Deletes every record. Used by "Delete all data". */
 export async function deleteAllData(database: PhilipDB): Promise<void> {
-  await database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.meta], async () => {
+  await database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.meta, database.trainingProgram, database.tmHistory, database.cycles, database.workoutSessions, database.slotChoices], async () => {
     await Promise.all([
       database.weightEntries.clear(),
       database.savedMeals.clear(),
@@ -478,6 +507,11 @@ export async function deleteAllData(database: PhilipDB): Promise<void> {
       database.foodEntries.clear(),
       database.savedFoods.clear(),
       database.meta.where('key').notEqual('storagePersisted').delete(),
+      database.trainingProgram.clear(),
+      database.tmHistory.clear(),
+      database.cycles.clear(),
+      database.workoutSessions.clear(),
+      database.slotChoices.clear(),
     ]);
     await database.profile.put(defaultProfile());
   });

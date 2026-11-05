@@ -57,7 +57,7 @@ Old routes redirect with `history.replaceState`: `#/history` and `#/meals` → `
 ### Logging flow (Story 3, updated Nov 2026)
 Today → Choose photo (camera or library; D-022) → analyzing (PhotoSheet) → **Review** → Save to {meal}. **Enter yourself** reveals an inline panel on Today (`AddPanel` in `views/AddSheet.tsx`): an autofocused text box, saved meals, and “Type the numbers”. The Add food sheet (`AddSheet`, photo buttons + the same `AddPanel`) remains for Meals. The Log food button was removed (D-017). Every path ends in the Review sheet (meal picker, compact rows: name + grams, nutrition rescales with grams, “Edit nutrition” for direct macro edits, add/remove rows, optional “Also save as a meal”). Saving shows “N kcal logged to {meal}” with Undo. My Foods / recents / favorites and the Claude handoff button were removed from the log sheet (the handoff remains on photo-analysis errors); saved foods stay in the database and backups and still prefill typed text without a key.
 
-## Data model (IndexedDB `philip`, Dexie v3)
+## Data model (IndexedDB `philip`, Dexie v4)
 
 | Table | Key | Notes |
 |---|---|---|
@@ -68,6 +68,11 @@ Today → Choose photo (camera or library; D-022) → analyzing (PhotoSheet) →
 | `meta` | `key` | `lastBackupAt`, `backupReminderSnoozedAt`, `storagePersisted`, `tutorialSeenAt` (T-010: ms when Philip's tour was finished or skipped; null = show it) |
 | `savedMeals` (v3) | `id` (UUID), indexes `name`, `lastUsedAt` | `{id, name, items: {name, grams, calories, proteinG, fatG, carbsG}[], useCount, lastUsedAt, createdAt, updatedAt}`. Saving with an existing name (case-insensitive) replaces its foods. Logging copies the foods into entries via the Review sheet (source `manual`). |
 | `weightEntries` (v2) | `date` | `{date, weightKg, createdAt, updatedAt}`; one per local date, logging again overwrites. Logging the newest date also updates `profile.weightKg`. |
+| `trainingProgram` (v4) | `id = 'me'` | bar (`barKg`, `plateUnit`, `plates`), `weightUnit`, `unavailableEquipment`, `currentCycle` (0 = briefing pending) |
+| `tmHistory` (v4) | `++id`, indexes `lift`, `effectiveCycle` | append-only `{lift, tmKg, effectiveCycle, reason: setup\|cycle\|miss\|pain\|retest}`; a cycle's TM = latest row with `effectiveCycle ≤ cycle` (`tmsForCycle`) |
+| `cycles` (v4) | `index` | snapshot at cycle start: `block`, `phase`, `tms`, `goal` (start/end weight, weekly rate %, BF line, source, target plan id) |
+| `workoutSessions` (v4) | `id`, indexes `date`, `[cycle+week+day]`, `status` | `exercises[]`: `prescription` (Philip's orders, frozen at creation; `saveWorkoutSession` never overwrites them) and `actual` (owner's log only) |
+| `slotChoices` (v4) | `slotKey` (`D2-A1-B`) | owner's sticky swap; only approved swaps are honoured |
 
 Migrations: v1 → v2 adds `weightEntries` and sets `profile.bodyFatPct = null`; v2 → v3 adds the empty `savedMeals` table (no record changes). Every record is kept (covered by `src/db/migration.test.ts`).
 
@@ -154,6 +159,10 @@ A reusable, self-contained module for capturing observations (bugs, UI/usability
 ## Philip's tour (`src/lib/tutorial.ts`, D-024)
 
 `App.tsx` mounts `TutorialOverlay` on Today while `META.tutorialSeenAt` is unset and no sheet is open, once the profile and target plans have loaded. The context (`hasTarget`, `hasKey`) is captured when the tour starts, so logging during it can't reshuffle the steps; `stepsFor(ctx)` drops steps whose anchor can't exist. Finishing or skipping sets the flag; "Set targets" also navigates to targets. Settings › Help › Replay tutorial sets it to null. The flag isn't in backups; Delete all clears it, restores keep it. Anchors are `data-tour` attributes, not styling classes.
+
+## Training engine (`src/lib/training/`, D-025)
+
+Pure modules, all tested: `program.ts` (blocks, waves, deload, RDL caps, TM progression, double progression), `session.ts` (builds a day's orders and the 45-minute time model + trim order), `plates.ts` (loadable rounding and per-side plates), `cycleGoal.ts` (goal briefing defaults and checks), `exercises.ts` (library + Appendix A menu; copy in `en.ts` as `exercise.*`, `cue.*`, `why.*`), `progress.ts` (TMs per cycle, next day in sequence, e1RM points), `trainingBackup.ts` (optional `training` backup block). Days are a sequence, not weekdays. Cycle numbers never repeat, even after a program reset.
 
 ## Offline / PWA
 

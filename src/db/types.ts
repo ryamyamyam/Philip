@@ -1,4 +1,7 @@
-/** Persistent data types. All nutrition values are metric (grams, kcal). */
+/** Persistent data types. All nutrition values are metric (grams, kcal); training loads in kg. */
+import type { Prescribed, SessionSlot } from '../lib/training/session';
+import type { Block, Day, LiftId, Phase, TmReason, Week } from '../lib/training/program';
+import type { PlateUnit } from '../lib/training/plates';
 
 export type Meal = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export const MEALS: readonly Meal[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -36,6 +39,8 @@ export interface Profile {
   targetWeightKg: number | null;
   /** Signed: negative = loss per week, positive = gain per week. */
   weeklyRateKg: number | null;
+  /** Long-term body-fat % target (Story 5, DB v4). Checked against BODY_FAT_TARGET in lib/targets.ts. */
+  targetBodyFatPct: number | null;
   unitPrefs: UnitPrefs;
   locale: string;
   /** Stored only on this device. Never exported unless the user opts in. */
@@ -129,3 +134,96 @@ export interface MetaRow {
   key: string;
   value: unknown;
 }
+
+/* ---------------- Training (Story 5, DB v4) ---------------- */
+
+/** The single training program row. Loads are in kg; units only change display and rounding. */
+export interface TrainingProgram {
+  id: 'me';
+  startedAt: number;
+  /** Empty bar (kg), plate unit and the plate sizes available, in that unit. */
+  bar: { barKg: number; plateUnit: PlateUnit; plates: number[] };
+  /** Unit for dumbbells and machine stacks (rounding and increments). */
+  weightUnit: PlateUnit;
+  unavailableEquipment: string[];
+  /** 1-based cycle in progress; 0 = set up but the first cycle hasn't started (briefing pending). */
+  currentCycle: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Append-only TM history. The TM for a cycle is the latest row with effectiveCycle ≤ that cycle. */
+export interface TmRecord {
+  id?: number;
+  lift: LiftId;
+  tmKg: number;
+  effectiveCycle: number;
+  reason: TmReason;
+  createdAt: number;
+}
+
+export interface CycleGoalSnapshot {
+  startWeightKg: number;
+  startBfPct: number | null;
+  endWeightKg: number;
+  weeklyRatePct: number;
+  bfLinePct: number | null;
+  source: 'philip' | 'user';
+  /** The target plan written when the cycle started, if any. */
+  targetPlanId: number | null;
+}
+
+/** A started cycle, with the phase, TMs and goal snapshotted at its start. */
+export interface CycleRecord {
+  index: number;
+  block: Block;
+  startedAt: number;
+  phase: Phase;
+  tms: Record<LiftId, number>;
+  goal: CycleGoalSnapshot;
+}
+
+/** What the owner actually did on one set. Never derived from the order unless he taps "As ordered". */
+export interface ActualSet {
+  order: number;
+  kg: number | null;
+  reps: number | null;
+  done: boolean;
+  pain: boolean;
+  copiedFromOrder: boolean;
+}
+
+export interface SessionExercise {
+  slot: SessionSlot;
+  exerciseId: string;
+  swappedFrom: string | null;
+  note: string;
+  /** Philip's orders, frozen when the session was generated. Never edited. */
+  prescription: Prescribed[];
+  /** The owner's log. */
+  actual: ActualSet[];
+}
+
+export type SessionStatus = 'in_progress' | 'done' | 'skipped';
+
+export interface WorkoutSession {
+  id: string;
+  date: YMD;
+  cycle: number;
+  block: Block;
+  week: Week;
+  day: Day;
+  status: SessionStatus;
+  estMinutes: number;
+  startedAt: number;
+  finishedAt: number | null;
+  exercises: SessionExercise[];
+}
+
+/** The owner's sticky pick for a menu slot (one of Philip's approved swaps). */
+export interface SlotChoice {
+  slotKey: string;
+  exerciseId: string;
+  chosenAt: number;
+}
+

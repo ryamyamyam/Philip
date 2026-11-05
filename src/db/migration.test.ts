@@ -39,7 +39,7 @@ describe('Dexie v2 migration (OBS-F047E3)', () => {
     await seedV1(name);
     const db = new PhilipDB(name);
     await initDatabase(db);
-    expect(db.verno).toBe(3);
+    expect(db.verno).toBe(4);
     expect(await db.foodEntries.count()).toBe(2);
     expect(await db.foodEntries.get('e2')).toMatchObject({ name: 'Salmon', savedFoodId: 's1' });
     expect(await db.savedFoods.get('s1')).toMatchObject({ useCount: 3, favorite: true });
@@ -161,7 +161,7 @@ describe('Dexie v3 migration (Story 3: saved meals)', () => {
     await seedV2(name);
     const db = new PhilipDB(name);
     await initDatabase(db);
-    expect(db.verno).toBe(3);
+    expect(db.verno).toBe(4);
     expect(await db.foodEntries.count()).toBe(2);
     expect(await db.savedFoods.count()).toBe(1);
     expect(await db.targetPlans.count()).toBe(1);

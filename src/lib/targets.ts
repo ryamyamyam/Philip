@@ -42,6 +42,11 @@ export const SAFETY = {
 
 /** Accepted body-fat range (%) for the Katch–McArdle branch. Input validation, not a safety rule. */
 export const BODY_FAT_RANGE = { min: 3, max: 60 } as const;
+/**
+ * Body-fat % accepted as a *target* (Story 5 cycle goals, owner-approved 2026-11-05): below `min` is
+ * refused, below `warnBelow` shows a plain warning. Separate from BODY_FAT_RANGE (what can be logged).
+ */
+export const BODY_FAT_TARGET = { min: 10, warnBelow: 12 } as const;
 
 export interface CalcInputs {
   sex: Sex;

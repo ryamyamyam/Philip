@@ -65,7 +65,7 @@ Today → Choose photo (camera or library; D-022) → analyzing (PhotoSheet) →
 | `targetPlans` | `++id`, index `effectiveFrom` | append-only; optional `weekdayOverrides` (0=Sun…6=Sat) |
 | `foodEntries` | `id` (UUID), index `date` | `source: manual\|photo\|saved`; `estimate` keeps original AI values |
 | `savedFoods` | `id` (UUID) | `useCount`, `lastUsedAt`, `favorite` |
-| `meta` | `key` | `lastBackupAt`, `backupReminderSnoozedAt`, `storagePersisted` |
+| `meta` | `key` | `lastBackupAt`, `backupReminderSnoozedAt`, `storagePersisted`, `tutorialSeenAt` (T-010: ms when Philip's tour was finished or skipped; null = show it) |
 | `savedMeals` (v3) | `id` (UUID), indexes `name`, `lastUsedAt` | `{id, name, items: {name, grams, calories, proteinG, fatG, carbsG}[], useCount, lastUsedAt, createdAt, updatedAt}`. Saving with an existing name (case-insensitive) replaces its foods. Logging copies the foods into entries via the Review sheet (source `manual`). |
 | `weightEntries` (v2) | `date` | `{date, weightKg, createdAt, updatedAt}`; one per local date, logging again overwrites. Logging the newest date also updates `profile.weightKg`. |
 
@@ -150,6 +150,10 @@ A reusable, self-contained module for capturing observations (bugs, UI/usability
 - **Manual archive (OBS-97D767, Nov 2026):** `archiveObservations` archives by hand (`archivedByPromptId` stays null; `promptIds` and prompts are untouched) from the detail screen (“Archive”, plus a banner on items already in a prompt), the inbox (“Archive n” on the selection, with Undo; “Unarchive n” in Archived) and the prompt builder (“Archive the n in this prompt”). Inbox rows show “In a prompt”. The Inbox tab count is `countByArchive().active` — the same rule as the Active list — so archived items no longer count (OBS-A09A21). Settings › QA & Feedback has an Archived row (`openQaFeedback('archived')`).
 - **One project (OBS-A09A21):** the panel has no project picker; it always opens the host app's project (`ensureDefaultProject(appId)`). Other projects already in the database are kept but not shown. The capture form is words + type + screenshots; feature/screen, priority and the structured fields are edited on the detail screen.
 - **AI:** optional; the Gemini provider is used only after an explicit tap ("Analyze with AI" on the detail screen, "Improve with AI" in the prompt builder; capture-time "Structure with AI" was removed in OBS-A09A21). Responses are validated, AI fields are marked, and AI never overwrites what the user typed.
+
+## Philip's tour (`src/lib/tutorial.ts`, D-024)
+
+`App.tsx` mounts `TutorialOverlay` on Today while `META.tutorialSeenAt` is unset and no sheet is open, once the profile and target plans have loaded. The context (`hasTarget`, `hasKey`) is captured when the tour starts, so logging during it can't reshuffle the steps; `stepsFor(ctx)` drops steps whose anchor can't exist. Finishing or skipping sets the flag; "Set targets" also navigates to targets. Settings › Help › Replay tutorial sets it to null. The flag isn't in backups; Delete all clears it, restores keep it. Anchors are `data-tour` attributes, not styling classes.
 
 ## Offline / PWA
 

@@ -14,6 +14,7 @@ export function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
             key={id}
             type="button"
             className="tab"
+            data-tour={`tab-${id}`}
             aria-current={TAB_FOR[tab] === id ? 'page' : undefined}
             onClick={() => onTab(id)}
           >

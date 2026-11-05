@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { addManualFood, fresh, tab } from './helpers';
+import { addManualFood, fresh, skipTour, tab } from './helpers';
 
 test('export, delete all, import round trip', async ({ page }, info) => {
   await fresh(page);
@@ -25,6 +25,8 @@ test('export, delete all, import round trip', async ({ page }, info) => {
   await dlg.getByRole('textbox').fill('DELETE');
   await dlg.getByRole('button', { name: 'Delete' }).click();
   await tab(page, 'Today').click();
+  // Delete all clears the tour flag too, so Philip's tour starts again (T-010).
+  await skipTour(page);
   await expect(page.getByText(/^Nothing yet\./)).toBeVisible();
   await expect(page.getByText('Banana')).toHaveCount(0);
 

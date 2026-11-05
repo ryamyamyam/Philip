@@ -1,6 +1,10 @@
 import { expect, type Page } from '@playwright/test';
 
-export async function fresh(page: Page) {
+/**
+ * Clean install. Philip's tour (T-010) shows on a fresh install; it is skipped here so specs that
+ * aren't about the tour start on a plain Today. Pass `{ tour: true }` to keep it (tutorial.spec.ts).
+ */
+export async function fresh(page: Page, opts: { tour?: boolean } = {}) {
   await page.goto('./');
   await page.evaluate(async () => {
     await new Promise<void>((res) => {
@@ -10,6 +14,19 @@ export async function fresh(page: Page) {
   });
   await page.reload();
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  if (!opts.tour) await skipTour(page);
+}
+
+/** Philip's guided tour overlay. */
+export function tour(page: Page) {
+  return page.getByRole('dialog', { name: 'Philip’s tour' });
+}
+
+/** Waits for the tour and skips it (it shows on Today after a fresh install, Delete all, or a Replace restore). */
+export async function skipTour(page: Page) {
+  await expect(tour(page)).toBeVisible();
+  await tour(page).getByRole('button', { name: 'Skip' }).click();
+  await expect(tour(page)).toHaveCount(0);
 }
 
 /** Opens the inline "Enter yourself" panel on Today (owner feedback, Nov 2026). Keeps the selected date. */

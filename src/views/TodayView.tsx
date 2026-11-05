@@ -66,7 +66,7 @@ export function TodayView() {
         )}
         <DeckActions label={t('deck.log')} className="log-actions">
           {/* One photo button (owner feedback, Nov 3): without `capture`, iOS offers Take Photo or Photo Library. */}
-          <ActionFileButton variant="primary" size="lg" icon="camera" className="log-photo" accept="image/*" onFile={onPhoto}>
+          <ActionFileButton variant="primary" size="lg" icon="camera" className="log-photo" accept="image/*" onFile={onPhoto} data-tour="photo">
             {t('add.library')}
           </ActionFileButton>
           <ActionButton
@@ -74,6 +74,7 @@ export function TodayView() {
             size="lg"
             icon="pencil"
             className="log-type"
+            data-tour="type"
             aria-expanded={typing}
             aria-controls="today-type"
             onClick={() => setTyping((v) => !v)}

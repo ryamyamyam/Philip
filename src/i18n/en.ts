@@ -493,6 +493,27 @@ export const en = {
   'progress.row.today': 'Plan today',
   'progress.row.reach': 'Goal by',
   'progress.perWeek': '{value} {unit}/wk',
+
+  // Philip's guided tour (T-010, D-024). Script approved by the owner 2026-11-04 (spec §3).
+  'tutorial.label': 'Philip’s tour',
+  'tutorial.hello': 'Well, well. Fresh meat. I’m Philip, your coach. Tap to keep up, sweetie.',
+  'tutorial.what': 'I track what you eat, what’s left today, and where your weight is heading. You eat. I judge.',
+  'tutorial.fuel': 'This is your fuel bar. It drains as you eat. Green, fine. Yellow, slow down. Red stripes? You went over.',
+  'tutorial.protein': 'Blue bars work the other way. Protein fills up. Your job is to fill it. Every. Day.',
+  'tutorial.noTarget': 'No targets yet? Cute. Let’s fix that.',
+  'tutorial.photo': 'Snap your plate or pick a photo. I estimate, you check it. Nothing saves without your say.',
+  'tutorial.type': 'Rather type? Write what you ate, use a saved meal, or punch in the numbers.',
+  'tutorial.dialog': 'I talk to you right here. Lost? Ask me what to eat.',
+  'tutorial.progress': 'Weigh in a few times a week. I’ll tell you if you’re on track.',
+  'tutorial.key': 'Want photo estimates? Add a free Gemini key in Settings. Optional. I’m fabulous either way.',
+  'tutorial.bye': 'That’s the tour. Now go. Chop chop.',
+  'tutorial.skip': 'Skip',
+  'tutorial.next': 'Next',
+  'tutorial.later': 'Later',
+  'tutorial.setTargets': 'Set targets',
+  'tutorial.step': 'Step {n} of {total}',
+  'settings.help': 'Help',
+  'settings.replayTutorial': 'Replay tutorial',
 } as const;
 
 export type StringKey = keyof typeof en;

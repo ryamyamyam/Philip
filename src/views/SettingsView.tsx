@@ -36,6 +36,7 @@ export default function SettingsView() {
         <DataSection />
         <GeminiSection />
         <UnitsSection />
+        <HelpSection />
         <QaSection />
         <DangerSection />
         <p className="subtle">{t('settings.about')}</p>
@@ -387,6 +388,29 @@ function UnitsSection() {
           ))}
         </div>
       </div>
+    </section>
+  );
+}
+
+/* ---------------- Help (T-010) ---------------- */
+
+function HelpSection() {
+  const { navigate } = useUI();
+  // Clearing the flag makes App show Philip's tour again; it runs over Today, so go there.
+  const replay = () => {
+    void setMeta(META.tutorialSeenAt, null).then(() => navigate('today'));
+  };
+  return (
+    <section className="card stack" aria-labelledby="help-h">
+      <h2 id="help-h">{t('settings.help')}</h2>
+      <ul className="list list-inset">
+        <li className="list-item">
+          <button type="button" className="list-button" onClick={replay} data-testid="replay-tutorial">
+            <span className="list-title">{t('settings.replayTutorial')}</span>
+            <Icon name="chevronRight" />
+          </button>
+        </li>
+      </ul>
     </section>
   );
 }

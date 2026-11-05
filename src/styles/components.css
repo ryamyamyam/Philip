@@ -984,3 +984,137 @@ details.pm-panel > summary.pm-panel-head:focus-visible {
   content: ' »' / '';
   color: var(--color-on-deck-2);
 }
+
+/* ---------- Philip's tour (T-010, D-024) ---------- */
+.pm-char {
+  flex: none;
+  width: var(--char-w);
+  height: var(--char-h);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.pm-char.is-talking {
+  animation: pm-char-talk var(--dur-blink) steps(1, end) infinite;
+}
+@keyframes pm-char-talk {
+  50% {
+    transform: translateY(calc(-1 * var(--char-px)));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm-char.is-talking {
+    animation: none;
+  }
+}
+/* Philip's face beside Today's coach line (owner Q3): face | line, action under the line */
+.pm-dialog-with-portrait {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  align-items: center;
+}
+.pm-dialog-with-portrait .pm-dialog-portrait {
+  grid-row: span 2;
+  align-self: end;
+  margin-bottom: calc(-1 * var(--space-3));
+}
+.pm-dialog-with-portrait .pm-dialog-action,
+.pm-dialog-with-portrait .pm-dialog-caret {
+  grid-column: 2;
+  justify-self: end;
+}
+
+.pm-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pm-tour:focus {
+  outline: none;
+}
+.pm-tour-dim {
+  position: absolute;
+  inset: 0;
+  background: var(--color-tour-dim);
+}
+/* The spotlight is a hole in the dim layer: a box whose huge shadow is the dim. */
+.pm-tour-spot {
+  position: absolute;
+  margin: calc(-1 * var(--space-1));
+  padding: var(--space-1);
+  box-sizing: content-box;
+  outline: var(--border-thick) solid var(--color-tour-spot);
+  box-shadow: 0 0 0 100vmax var(--color-tour-dim);
+  transition: top var(--dur-slow) var(--ease-snap), left var(--dur-slow) var(--ease-snap),
+    width var(--dur-slow) var(--ease-snap), height var(--dur-slow) var(--ease-snap);
+  pointer-events: none;
+}
+.pm-tour-skip {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--space-3));
+  right: calc(var(--safe-right) + var(--space-3));
+  text-transform: uppercase;
+}
+.pm-tour-box {
+  position: absolute;
+  left: calc(var(--safe-left) + var(--space-3));
+  right: calc(var(--safe-right) + var(--space-3));
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--deck-actions-h) + var(--space-3));
+  max-width: var(--content-max);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+}
+.pm-tour-box.is-top {
+  top: calc(var(--safe-top) + var(--space-12) + var(--space-3));
+  bottom: auto;
+}
+.pm-tour-portrait {
+  position: relative;
+  z-index: 1;
+  margin-right: calc(-1 * var(--space-2));
+  filter: drop-shadow(var(--space-0-5) 0 0 var(--color-ink));
+}
+.pm-tour-dialog {
+  align-self: stretch;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding-left: var(--space-4);
+  border-left: var(--border-frame) solid var(--color-ink);
+  border-right: var(--border-frame) solid var(--color-ink);
+  box-shadow: var(--shadow-hard-lg);
+}
+.pm-tour-text {
+  flex: none;
+}
+.pm-tour-rest {
+  visibility: hidden;
+}
+.pm-tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.pm-tour-next .pm-tour-caret {
+  align-self: center;
+  border-top-color: currentColor;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm-tour-spot {
+    transition: none;
+  }
+}
+.pm-tour-box .btn:focus-visible,
+.pm-tour-skip:focus-visible {
+  outline-color: var(--color-focus-on-dark);
+}
+/* Pixelify's "fi" ligature draws as "A" at this size; the tour types character by character anyway. */
+.pm-tour {
+  font-variant-ligatures: none;
+}

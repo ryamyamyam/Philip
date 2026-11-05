@@ -104,6 +104,10 @@
   --world-shadow: rgb(26 29 32 / 0.18);
   --world-outline: #1a1d20;
 
+  /* Philip's tour (T-010, D-024): dim layer and spotlight. The trainer sprite carries its own colors. */
+  --color-tour-dim: rgb(26 29 32 / 0.72); /* darker than --color-scrim so the spotlight reads */
+  --color-tour-spot: #f2f4f5; /* light outline around the spotlit element */
+
   /* Type */
   --font-display: 'Philip Pixel', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-body: var(--font-family);

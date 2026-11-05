@@ -286,4 +286,6 @@ export const META = {
   lastBackupAt: 'lastBackupAt',
   backupReminderSnoozedAt: 'backupReminderSnoozedAt',
   storagePersisted: 'storagePersisted',
+  /** T-010: when Philip's tour was finished or skipped (ms). null = show it (Settings › Replay sets null). Not in backups. */
+  tutorialSeenAt: 'tutorialSeenAt',
 } as const;

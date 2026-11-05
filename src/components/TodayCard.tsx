@@ -6,6 +6,8 @@ import type { MeterMode } from '../lib/meter';
 import { dayGoalHit, remainingAll, type MacroKey, type Phase, type Remaining } from '../lib/remaining';
 import { CategoryChip } from './CategoryChip';
 import { DialogBar } from './DialogBar';
+import { GymCharacter } from './GymCharacter';
+import { COACH_POSE } from '../lib/character';
 import { Icon } from './Icon';
 import { Meter } from './Meter';
 
@@ -66,7 +68,7 @@ export function TodayCard({
 }) {
   if (!target) {
     return (
-      <section className="card today-card today-card-empty stack-sm" aria-label={t('today.cardLabel')}>
+      <section className="card today-card today-card-empty stack-sm" aria-label={t('today.cardLabel')} data-tour="calories-empty">
         <p className="today-cta-title">{t('today.noTarget')}</p>
         <p className="subtle">{t('today.noTargetHint', { kcal: fmtKcal(consumed.calories) })}</p>
         <button type="button" className="btn btn-secondary btn-block" onClick={onSetTargets}>
@@ -81,7 +83,7 @@ export function TodayCard({
   const eatenText = t('today.eatenOf', { consumed: fmtKcal(consumed.calories), target: fmtKcal(target.calories) });
   return (
     <section className="card today-card pm-hero" aria-label={t('today.cardLabel')}>
-      <div className="today-hero">
+      <div className="today-hero" data-tour="calories">
         <div className="today-hero-head">
           <span className="pm-pill">{t('macro.calories')}</span>
           {adherence && <span className="pm-pill pm-pill-quiet adherence-pill num">{adherence}</span>}
@@ -110,7 +112,7 @@ export function TodayCard({
           const rem = r[m.key];
           const text = t(G_KEY[rem.status], { g: fmtKcal(rem.amount) });
           return (
-            <li key={m.key} className={`today-macro tone-${rem.tone}`}>
+            <li key={m.key} className={`today-macro tone-${rem.tone}`} data-tour={m.key === 'proteinG' ? 'protein' : undefined}>
               <span className="today-macro-name">
                 <CategoryChip category={m.cat} icon={m.emoji} label={t(m.label)} />
               </span>
@@ -133,6 +135,8 @@ export function TodayCard({
       <DialogBar
         speaker={t('coach.speaker')}
         className="today-hint"
+        tourAnchor="dialog"
+        portrait={<GymCharacter pose={COACH_POSE[hit ? 'goalHit' : r.calories.status]} framing="bust" scale={2} className="pm-dialog-portrait" />}
         action={onAsk && { label: t('suggest.open'), onClick: onAsk }}
       >
         {hit ? t('today.goalHit') : t(KCAL_HINT[r.calories.status])}

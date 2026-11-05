@@ -48,12 +48,14 @@ export interface ActionFileButtonProps extends ActionLook {
   accept: string;
   capture?: 'environment' | 'user';
   onFile: (file: File | undefined) => void;
+  /** Anchor for Philip's tour (T-010). */
+  'data-tour'?: string;
 }
 
 /** Same look, wrapping a visually hidden file input (Take photo / Choose photo). */
-export function ActionFileButton({ variant, category, icon, size, className, children, accept, capture, onFile }: ActionFileButtonProps) {
+export function ActionFileButton({ variant, category, icon, size, className, children, accept, capture, onFile, 'data-tour': tour }: ActionFileButtonProps) {
   return (
-    <label className={classes({ variant, category, size, className })}>
+    <label className={classes({ variant, category, size, className })} data-tour={tour}>
       <Face icon={icon}>{children}</Face>
       <input
         type="file"

@@ -67,7 +67,9 @@ The old orange tokens (`--color-brand`, `-soft`) remain only for legacy fills. `
 | `StatPanel` | `title, children, tabs?, aside?` | info panel: dark «header» bar plus a scanlined body, as a named region. Use `tabs` only when the panel really has sub-views |
 | `StatRow` | `label, value, notable?, hint?` | teal pill plus right-aligned value inside `<dl className="pm-rows">`. `notable` = the one red accent |
 | `NamePlate` | `title, subtitle?, badge?` | angled plate with a status badge (Progress: latest weight vs goal) |
-| `DialogBar` | `speaker?, children, action?, live?` | where Philip speaks: Today's coach line plus "What do I eat?". Toasts use it without a speaker, because plain or error text gets no name plate |
+| `DialogBar` | `speaker?, children, action?, live?, portrait?` | where Philip speaks: Today's coach line plus "What do I eat?"; `portrait` shows Philip's head and shoulders (pose from `COACH_POSE`). Toasts use it without a speaker, because plain or error text gets no name plate |
+| `GymCharacter` | `pose, framing?: 'full'\|'bust', scale?, talking?` | Philip, drawn from the pose atlas (`lib/character.ts`, `assets/character/philip-poses.png`). Integer scales only so pixels stay crisp; `talking` adds a small bob (off under reduced motion). Decorative, `aria-hidden` |
+| `TutorialOverlay` | `ctx, onEnd(how)` | Philip's tour (D-024): dim + spotlight on `data-tour` anchors, dialog box with Philip at 2×, typewriter (`useTypewriter`), Next / choices / Skip, Escape, focus trap; flips to the top when it would cover the spotlit element. Classes `pm-tour-*` |
 | `ControlDeck` / `DeckActions` | `label` | the deck nav (TabBar) and the actions strip docked above it. Publishes `--deck-actions-h` |
 | `StatusStrip`, `CornerButton`, `DotIndicator` | — | date strip with half-circle prev/next buttons and week dots (decorative) |
 | `AmbientScene` | `variant: 'empty'|'analyzing'` | pixel-art world on an 80×30 grid with 1-cell outlines. Only for empty states, onboarding and the photo-analysis wait |

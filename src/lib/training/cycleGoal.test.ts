@@ -57,3 +57,17 @@ describe('kcalPerDayFor', () => {
     expect(kcalPerDayFor(73, 0.3)).toBe(240);
   });
 });
+
+describe('calcInputsForGoal', () => {
+  const p = { sex: 'male' as const, birthDate: '1998-03-01', heightCm: 184, activityLevel: 'moderate' as const, trainingDaysPerWeek: 3, bodyFatPct: 15 };
+  it('turns the cycle goal into calculator inputs (4 training days, weekly rate from the goal)', async () => {
+    const { calcInputsForGoal } = await import('./cycleGoal');
+    const i = calcInputsForGoal(p, 'gain', { startWeightKg: 73, endWeightKg: 74 }, '2026-11-05');
+    expect(i).toMatchObject({ goal: 'gain', weightKg: 73, targetWeightKg: 74, weeklyRateKg: 0.25, trainingDaysPerWeek: 4, bodyFatPct: 15, ageYears: 28 });
+    expect(calcInputsForGoal(p, 'maintain', { startWeightKg: 73, endWeightKg: 73 }, '2026-11-05')).toMatchObject({ targetWeightKg: null, weeklyRateKg: null });
+  });
+  it('returns null when body stats are missing', async () => {
+    const { calcInputsForGoal } = await import('./cycleGoal');
+    expect(calcInputsForGoal({ ...p, heightCm: null }, 'gain', { startWeightKg: 73, endWeightKg: 74 }, '2026-11-05')).toBeNull();
+  });
+});

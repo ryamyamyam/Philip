@@ -3,7 +3,9 @@
  * end-of-cycle goal; the owner takes it or sets his own. Ranges are Philip's coaching defaults
  * (lean-bulk guidance for trained lifters: about 0.25–0.5% of body weight a week).
  */
-import { BODY_FAT_TARGET } from '../targets';
+import type { ActivityLevel, Sex } from '../../db/types';
+import { ageOn } from '../date';
+import { BODY_FAT_TARGET, type CalcInputs } from '../targets';
 import type { Phase } from './program';
 import { roundTo } from './program';
 
@@ -129,4 +131,43 @@ export function checkUserGoal(
 export function kcalPerDayFor(weightKg: number, ratePct: number): number {
   const kgPerWeek = (weightKg * ratePct) / 100;
   return Math.round((kgPerWeek * 7700) / 7 / 10) * 10;
+}
+
+/* ---------------- Briefing → calorie targets (T-014) ---------------- */
+
+export interface ProfileForCalc {
+  sex: Sex | null;
+  birthDate: string | null;
+  heightCm: number | null;
+  activityLevel: ActivityLevel | null;
+  trainingDaysPerWeek: number | null;
+  bodyFatPct: number | null;
+}
+
+/**
+ * Calculator inputs for a confirmed cycle goal, or null when body stats are missing (then calories
+ * stay as they are and the briefing says so). The rate is the goal's weekly change; the existing
+ * calculator and its safety rules decide the actual numbers.
+ */
+export function calcInputsForGoal(
+  p: ProfileForCalc,
+  phase: Phase,
+  goal: Pick<CycleGoal, 'startWeightKg' | 'endWeightKg'>,
+  today: string,
+): CalcInputs | null {
+  if (!p.sex || !p.birthDate || !p.heightCm || !p.activityLevel) return null;
+  const rateKg = Math.abs(goal.endWeightKg - goal.startWeightKg) / CYCLE_WEEKS;
+  return {
+    sex: p.sex,
+    ageYears: ageOn(p.birthDate, today),
+    heightCm: p.heightCm,
+    weightKg: goal.startWeightKg,
+    activityLevel: p.activityLevel,
+    // Story 5: four training days a week.
+    trainingDaysPerWeek: Math.max(4, p.trainingDaysPerWeek ?? 0),
+    goal: phase,
+    targetWeightKg: phase === 'maintain' ? null : goal.endWeightKg,
+    weeklyRateKg: phase === 'maintain' ? null : Math.round(rateKg * 100) / 100,
+    bodyFatPct: p.bodyFatPct,
+  };
 }

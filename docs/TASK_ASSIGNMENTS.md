@@ -14,6 +14,7 @@ Base branch for new work: `main`.
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
+| T-014 | Story 5 cycle briefing, cycle plan, Progress › Strength, Settings › Training | Feature | Phase A — screenshots for owner review | `feat/T-014-plan` | T-013 (`b386728`) |
 | T-013 | Story 5 setup, cycle start (minimum briefing) and Today's session | Feature | Phase A — screenshots for owner review | `feat/T-013-session` | T-011 (`7668646`) |
 | T-011 | Story 5 Home hub + navigation (Home · Progress · Settings; Meal log and Workout from Home; tour starts on Home) | Core | Phase A — screenshots for owner review | `feat/T-011-home` | T-012 (`d535ce9`) |
 | T-012 | Story 5 training engine + data (Dexie v4, `lib/training/*`, backup block) | Core | Ready for review (no UI) | `feat/T-012-training-engine` | T-010 commit `8a70d20` |
@@ -21,6 +22,14 @@ Base branch for new work: `main`.
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-014 — Story 5 briefing, plan, Strength, Training settings
+- **Role:** Feature. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §4.8, §6, §7.
+- **Files:** `src/views/workout/StartCycleView.tsx` (full briefing), `src/views/workout/PlanView.tsx` (new), `src/views/StrengthPanel.tsx` (new), `src/views/TrainingSettings.tsx` (new), `src/views/{WorkoutView,ProgressView,SettingsView}.tsx`, `src/lib/training/cycleGoal.ts` (`calcInputsForGoal`) + test, `src/styles/workout.css`, `src/i18n/en.ts`, `e2e/workout.spec.ts`.
+- **Built:** briefing (where you are, last cycle's goal vs now, phase radio with Philip's recommendation, Philip's goal preselected or "Set my own" with end weight + optional BF target, checked by `checkUserGoal`: <10% BF refused, <12% warned, out-of-range rate warned; on confirm: TM progression, profile goal/target/rate (+ target BF when set), new target plan through the existing calculator when body stats exist, cycle snapshot with `targetPlanId`); cycle plan (block, focus, phase, TMs, Why this block + evidence labels, week tabs, every day's orders with your best logged set on finished days, next-block TM preview and accessory list); Progress › Body | Strength (e1RM chart per lift, sessions per week, average time, TM by cycle); Settings › Training (re-test a lift → `retest` TM, bar and plates, exercise menu with sticky swaps per day/block, end the cycle now, reset program; logs kept).
+- **Not built:** equipment availability list (swaps are chosen directly in the menu instead).
+- **Status:** Phase A for review · **Branch:** `feat/T-014-plan` from `b386728`.
+- **Log:** 2026-11-05 Feature: built in the Cowork cloud clone (byte-identical tree). tsc clean, 280/280 unit, build OK, Chromium e2e 77/77 (+2).
 
 ### T-013 — Story 5 setup and Today's session
 - **Role:** Feature. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §4.1, §4.7, §5.

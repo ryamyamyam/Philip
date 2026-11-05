@@ -18,10 +18,10 @@ import { useUI } from '../ui';
 import { SessionView } from './workout/SessionView';
 import { SetupView } from './workout/SetupView';
 import { StartCycleView } from './workout/StartCycleView';
+import { PlanView } from './workout/PlanView';
 
 /**
- * Workout section (Story 5). Setup → cycle start → today's session (T-013). The cycle plan and the
- * full goal briefing arrive with T-014; `plan` shows a placeholder until then.
+ * Workout section (Story 5). Setup → cycle briefing → today's session; `plan` is the cycle plan.
  */
 export default function WorkoutView({ plan = false }: { plan?: boolean }) {
   const { navigate } = useUI();
@@ -36,11 +36,16 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
 
   let body: React.ReactNode = null;
   if (plan) {
-    body = (
-      <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose="phone" framing="bust" scale={2} className="pm-dialog-portrait" />}>
-        {t('workout.comingSoon')}
-      </DialogBar>
-    );
+    const cycle = loaded ? (cycles.find((c) => c.index === program?.currentCycle) ?? null) : null;
+    const choiceMap = loaded ? (Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>) : {};
+    body =
+      loaded && program && cycle ? (
+        <PlanView program={program} cycle={cycle} sessions={sessions} tmHistory={tmHistory} choices={choiceMap} />
+      ) : loaded ? (
+        <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose="phone" framing="bust" scale={2} className="pm-dialog-portrait" />}>
+          {t('plan.noCycle')}
+        </DialogBar>
+      ) : null;
   } else if (loaded) {
     const state = workoutCardState(program, sessions);
     const cycle = cycles.find((c) => c.index === program?.currentCycle) ?? null;
@@ -65,7 +70,14 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
   return (
     <div className="view view-workout">
       <StatusStrip
-        left={<CornerButton side="left" icon="chevronLeft" label={t('workout.backHome')} onClick={() => navigate('home')} />}
+        left={
+          <CornerButton
+            side="left"
+            icon="chevronLeft"
+            label={t(plan ? 'workout.backWorkout' : 'workout.backHome')}
+            onClick={() => navigate(plan ? 'workout' : 'home')}
+          />
+        }
         center={
           <div className="home-title">
             <h1 className="pm-display">{t(plan ? 'workout.planTitle' : 'workout.title')}</h1>

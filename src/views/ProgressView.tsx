@@ -15,6 +15,7 @@ import { fmtDate, fmtNum } from '../lib/format';
 import { KG_PER_LB, validateNumber, type FieldError } from '../lib/numbers';
 import { goalDate, weightPlanLine, weightProgress, WEIGHT_LOG_RANGE, type WeightStatus } from '../lib/weight';
 import { useUI } from '../ui';
+import { StrengthPanel } from './StrengthPanel';
 
 const STATUS_KEY: Record<WeightStatus, StringKey> = {
   onTrack: 'progress.status.onTrack',
@@ -59,6 +60,7 @@ export default function ProgressView() {
   const profile = useProfile();
   const entries = useWeightEntries();
   const { navigate } = useUI();
+  const [section, setSection] = useState<'body' | 'strength'>('body');
   const today = todayYmd();
   const lb = profile?.unitPrefs.weight === 'lb';
   const unit = lb ? 'lb' : 'kg';
@@ -81,6 +83,17 @@ export default function ProgressView() {
       <header className="view-header">
         <h1>{t('progress.title')}</h1>
       </header>
+      <div className="segmented progress-tabs" role="tablist" aria-label={t('progress.sections')}>
+        <button type="button" role="tab" aria-selected={section === 'body'} aria-pressed={section === 'body'} onClick={() => setSection('body')}>
+          {t('progress.body')}
+        </button>
+        <button type="button" role="tab" aria-selected={section === 'strength'} aria-pressed={section === 'strength'} onClick={() => setSection('strength')}>
+          {t('progress.strength')}
+        </button>
+      </div>
+      {section === 'strength' ? (
+        <StrengthPanel />
+      ) : (
       <div className="stack">
         <StatPanel title={t('progress.weight')}>
           {latest && (
@@ -122,6 +135,7 @@ export default function ProgressView() {
         <WeighIn lb={lb} unit={unit} />
         {entries.length > 0 && <WeightHistory entries={entries} fmtW={fmtW} unit={unit} />}
       </div>
+      )}
     </div>
   );
 }

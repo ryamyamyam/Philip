@@ -171,3 +171,25 @@ export function calcInputsForGoal(
     bodyFatPct: p.bodyFatPct,
   };
 }
+
+export type StartWeightSource = 'average' | 'latest' | 'profile';
+
+/**
+ * The weight a cycle goal starts from (owner feedback, Nov 2026: don't block on weigh-ins).
+ * Best: the 7-day average (3+ weigh-ins). Else the latest weigh-in from the last 14 days. Else the
+ * body weight saved in Targets. Null only when there's no weight anywhere.
+ */
+export function startingWeight(
+  entries: readonly WeighIn[],
+  today: string,
+  profileWeightKg: number | null,
+): { kg: number; source: StartWeightSource } | null {
+  const avg = rollingWeight(entries, today);
+  if (avg !== null) return { kg: avg, source: 'average' };
+  const from = addDays(today, -13);
+  const recent = entries.filter((e) => e.date >= from && e.date <= today).sort((a, b) => a.date.localeCompare(b.date));
+  const latest = recent[recent.length - 1];
+  if (latest) return { kg: latest.weightKg, source: 'latest' };
+  if (profileWeightKg !== null && profileWeightKg > 0) return { kg: profileWeightKg, source: 'profile' };
+  return null;
+}

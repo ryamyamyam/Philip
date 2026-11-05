@@ -235,3 +235,29 @@
   justify-content: flex-start;
   text-align: left;
 }
+.preview-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.preview-btn {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: var(--touch);
+  padding: var(--space-1) 0;
+  border: none;
+  border-bottom: var(--border-hair) dashed var(--color-border-strong);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.preview-swap {
+  margin-left: auto;
+  color: var(--color-action);
+  text-decoration: underline;
+}

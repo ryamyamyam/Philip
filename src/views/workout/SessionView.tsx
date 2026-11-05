@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
+import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
 import { addTm, saveWorkoutSession, setSlotChoice } from '../../db/repo';
 import { newId } from '../../db/db';
@@ -8,7 +9,7 @@ import type { CycleRecord, TmRecord, TrainingProgram, WorkoutSession } from '../
 import { t, type StringKey } from '../../i18n';
 import { todayYmd } from '../../lib/date';
 import { parseDecimal } from '../../lib/numbers';
-import { slotKey, type ExerciseId, type Slot } from '../../lib/training/exercises';
+import { exerciseFor, menuSlot, slotKey, type ExerciseId, type Slot } from '../../lib/training/exercises';
 import { DAY_LIFT, DELOAD_WEEK, epley, tmFromOneRm, type LiftId } from '../../lib/training/program';
 import { nextSessionRef, tmsForCycle } from '../../lib/training/progress';
 import { buildSession, SESSION_BUDGET_MIN, type PlannedSession } from '../../lib/training/session';
@@ -89,12 +90,10 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
         </p>
         <ul className="start-list">
           {plan.exercises.map((e) => (
-            <li key={e.slot} className="num">
-              <span className="pm-pill pm-pill-quiet">{e.slot === 'main' ? t('session.slot.main') : e.slot}</span>{' '}
-              {t(`exercise.${e.exerciseId}` as StringKey)} · {t('session.sets', { n: e.prescription.filter((p) => p.kind !== 'warmup').length })}
-            </li>
+            <PreviewRow key={e.slot} e={e} day={plan.day} block={plan.block} choices={choices} />
           ))}
         </ul>
+        <p className="small muted">{t('session.checkHint')}</p>
       </section>
       <button type="button" className="btn btn-primary btn-block" onClick={start}>
         {t('session.start')}
@@ -103,6 +102,64 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
         {t('session.skipDay')}
       </button>
     </div>
+  );
+}
+
+/**
+ * One line of the day's preview. Accessories open Philip's approved swaps on tap (owner: "let me click
+ * the item I don't have during the checking phase and swap it"). The pick sticks for that slot.
+ */
+function PreviewRow({
+  e,
+  day,
+  block,
+  choices,
+}: {
+  e: PlannedSession['exercises'][number];
+  day: PlannedSession['day'];
+  block: PlannedSession['block'];
+  choices: Readonly<Record<string, ExerciseId>>;
+}) {
+  const [open, setOpen] = useState(false);
+  const sets = t('session.sets', { n: e.prescription.filter((p) => p.kind !== 'warmup').length });
+  const name = t(`exercise.${e.exerciseId}` as StringKey);
+  if (e.slot === 'main') {
+    return (
+      <li className="num">
+        <span className="pm-pill pm-pill-quiet">{t('session.slot.main')}</span> {name} · {sets}
+      </li>
+    );
+  }
+  const slot = e.slot as Slot;
+  const m = menuSlot(day, slot, block);
+  const current = exerciseFor(day, slot, block, choices);
+  return (
+    <li className="num preview-row">
+      <button type="button" className="preview-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span className="pm-pill pm-pill-quiet">{e.slot}</span> {name} · {sets}
+        <span className="preview-swap small">{t('session.swap')}</span>
+      </button>
+      {open && (
+        <div className="ex-swap" role="radiogroup" aria-label={t('session.swapTitle')}>
+          {[m.pick, ...m.swaps].map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={current === id}
+              className="btn btn-sm btn-secondary menu-option"
+              onClick={() => {
+                setOpen(false);
+                void setSlotChoice(slotKey(day, slot, block), id);
+              }}
+            >
+              {current === id && <Icon name="check" />} {t(`exercise.${id}` as StringKey)}
+              {id === m.pick ? ` · ${t('session.philipsPick')}` : ''}
+            </button>
+          ))}
+        </div>
+      )}
+    </li>
   );
 }
 

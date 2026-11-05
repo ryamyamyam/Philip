@@ -14,7 +14,7 @@ import {
   philipGoal,
   RATE_PCT,
   recommendPhase,
-  rollingWeight,
+  startingWeight,
   type CycleGoal,
   type GoalIssue,
 } from '../../lib/training/cycleGoal';
@@ -54,7 +54,8 @@ export function StartCycleView({
   const [busy, setBusy] = useState(false);
   const unit = profile.unitPrefs.weight;
   const today = todayYmd();
-  const weight = rollingWeight(weights, today);
+  const start = startingWeight(weights, today, profile.weightKg);
+  const weight = start?.kg ?? null;
 
   const lastInfo = useMemo(() => {
     if (!last) return null;
@@ -144,7 +145,13 @@ export function StartCycleView({
         <h2 id="brief-h">{t('brief.title', { n: index, block })}</h2>
         <p className="small muted">{t(BLOCK_FOCUS[block] ?? 'plan.focus.A')}</p>
         {weight !== null ? (
-          <p className="num">{t('brief.now', { weight: fmtIn(weight, unit) })}{profile.bodyFatPct !== null ? ` · ${t('brief.bfNow', { bf: fmtNum(profile.bodyFatPct, 1) })}` : ''}</p>
+          <>
+            <p className="num">
+              {t(start?.source === 'average' ? 'brief.now' : 'brief.nowSingle', { weight: fmtIn(weight, unit) })}
+              {profile.bodyFatPct !== null ? ` · ${t('brief.bfNow', { bf: fmtNum(profile.bodyFatPct, 1) })}` : ''}
+            </p>
+            {start?.source !== 'average' && <p className="small muted">{t(start?.source === 'latest' ? 'brief.fromLatest' : 'brief.fromProfile')}</p>}
+          </>
         ) : (
           <p>{t('brief.weighInsHint')}</p>
         )}

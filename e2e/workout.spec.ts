@@ -163,3 +163,24 @@ test.describe('Workout T-014: briefing, plan, strength, settings', () => {
     await expect(main(page).getByRole('heading', { name: 'Your lifts' })).toBeVisible();
   });
 });
+
+test.describe('Workout owner feedback (Nov 5)', () => {
+  test('one weigh-in is enough to start; the day preview swaps a missing machine', async ({ page }) => {
+    await fresh(page);
+    await openWorkout(page);
+    for (const [n, v] of [['Back squat', '150'], ['Bench press', '100'], ['Romanian deadlift', '115'], ['Overhead press', '50']] as const) {
+      await main(page).getByRole('group', { name: n }).getByLabel('Weight (kg)').fill(v);
+    }
+    await main(page).getByRole('button', { name: 'Save my numbers' }).click();
+    await seedWeights(page, [73]);
+    await page.reload();
+    await expect(main(page)).toContainText('From your latest weigh-in');
+    await main(page).getByRole('button', { name: 'Start cycle 1' }).click();
+
+    await main(page).getByRole('button', { name: /A1 Bulgarian split squat/ }).click();
+    await main(page).getByRole('radio', { name: 'Hack squat' }).click();
+    await expect(main(page).getByRole('button', { name: /A1 Hack squat/ })).toBeVisible();
+    await main(page).getByRole('button', { name: 'Start workout' }).click();
+    await expect(main(page).getByRole('region', { name: 'Hack squat' })).toBeVisible();
+  });
+});

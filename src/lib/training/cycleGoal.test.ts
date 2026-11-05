@@ -71,3 +71,14 @@ describe('calcInputsForGoal', () => {
     expect(calcInputsForGoal({ ...p, heightCm: null }, 'gain', { startWeightKg: 73, endWeightKg: 74 }, '2026-11-05')).toBeNull();
   });
 });
+
+describe('startingWeight', () => {
+  const e = (date: string, weightKg: number) => ({ date, weightKg });
+  it('7-day average first, then the latest recent weigh-in, then the Targets weight', async () => {
+    const { startingWeight } = await import('./cycleGoal');
+    expect(startingWeight([e('2026-11-01', 73), e('2026-11-03', 73.2), e('2026-11-05', 73.4)], '2026-11-05', 70)).toMatchObject({ source: 'average' });
+    expect(startingWeight([e('2026-10-30', 73.6)], '2026-11-05', 70)).toEqual({ kg: 73.6, source: 'latest' });
+    expect(startingWeight([e('2026-10-01', 75)], '2026-11-05', 73)).toEqual({ kg: 73, source: 'profile' });
+    expect(startingWeight([], '2026-11-05', null)).toBeNull();
+  });
+});

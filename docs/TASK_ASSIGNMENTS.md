@@ -30,6 +30,7 @@ Base branch for new work: `main`.
 - **Not built:** equipment availability list (swaps are chosen directly in the menu instead).
 - **Status:** Phase A for review · **Branch:** `feat/T-014-plan` from `b386728`.
 - **Log:** 2026-11-05 Feature: built in the Cowork cloud clone (byte-identical tree). tsc clean, 280/280 unit, build OK, Chromium e2e 77/77 (+2).
+  2026-11-05 Owner feedback: (1) swap a missing machine during the check before starting — the day preview's accessories open Philip's approved swaps on tap (sticky); (2) the briefing no longer blocks on 3 weigh-ins: 7-day average if there are 3+, else the latest weigh-in from 14 days, else the Targets weight, with a note saying which. tsc clean, 281/281 unit, Chromium e2e 78/78.
 
 ### T-013 — Story 5 setup and Today's session
 - **Role:** Feature. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §4.1, §4.7, §5.

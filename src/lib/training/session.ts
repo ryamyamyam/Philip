@@ -10,6 +10,7 @@ import {
   DAY_LIFT,
   DELOAD_WEEK,
   nextAccessoryKg,
+  tmIncrement,
   warmupSets,
   workSets,
   type Block,
@@ -237,5 +238,33 @@ export function buildSession(input: SessionInput): PlannedSession {
     exercises,
     estMinutes: estimateMinutes(exercises),
     trims,
+  };
+}
+
+/* ---------------- 4-week outlook for one lift (owner feedback, Nov 5) ---------------- */
+
+export interface OutlookSet {
+  kg: number;
+  reps: number;
+  plus: boolean;
+}
+
+export interface LiftOutlook {
+  weeks: { week: Week; sets: OutlookSet[] }[];
+  /** Next cycle's week 1, if every key set is hit (TM + the phase increment). */
+  next: { block: Block; tmKg: number; sets: OutlookSet[] };
+}
+
+const outlookSets = (block: Block, week: Week, lift: LiftId, tm: number, bar: BarSetup): OutlookSet[] =>
+  workSets(block, week, lift).map((s) => ({ kg: loadFor(tm * s.pct, bar).totalKg, reps: s.reps, plus: s.kind === 'amrap' }));
+
+/** The main lift's work sets for all 4 weeks of this cycle, plus next cycle's first week. */
+export function liftOutlook(lift: LiftId, tmKg: number, cycle: number, phase: Phase, bar: BarSetup = DEFAULT_BAR_SETUP): LiftOutlook {
+  const block = blockForCycle(cycle);
+  const nextBlock = blockForCycle(cycle + 1);
+  const nextTm = tmKg + tmIncrement(lift, phase);
+  return {
+    weeks: ([1, 2, 3, 4] as const).map((week) => ({ week, sets: outlookSets(block, week, lift, tmKg, bar) })),
+    next: { block: nextBlock, tmKg: nextTm, sets: outlookSets(nextBlock, 1, lift, nextTm, bar) },
   };
 }

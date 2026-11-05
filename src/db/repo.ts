@@ -304,6 +304,8 @@ export const META = {
   storagePersisted: 'storagePersisted',
   /** T-010: when Philip's tour was finished or skipped (ms). null = show it (Settings › Replay sets null). Not in backups. */
   tutorialSeenAt: 'tutorialSeenAt',
+  /** Owner feedback (Nov 5): the tour's current step id, so it resumes after Set targets or a reload. */
+  tutorialStep: 'tutorialStep',
 } as const;
 
 /* ---------------- Training (Story 5, T-012) ---------------- */

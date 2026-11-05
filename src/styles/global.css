@@ -1,40 +1,33 @@
 @import './tokens.css';
 
-/* Display font (D-022): self-hosted, precached by the service worker. Labels, chips, numbers, headers only. */
+/* Display font (D-022; owner feedback Nov 5: a finer pixel grid reads better). Jersey 15 (OFL) is a
+   pixel font drawn on a ~1.5× finer grid than the old Pixelify letters, with clear digits, so one
+   family covers letters and numbers. It has one weight; bold text uses the same face (no fake bold).
+   The Pixelify/Silkscreen files stay in assets/fonts for a quick rollback. Self-hosted, precached. */
 @font-face {
   font-family: 'Philip Pixel';
-  src: url('../assets/fonts/philip-pixel-400.woff2') format('woff2');
-  font-weight: 400 500;
+  src: url('../assets/fonts/jersey15-latin-400.woff2') format('woff2');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
+  size-adjust: 112%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: 'Philip Pixel';
-  src: url('../assets/fonts/philip-pixel-700.woff2') format('woff2');
-  font-weight: 600 800;
+  src: url('../assets/fonts/jersey15-latin-ext-400.woff2') format('woff2');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
+  size-adjust: 112%;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
-/* Digits come from Silkscreen (Pixelify's 5 reads as S), via unicode-range. Declared last so they win
-   for 0–9. Each digits face repeats a Pixelify face's exact descriptors: browsers only combine
-   unicode-range faces whose weight ranges match. One file for both (Silkscreen Bold's 4 is unclear). */
-@font-face {
-  font-family: 'Philip Pixel';
-  src: url('../assets/fonts/philip-pixel-digits-400.woff2') format('woff2');
-  font-weight: 400 500;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0030-0039;
-  size-adjust: 92%;
-}
-@font-face {
-  font-family: 'Philip Pixel';
-  src: url('../assets/fonts/philip-pixel-digits-400.woff2') format('woff2');
-  font-weight: 600 800;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0030-0039;
-  size-adjust: 92%;
+
+/* `hidden` always wins over component display rules (e.g. kept-mounted tab panels). */
+[hidden] {
+  display: none !important;
 }
 
 html {
@@ -62,6 +55,7 @@ body {
   font-family: var(--font-display); /* pixel type app-wide (D-022, owner feedback Nov 3) */
   /* Pixelify's "fi" ligature draws like "A" ("Protein first" read "Protein Arst"): off app-wide (T-011). */
   font-variant-ligatures: none;
+  font-synthesis: none;
   font-size: var(--text-md);
   line-height: var(--leading-normal);
   color: var(--color-text);

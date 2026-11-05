@@ -14,7 +14,10 @@ export interface DialogBarProps {
   portrait?: ReactNode;
 }
 
-/** Full-width dark strip where Philip speaks, styled like a game prompt (D-022). */
+/**
+ * Full-width dark strip where Philip speaks, styled like a game prompt (D-022). No ▼ caret: on a
+ * static line it read as "tap to continue" (owner feedback, Nov 5); only the tour shows one.
+ */
 export function DialogBar({ speaker, children, action, live = false, className, tourAnchor, portrait }: DialogBarProps) {
   return (
     <div
@@ -31,9 +34,7 @@ export function DialogBar({ speaker, children, action, live = false, className, 
           {action.label}
           <span aria-hidden="true"> ▸</span>
         </button>
-      ) : (
-        speaker && <span className="pm-dialog-caret" aria-hidden="true" />
-      )}
+      ) : null}
     </div>
   );
 }

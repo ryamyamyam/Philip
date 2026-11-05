@@ -400,7 +400,9 @@ function HelpSection() {
   const { navigate } = useUI();
   // Clearing the flag makes App show Philip's tour again; it starts on Home.
   const replay = () => {
-    void setMeta(META.tutorialSeenAt, null).then(() => navigate('home'));
+    void setMeta(META.tutorialStep, null)
+      .then(() => setMeta(META.tutorialSeenAt, null))
+      .then(() => navigate('home'));
   };
   return (
     <section className="card stack" aria-labelledby="help-h">

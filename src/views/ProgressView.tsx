@@ -53,7 +53,7 @@ const STATUS_TONE: Record<WeightStatus, string> = {
 /**
  * Progress (Story 3): one question — am I changing weight at the rate I planned?
  * Status line, actual-vs-plan chart, the weigh-in form and a collapsed history.
- * Targets and the calculator live in Settings › Targets & body stats.
+ * Targets and the calculator live in Settings › Daily nutrition targets.
  */
 export default function ProgressView() {
   const plans = useTargetPlans();

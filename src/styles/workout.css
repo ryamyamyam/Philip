@@ -261,3 +261,10 @@
   color: var(--color-action);
   text-decoration: underline;
 }
+.outlook li.is-now {
+  padding-left: var(--space-2);
+  border-left: var(--space-1) solid var(--color-action);
+}
+.outlook-next {
+  color: var(--color-text-2);
+}

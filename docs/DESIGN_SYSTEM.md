@@ -88,6 +88,8 @@ The QA & Feedback module is themed only by re-mapping its `--qa-*` variables in 
 - **Pain text** (`.ex-pain`) is plain danger-soft text, never Philip's voice.
 - Styles live in `src/styles/workout.css`.
 
+**Font (D-026):** the family is now Jersey 15 (finer pixel grid); the Pixelify/Silkscreen notes above describe the previous version.
+
 ## Rules (carried over)
 
 - **Touch targets:** at least 44px (`--touch`).

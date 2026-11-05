@@ -1119,3 +1119,13 @@ details.pm-panel > summary.pm-panel-head:focus-visible {
 .pm-tour {
   font-variant-ligatures: none;
 }
+.pm-tour-hint {
+  align-self: center;
+  margin-right: auto;
+  color: var(--color-on-deck-2);
+}
+.pm-tour-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

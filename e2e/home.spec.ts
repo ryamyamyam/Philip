@@ -32,7 +32,7 @@ test.describe('Home (Story 5, T-011)', () => {
     await expect(meals).toContainText('2,400 kcal left');
     await expect(meals).toContainText('Protein 150 g to go');
     await home(page).getByRole('button', { name: /^Phase:/ }).click();
-    await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Daily nutrition targets', level: 1 })).toBeVisible();
   });
 
   for (const width of [375, 393, 440]) {

@@ -45,18 +45,25 @@ export function TargetsSections({ showCurrent = true, compact = false }: { showC
             </button>
           ))}
         </div>
-        {profile &&
-          (mode === 'calculator' ? (
-            <CalculatorForm
-              profile={profile}
-              onAdjust={(m) => {
-                setPrefill(m);
-                setMode('manual');
-              }}
-            />
-          ) : (
-            <ManualForm key={prefill ? JSON.stringify(prefill) : 'blank'} initial={prefill ?? current ?? null} />
-          ))}
+        {/* Both forms stay mounted (owner feedback, Nov 5): switching tabs never clears what you typed. */}
+        {profile && (
+          <>
+            <div className="stack-sm" hidden={mode !== 'calculator'}>
+              <p className="small muted targets-intro">{t('targets.calculatorIntro')}</p>
+              <CalculatorForm
+                profile={profile}
+                onAdjust={(m) => {
+                  setPrefill(m);
+                  setMode('manual');
+                }}
+              />
+            </div>
+            <div className="stack-sm" hidden={mode !== 'manual'}>
+              <p className="small muted targets-intro">{t('targets.manualIntro')}</p>
+              <ManualForm key={prefill ? JSON.stringify(prefill) : 'blank'} initial={prefill ?? current ?? null} />
+            </div>
+          </>
+        )}
         {compact ? (
           <details className="card more-targets">
             <summary>{t('progress.moreTargets')}</summary>

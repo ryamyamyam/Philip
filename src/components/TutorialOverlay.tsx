@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react';
 import { t } from '../i18n';
-import { stepsFor, type TourChoice, type TourContext, type TourScreen } from '../lib/tutorial';
+import { stepsFor, TUTORIAL_STEPS, type TourChoice, type TourContext, type TourScreen } from '../lib/tutorial';
 import { GymCharacter } from './GymCharacter';
 import { prefersReducedMotion, useTypewriter } from './useTypewriter';
 
@@ -19,25 +19,37 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), [tabin
 /**
  * Philip's guided tour (T-010, D-024): dims Today, spotlights one `data-tour` anchor at a time and
  * talks in a bottom dialog box with his portrait. Tap (or Next / Enter / Space) finishes the line,
- * then advances; Skip or Escape ends it. Never changes data — the caller records the end.
+ * then advances; holding the screen types twice as fast (owner feedback, Nov 5). Skip and Escape ask
+ * first, so a stray tap never throws you out; the caller keeps the current step so the tour resumes
+ * where it left off. Never changes data — the caller records the end.
  */
 export function TutorialOverlay({
   ctx,
   onEnd,
   screen,
   onScreen,
+  resumeAt,
+  onStep,
 }: {
   ctx: TourContext;
   onEnd: (how: TourEnd) => void;
   /** The screen showing now; when a step belongs to another one, `onScreen` is asked to go there. */
   screen?: TourScreen;
   onScreen?: (screen: TourScreen) => void;
+  /** Resume at this step (or the next one that applies), e.g. after Set targets or a reload. */
+  resumeAt?: string | null;
+  /** Called with each step's id as the tour moves on, so the caller can resume it later. */
+  onStep?: (id: string, nextId: string | null) => void;
 }) {
   const steps = useMemo(() => stepsFor(ctx), [ctx]);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => resumeIndex(resumeAt ?? null, ctx));
   const step = steps[Math.min(index, steps.length - 1)];
   const text = step ? t(step.textKey) : '';
-  const { shown, done, complete } = useTypewriter(text);
+  const [fast, setFast] = useState(false);
+  const { shown, done, complete } = useTypewriter(text, fast ? 2 : 1);
+  const [confirmSkip, setConfirmSkip] = useState(false);
+  const holdTimer = useRef<number | null>(null);
+  const held = useRef(false);
   const [spot, setSpot] = useState<Box | null>(null);
   const [placeTop, setPlaceTop] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -50,11 +62,36 @@ export function TutorialOverlay({
     else setIndex((i) => i + 1);
   }, [index, steps.length, onEnd]);
 
+  useEffect(() => {
+    if (step) onStep?.(step.id, steps[index + 1]?.id ?? null);
+  }, [step, steps, index, onStep]);
+
   /** A tap finishes the line first; the next tap moves on. Choice steps only move on by choosing. */
   const advance = useCallback(() => {
+    // The release after a hold-to-speed-up is not a tap.
+    if (held.current) {
+      held.current = false;
+      return;
+    }
     if (!done) complete();
     else if (!step?.choices) next();
   }, [done, complete, next, step]);
+
+  // Hold anywhere (like a video's fast-forward): after a short press the line types at 2×.
+  const onPointerDown = () => {
+    held.current = false;
+    if (holdTimer.current) window.clearTimeout(holdTimer.current);
+    holdTimer.current = window.setTimeout(() => {
+      held.current = true;
+      setFast(true);
+    }, 250);
+  };
+  const endHold = () => {
+    if (holdTimer.current) window.clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    setFast(false);
+  };
+  useEffect(() => () => endHold(), []);
 
   const choose = (c: TourChoice) => (c === 'setTargets' ? onEnd('setTargets') : next());
 
@@ -133,7 +170,7 @@ export function TutorialOverlay({
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault();
-      onEnd('skip');
+      setConfirmSkip((v) => !v);
     } else if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
       e.preventDefault();
       advance();
@@ -169,27 +206,47 @@ export function TutorialOverlay({
       aria-modal="true"
       aria-label={t('tutorial.label')}
       tabIndex={-1}
-      onClick={advance}
+      onClick={confirmSkip ? undefined : advance}
+      onPointerDown={confirmSkip ? undefined : onPointerDown}
+      onPointerUp={endHold}
+      onPointerCancel={endHold}
+      onPointerLeave={endHold}
       onKeyDown={onKeyDown}
       data-step={step.id}
     >
       {spot ? <div className="pm-tour-spot" style={spotStyle} /> : <div className="pm-tour-dim" />}
-      <button type="button" className="btn btn-sm pm-tour-skip" onClick={stop(() => onEnd('skip'))}>
-        {t('tutorial.skip')}
-      </button>
+      {!confirmSkip && (
+        <button type="button" className="btn btn-sm pm-tour-skip" onClick={stop(() => setConfirmSkip(true))}>
+          {t('tutorial.skip')}
+        </button>
+      )}
       <div ref={boxRef} className={`pm-tour-box${placeTop ? ' is-top' : ''}`}>
         <GymCharacter pose={step.pose} talking={!done} scale={2} className="pm-tour-portrait" />
         <div className="pm-dialog pm-dialog-voiced pm-tour-dialog">
           <span className="pm-dialog-speaker">{t('coach.speaker')}</span>
           {/* The typed text is visual only; the full line is announced once below. The untyped rest
               keeps its space (invisible) so the box doesn't grow while typing. */}
-          <p className="pm-dialog-text pm-tour-text" aria-hidden="true">
+          <p className="pm-dialog-text pm-tour-text" aria-hidden="true" hidden={confirmSkip}>
             {shown}
             <span className="pm-tour-rest">{text.slice(shown.length)}</span>
           </p>
           <p className="visually-hidden" aria-live="polite" key={step.id}>
             {text}
           </p>
+          {confirmSkip ? (
+            <div className="pm-tour-confirm" role="group" aria-label={t('tutorial.skipTitle')}>
+              <p className="pm-dialog-text">{t('tutorial.skipAsk')}</p>
+              <div className="pm-tour-actions">
+                <button ref={firstActionRef} type="button" className="btn btn-sm pm-tour-choice" onClick={stop(() => setConfirmSkip(false))}>
+                  <span aria-hidden="true">▸ </span>
+                  {t('tutorial.keepGoing')}
+                </button>
+                <button type="button" className="btn btn-sm pm-tour-choice" onClick={stop(() => onEnd('skip'))}>
+                  {t('tutorial.skipConfirm')}
+                </button>
+              </div>
+            </div>
+          ) : (
           <div className="pm-tour-actions">
             {step.choices ? (
               step.choices.map((c, i) => (
@@ -210,9 +267,24 @@ export function TutorialOverlay({
                 {done && <span className="pm-dialog-caret pm-tour-caret" aria-hidden="true" />}
               </button>
             )}
+            {!done && <span className="pm-tour-hint small">{t('tutorial.holdHint')}</span>}
           </div>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+/** Index to resume at: the saved step if it still applies, else the next one after it that does. */
+function resumeIndex(id: string | null, ctx: TourContext): number {
+  if (!id) return 0;
+  const steps = stepsFor(ctx);
+  const at = steps.findIndex((s) => s.id === id);
+  if (at >= 0) return at;
+  const order = TUTORIAL_STEPS.map((s) => s.id);
+  const from = order.indexOf(id);
+  if (from < 0) return 0;
+  const later = steps.findIndex((s) => order.indexOf(s.id) > from);
+  return later >= 0 ? later : Math.max(0, steps.length - 1);
 }

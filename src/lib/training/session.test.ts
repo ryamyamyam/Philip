@@ -97,3 +97,15 @@ describe('menu', () => {
     for (const m of MENU) if (exerciseInfo(m.pick).timed) expect(m.repMax).toBeGreaterThanOrEqual(20);
   });
 });
+
+describe('liftOutlook', () => {
+  it('lists all 4 weeks of this cycle and next cycle’s week 1 at TM + the phase increment', async () => {
+    const { liftOutlook } = await import('./session');
+    const o = liftOutlook('squat', 135, 1, 'gain');
+    expect(o.weeks.map((w) => w.week)).toEqual([1, 2, 3, 4]);
+    expect(o.weeks[0]?.sets.map((s) => [Math.round(s.kg * 10) / 10, s.reps, s.plus])).toEqual([[88, 5, false], [101.6, 5, false], [115.3, 5, true]]);
+    expect(o.weeks[3]?.sets.every((s) => !s.plus && s.reps === 5)).toBe(true);
+    expect(o.next).toMatchObject({ block: 'B', tmKg: 140 });
+    expect(o.next.sets).toHaveLength(4);
+  });
+});

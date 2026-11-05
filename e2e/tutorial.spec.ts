@@ -28,7 +28,7 @@ test.describe('Philip’s tour (T-010, Story 5)', () => {
     await expect.poll(() => step(page)).toBe('what');
   });
 
-  test('no target: the choice step offers Set targets, which opens targets and ends the tour', async ({ page }) => {
+  test('no target: Set targets opens targets and pauses the tour; it resumes at the next line back home', async ({ page }) => {
     await fresh(page, { tour: true });
     for (const id of HOME_STEPS) {
       await expect.poll(() => step(page)).toBe(id);
@@ -39,10 +39,34 @@ test.describe('Philip’s tour (T-010, Story 5)', () => {
     await expect(next(page)).toHaveCount(0);
     await tour(page).getByRole('button', { name: 'Set targets' }).click();
     await expect(tour(page)).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Daily nutrition targets', level: 1 })).toBeVisible();
+    // Back on Home (even after a reload), the tour picks up at the line after the choice.
     await page.reload();
-    await openMealLog(page);
-    await expect(tour(page)).toHaveCount(0);
+    await tab(page, 'Home').click();
+    await expect(tour(page)).toBeVisible();
+    await expect.poll(() => step(page)).toBe('photo');
+  });
+
+  test('Skip asks first: Keep going stays on the same line', async ({ page }) => {
+    await fresh(page, { tour: true });
+    await next(page).click();
+    await next(page).click();
+    await expect.poll(() => step(page)).toBe('what');
+    await tour(page).getByRole('button', { name: 'Skip', exact: true }).click();
+    await expect(tour(page)).toContainText('You can replay it any time');
+    await tour(page).getByRole('button', { name: 'Keep going' }).click();
+    await expect.poll(() => step(page)).toBe('what');
+  });
+
+  test('holding the screen types the line faster, and releasing is not a tap', async ({ page }) => {
+    await fresh(page, { tour: true });
+    const box = await tour(page).boundingBox();
+    await page.mouse.move((box?.width ?? 300) / 2, 200);
+    await page.mouse.down();
+    await page.waitForTimeout(1200);
+    await page.mouse.up();
+    // Still on line 1 (the release didn't advance), and the hold typed most or all of it.
+    expect(await step(page)).toBe('hello');
   });
 
   test('Skip ends the tour for good; it does not come back after a reload', async ({ page }) => {
@@ -78,6 +102,7 @@ test.describe('Philip’s tour (T-010, Story 5)', () => {
     // Focus moves into the overlay (the Next button), so keys reach it.
     await expect(next(page)).toBeFocused();
     await page.keyboard.press('Escape');
+    await tour(page).getByRole('button', { name: 'Skip tour' }).click();
     await expect(tour(page)).toHaveCount(0);
   });
 

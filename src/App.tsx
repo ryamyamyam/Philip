@@ -56,6 +56,7 @@ export function App() {
   // Philip's tour (T-010; Story 5: starts on Home, then walks into the Meal log): shows while `tutorialSeenAt` is unset (first launch, every existing
   // install once, or after Settings › Replay tutorial clears it), once targets and profile have loaded.
   const seenAt = useMeta<number>(META.tutorialSeenAt);
+  const savedStep = useMeta<string>(META.tutorialStep);
   const plans = useTargetPlans();
   const profile = useProfile();
   // The context is captured when the tour starts, so logging during it can't reshuffle the steps.
@@ -72,17 +73,29 @@ export function App() {
       setTourCtx((c) => c ?? { hasTarget: targetForDate(plans, date) !== null, hasKey: !!profile.geminiKey });
     }
   }, [seenAt, tourEnded, plans, profile, date]);
+  // The step the tour is on, so it can pick up where it left off.
+  const nextStep = useRef<string | null>(null);
+  const onTourStep = useCallback((id: string, next: string | null) => {
+    nextStep.current = next;
+    void setMeta(META.tutorialStep, id);
+  }, []);
   const endTour = useCallback(
     (how: TourEnd) => {
-      setTourEnded(true);
       setTourCtx(null);
+      if (how === 'setTargets') {
+        // Not the end (owner feedback, Nov 5): pause, and resume at the next line back on Home or Meal log.
+        void setMeta(META.tutorialStep, nextStep.current);
+        navigate('targets');
+        return;
+      }
+      setTourEnded(true);
       void setMeta(META.tutorialSeenAt, Date.now());
-      if (how === 'setTargets') navigate('targets');
+      void setMeta(META.tutorialStep, null);
     },
     [navigate],
   );
   const tourScreen: TourScreen | null = tab === 'home' || tab === 'meals' ? tab : null;
-  const showTour = tourScreen !== null && !sheet && seenAt === null && !tourEnded && tourCtx !== null;
+  const showTour = tourScreen !== null && !sheet && seenAt === null && savedStep !== undefined && !tourEnded && tourCtx !== null;
   const onTourScreen = useCallback(
     (s: TourScreen) => {
       if (s === 'meals') setDate(todayYmd());
@@ -111,7 +124,16 @@ export function App() {
           </main>
           <TabBar tab={tab} onTab={onTab} />
           {sheet && <SheetHost sheet={sheet} />}
-          {showTour && <TutorialOverlay ctx={tourCtx} onEnd={endTour} screen={tourScreen ?? undefined} onScreen={onTourScreen} />}
+          {showTour && (
+            <TutorialOverlay
+              ctx={tourCtx}
+              onEnd={endTour}
+              screen={tourScreen ?? undefined}
+              onScreen={onTourScreen}
+              resumeAt={savedStep}
+              onStep={onTourStep}
+            />
+          )}
           <QaFeedback config={qaFeedbackConfig} />
         </div>
       </ToastProvider>

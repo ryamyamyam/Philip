@@ -14,3 +14,7 @@ marks; digits only for Silkscreen), woff2. Renamed "Philip Pixel" / "Philip Pixe
 OFL asks for modified versions. No Reserved Font Names are declared by either font.
 
 Self-hosted so the PWA works offline: Vite emits or inlines the files and the service worker precaches them.
+
+## Nov 2026: Jersey 15 (owner feedback)
+
+The app now uses **Jersey 15** © 2023 The Soft Type Project Authors (https://github.com/scfried/soft-type-jersey), SIL OFL 1.1 — `OFL-Jersey15.txt` — unmodified, as `jersey15-latin-400.woff2` and `jersey15-latin-ext-400.woff2` (Fontsource subsets). It's a pixel font on a finer grid than Pixelify, so text reads better at the same size, and its digits are clear, so the Silkscreen digit face isn't needed. One weight; `font-synthesis: none` keeps bold text from being faked. The Pixelify/Silkscreen files above are kept for a quick rollback (not loaded).

@@ -7,7 +7,7 @@ import { useUI } from '../ui';
 import { CurrentCard, TargetsSections } from './TargetsView';
 
 /**
- * Settings › Targets & body stats (Story 3). The calculator, manual targets, weekly plan,
+ * Settings › Daily nutrition targets (Story 3; renamed Nov 2026). The calculator, manual targets, weekly plan,
  * adherence and target history moved here from Progress — configuration, not daily use.
  */
 export default function TargetsPage() {

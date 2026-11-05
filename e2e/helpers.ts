@@ -35,7 +35,9 @@ export function tour(page: Page) {
 /** Waits for the tour and skips it (it shows on Today after a fresh install, Delete all, or a Replace restore). */
 export async function skipTour(page: Page) {
   await expect(tour(page)).toBeVisible();
-  await tour(page).getByRole('button', { name: 'Skip' }).click();
+  await tour(page).getByRole('button', { name: 'Skip', exact: true }).click();
+  // Skip asks first (owner feedback, Nov 5), so a stray tap never throws you out.
+  await tour(page).getByRole('button', { name: 'Skip tour' }).click();
   await expect(tour(page)).toHaveCount(0);
 }
 
@@ -76,11 +78,11 @@ export async function addManualFood(
   await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
-/** Settings › Targets & body stats (Story 3). */
+/** Settings › Daily nutrition targets (Story 3). */
 export async function openTargets(page: Page) {
   await tab(page, 'Settings').click();
-  await page.getByRole('button', { name: 'Change targets or body stats' }).click();
-  await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Change daily nutrition targets' }).click();
+  await expect(page.getByRole('heading', { name: 'Daily nutrition targets', level: 1 })).toBeVisible();
 }
 
 export async function setManualTargets(page: Page, m: { calories: string; protein: string; fat: string; carbs: string }) {

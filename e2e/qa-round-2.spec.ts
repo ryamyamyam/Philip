@@ -109,7 +109,7 @@ test('Nav (Story 5): Home · Progress · Settings; opens on Home; #/today and #/
   }
   await page.goto('./#/targets');
   await expect(tab(page, 'Settings')).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Daily nutrition targets', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: 'Back to Settings' }).click();
   await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
   // No floating QA button over the nutrition screens.
@@ -208,7 +208,7 @@ test('UX-3: no target → one call to action that opens Settings › Targets', a
   await expect(card.getByText('No target? Cute.')).toBeVisible();
   await card.getByRole('button', { name: 'Set targets. Now.' }).click();
   await expect(tab(page, 'Settings')).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('heading', { name: 'Targets & body stats', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Daily nutrition targets', level: 1 })).toBeVisible();
 });
 
 test('Story 3: daily goal reached shows a calm celebration', async ({ page }) => {

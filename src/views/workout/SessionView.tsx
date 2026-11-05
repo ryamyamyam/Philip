@@ -12,7 +12,7 @@ import { parseDecimal } from '../../lib/numbers';
 import { exerciseFor, menuSlot, slotKey, type ExerciseId, type Slot } from '../../lib/training/exercises';
 import { DAY_LIFT, DELOAD_WEEK, epley, tmFromOneRm, type LiftId } from '../../lib/training/program';
 import { nextSessionRef, tmsForCycle } from '../../lib/training/progress';
-import { buildSession, SESSION_BUDGET_MIN, type PlannedSession } from '../../lib/training/session';
+import { buildSession, liftOutlook, SESSION_BUDGET_MIN, type PlannedSession } from '../../lib/training/session';
 import { createSession, lastSetsFor, summarize, toSessionExercise, type SessionSummary } from '../../lib/training/sessionLog';
 import { useUI } from '../../ui';
 import { ExerciseCard } from './ExerciseCard';
@@ -95,6 +95,7 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
         </ul>
         <p className="small muted">{t('session.checkHint')}</p>
       </section>
+      <Outlook program={program} cycle={cycle} tmHistory={tmHistory} lift={plan.lift} week={plan.week} />
       <button type="button" className="btn btn-primary btn-block" onClick={start}>
         {t('session.start')}
       </button>
@@ -160,6 +161,53 @@ function PreviewRow({
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * This lift's 4 weeks at a glance, and next cycle's first week if the top sets are hit
+ * (owner feedback, Nov 5: "so I can feel how much I'll grow").
+ */
+function Outlook({
+  program,
+  cycle,
+  tmHistory,
+  lift,
+  week,
+}: {
+  program: TrainingProgram;
+  cycle: CycleRecord;
+  tmHistory: readonly TmRecord[];
+  lift: LiftId;
+  week: number;
+}) {
+  const tm = tmsForCycle(tmHistory, cycle.index)[lift];
+  if (tm === null) return null;
+  const o = liftOutlook(lift, tm, cycle.index, cycle.phase, program.bar);
+  const unit = program.weightUnit;
+  const line = (sets: { kg: number; reps: number; plus: boolean }[]) => {
+    const first = sets[0];
+    // Straight sets read shorter as "4 × 8 @ 199 lb".
+    if (first && sets.every((x) => x.kg === first.kg && x.reps === first.reps && x.plus === first.plus)) {
+      return `${sets.length} × ${first.reps}${first.plus ? '+' : ''} @ ${fmtIn(first.kg, unit)}`;
+    }
+    return sets.map((x) => `${fmtIn(x.kg, unit)} × ${x.reps}${x.plus ? '+' : ''}`).join(' · ');
+  };
+  return (
+    <section className="card stack-sm" aria-labelledby="outlook-h">
+      <h2 id="outlook-h">{t('outlook.title', { lift: t(LIFT_KEY[lift]) })}</h2>
+      <ul className="plan-ex num outlook">
+        {o.weeks.map((w) => (
+          <li key={w.week} className={w.week === week ? 'is-now' : undefined} aria-current={w.week === week ? 'step' : undefined}>
+            <strong>{w.week === DELOAD_WEEK ? t('home.deload') : t('plan.weekN', { n: w.week })}</strong> {line(w.sets)}
+          </li>
+        ))}
+        <li className="outlook-next">
+          <strong>{t('outlook.next', { block: o.next.block })}</strong> {line(o.next.sets)}
+        </li>
+      </ul>
+      <p className="small muted">{t('outlook.note', { tm: fmtIn(tm, unit), next: fmtIn(o.next.tmKg, unit) })}</p>
+    </section>
   );
 }
 

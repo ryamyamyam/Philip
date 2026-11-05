@@ -76,6 +76,8 @@ export interface SessionInput {
   bar?: BarSetup;
   /** The unit the owner loads dumbbells and stacks in (drives accessory rounding and increments). */
   weightUnit?: PlateUnit;
+  /** Extra rest (s) on every work set, accepted in a review (owner feedback, Nov 5). */
+  restBonusSec?: number;
 }
 
 export const SESSION_BUDGET_MIN = 45;
@@ -199,6 +201,13 @@ export function buildSession(input: SessionInput): PlannedSession {
     accessory(input, block, 'A2', unit),
     accessory(input, block, 'B', unit),
   ];
+  const bonus = input.restBonusSec ?? 0;
+  if (bonus > 0) {
+    exercises = exercises.map((e) => ({
+      ...e,
+      prescription: e.prescription.map((p) => (p.kind === 'warmup' ? p : { ...p, restSec: p.restSec + bonus })),
+    }));
+  }
   const trims: Trim[] = [];
   const over = () => estimateMinutes(exercises) > SESSION_BUDGET_MIN;
   const baseSets = accessoryRules(block, input.week).sets;

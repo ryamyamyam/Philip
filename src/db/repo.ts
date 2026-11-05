@@ -380,7 +380,9 @@ export async function saveWorkoutSession(session: WorkoutSession, database: Phil
     // exercise in the slot, chosen from Philip's approved list) brings that exercise's own orders.
     const exercises = session.exercises.map((e, i) => {
       const old = existing.exercises[i];
-      return { ...e, prescription: old && old.exerciseId === e.exerciseId ? old.prescription : e.prescription };
+      // A mid-workout change the owner OK'd (applyCheckin) is the one other way orders move.
+      const keep = old && old.exerciseId === e.exerciseId && !e.originalPrescription;
+      return { ...e, prescription: keep ? old.prescription : e.prescription };
     });
     await database.workoutSessions.put({ ...session, exercises });
   } else {
@@ -411,4 +413,14 @@ export async function resetTrainingProgram(database: PhilipDB = db): Promise<voi
       database.slotChoices.clear(),
     ]);
   });
+}
+
+/** Saves today's orders after the owner OKs a mid-workout change; the original orders are kept alongside. */
+export async function applyCheckin(session: WorkoutSession, database: PhilipDB = db): Promise<void> {
+  await database.workoutSessions.put(session);
+}
+
+/** Extra rest for the rest of a cycle, accepted in an end-of-day review. */
+export async function setCycleRestBonus(index: number, restBonusSec: number, database: PhilipDB = db): Promise<void> {
+  await database.cycles.update(index, { restBonusSec });
 }

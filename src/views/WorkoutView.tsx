@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { CornerButton } from '../components/CornerButton';
 import { DialogBar } from '../components/DialogBar';
 import { GymCharacter } from '../components/GymCharacter';
@@ -18,6 +19,7 @@ import { useUI } from '../ui';
 import { SessionView } from './workout/SessionView';
 import { SetupView } from './workout/SetupView';
 import { StartCycleView } from './workout/StartCycleView';
+import { WorkoutCalendar } from './workout/WorkoutCalendar';
 import { PlanView } from './workout/PlanView';
 
 /**
@@ -25,6 +27,8 @@ import { PlanView } from './workout/PlanView';
  */
 export default function WorkoutView({ plan = false }: { plan?: boolean }) {
   const { navigate } = useUI();
+  // Owner feedback (Nov 5): Workout opens on a calendar; today's session is one tap away.
+  const [inSession, setInSession] = useState(false);
   const program = useTrainingProgram();
   const sessions = useWorkoutSessions();
   const cycles = useCycles();
@@ -53,6 +57,8 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
     if (!program || state.kind === 'setup') body = <SetupView />;
     else if (state.kind === 'briefing' || state.kind === 'cycleDone' || !cycle) {
       body = <StartCycleView profile={profile} weights={weights} cycles={cycles} sessions={sessions} tmHistory={tmHistory} />;
+    } else if (!inSession) {
+      body = <WorkoutCalendar sessions={sessions} state={state} unit={program.weightUnit} onOpenToday={() => setInSession(true)} />;
     } else {
       body = (
         <SessionView
@@ -74,8 +80,8 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
           <CornerButton
             side="left"
             icon="chevronLeft"
-            label={t(plan ? 'workout.backWorkout' : 'workout.backHome')}
-            onClick={() => navigate(plan ? 'workout' : 'home')}
+            label={t(plan ? 'workout.backWorkout' : inSession ? 'workout.backCalendar' : 'workout.backHome')}
+            onClick={() => (plan ? navigate('workout') : inSession ? setInSession(false) : navigate('home'))}
           />
         }
         center={

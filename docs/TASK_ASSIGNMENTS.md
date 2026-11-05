@@ -14,6 +14,7 @@ Base branch for new work: `main`.
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
+| T-017 | Mid-workout check-in, end-of-day review, workout calendar | Feature | Ready for owner review on device | `feat/T-017-checkin-calendar` | T-016 (`ee0d647`) |
 | T-015 | Story 5 QA + docs | QA | Ready for owner device review + WebKit on the Mac | `feat/T-015-qa` | T-014 (`32b03ae`) |
 | T-014 | Story 5 cycle briefing, cycle plan, Progress › Strength, Settings › Training | Feature | Phase A — screenshots for owner review | `feat/T-014-plan` | T-013 (`b386728`) |
 | T-013 | Story 5 setup, cycle start (minimum briefing) and Today's session | Feature | Phase A — screenshots for owner review | `feat/T-013-session` | T-011 (`7668646`) |
@@ -23,6 +24,13 @@ Base branch for new work: `main`.
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-017 — Mid-workout check-in, day review, calendar (D-027)
+- **Role:** Feature. **Owner request:** 2026-11-05 (voice notes).
+- **Files:** `src/lib/training/checkin.ts` + test (new), `src/views/workout/WorkoutCalendar.tsx` (new), `src/views/workout/{ExerciseCard,SessionView}.tsx`, `src/views/WorkoutView.tsx`, `src/db/{types,repo}.ts`, `src/lib/training/{program,session,trainingBackup}.ts`, `src/services/foodAnalysis/gemini.ts` (`coachCheckinWithGemini`), `src/i18n/en.ts`, `src/styles/workout.css`, `e2e/workout.spec.ts`.
+- **Built:** "Tell Philip" on every work set (flags: out of breath, too heavy, too easy, pain + optional note). Rules propose a change to the sets left today; a note goes to Gemini when a key is set (reply clamped, rules on any error). Owner taps "OK, change it" or "Keep my orders". After Finish, Philip's review proposes cycle changes (TM row reason `adjust`, `cycle.restBonusSec`) with checkboxes; "OK, apply" or "Not now". Workout opens on a month calendar (today selected; tick/dash/dot marks; a day's read-only log with flags and notes; today's button opens the session).
+- **Status:** Ready for owner review · **Branch:** `feat/T-017-checkin-calendar` from `ee0d647`.
+- **Log:** 2026-11-05 Feature: built in the cloud clone. tsc clean, 289/289 unit, build OK, Chromium e2e 84/84 (workout spec ×3 repeats stable). WebKit pending on the Mac.
 
 ### T-015 — Story 5 QA and docs
 - **Role:** QA. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §11.

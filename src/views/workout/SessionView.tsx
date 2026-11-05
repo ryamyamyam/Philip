@@ -3,7 +3,8 @@ import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
-import { addTm, saveWorkoutSession, setSlotChoice } from '../../db/repo';
+import { addTm, applyCheckin, saveWorkoutSession, setCycleRestBonus, setSlotChoice } from '../../db/repo';
+import { useProfile } from '../../hooks/useData';
 import { newId } from '../../db/db';
 import type { CycleRecord, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
@@ -15,7 +16,19 @@ import { nextSessionRef, tmsForCycle } from '../../lib/training/progress';
 import { buildSession, liftOutlook, SESSION_BUDGET_MIN, type PlannedSession } from '../../lib/training/session';
 import { createSession, lastSetsFor, summarize, toSessionExercise, type SessionSummary } from '../../lib/training/sessionLog';
 import { useUI } from '../../ui';
-import { ExerciseCard } from './ExerciseCard';
+import { ExerciseCard, type CheckinProposal } from './ExerciseCard';
+import {
+  adjustedTm,
+  applyTodayChange,
+  checkinPrompt,
+  MAX_REST_BONUS_SEC,
+  parseCoachReply,
+  remainingWork,
+  reviewSession,
+  ruleChange,
+  type CheckinFlag,
+  type ReviewItem,
+} from '../../lib/training/checkin';
 import { UnitSwitch } from './SetupView';
 import { fmtBoth, fmtIn, fromDisplay, fmtRest } from './units';
 
@@ -32,8 +45,9 @@ interface Props {
 
 /** Today's session (Story 5 §5, T-013): start screen, live log, finish summary. */
 export function SessionView({ program, cycle, sessions, tmHistory, choices, open }: Props) {
-  const [summary, setSummary] = useState<{ s: SessionSummary; lift: LiftId } | null>(null);
-  if (summary) return <Summary summary={summary.s} lift={summary.lift} unit={program.weightUnit} />;
+  const [summary, setSummary] = useState<{ s: SessionSummary; lift: LiftId; session: WorkoutSession } | null>(null);
+  if (summary)
+    return <Summary summary={summary.s} lift={summary.lift} unit={program.weightUnit} session={summary.session} cycle={cycle} tmHistory={tmHistory} />;
   if (open) return <LiveSession program={program} session={open} sessions={sessions} choices={choices} cycle={cycle} tmHistory={tmHistory} onFinished={setSummary} />;
   return <StartScreen program={program} cycle={cycle} sessions={sessions} tmHistory={tmHistory} choices={choices} />;
 }
@@ -61,6 +75,7 @@ function planFor(
       lastSets: (id) => lastSetsFor(sessions, id),
       bar: program.bar,
       weightUnit: program.weightUnit,
+      restBonusSec: cycle.restBonusSec ?? 0,
     }),
     missing: null,
   };
@@ -273,9 +288,12 @@ function LiveSession({
   choices: Readonly<Record<string, ExerciseId>>;
   cycle: CycleRecord;
   tmHistory: readonly TmRecord[];
-  onFinished: (s: { s: SessionSummary; lift: LiftId }) => void;
+  onFinished: (s: { s: SessionSummary; lift: LiftId; session: WorkoutSession }) => void;
 }) {
   const [unit, setUnit] = useState(program.weightUnit);
+  const profile = useProfile();
+  const [pending, setPending] = useState<{ index: number; proposal: CheckinProposal } | null>(null);
+  const [thinking, setThinking] = useState<number | null>(null);
   const [restEnds, setRestEnds] = useState<number | null>(null);
   const now = useNow(1000);
   const elapsedMin = Math.floor((now - session.startedAt) / 60000);
@@ -305,10 +323,66 @@ function LiveSession({
       ),
     });
   };
+  // Owner tells Philip how a set went (Nov 5): save it, then propose a change for the rest of today.
+  const checkin = async (index: number, order: number, flag: CheckinFlag | null, note: string) => {
+    const ex = session.exercises[index];
+    if (!ex) return;
+    const logged = ex.actual.map((a) => (a.order === order ? { ...a, flag: flag ?? undefined, note: note || undefined, pain: a.pain || flag === 'pain' } : a));
+    const updated = { ...ex, actual: logged };
+    save({ ...session, exercises: session.exercises.map((e, i) => (i === index ? updated : e)) });
+    if (flag === 'pain') return; // Hurts: the exercise stops with plain text, no proposal.
+    const rules = (): CheckinProposal | null =>
+      flag ? { change: ruleChange(flag, updated), message: t(`checkin.rule.${flag}${updated.slot === 'main' ? 'Main' : ''}` as StringKey), source: 'rules' } : null;
+    let proposal = rules();
+    if (note && profile?.geminiKey) {
+      setThinking(index);
+      try {
+        const { coachCheckinWithGemini, DEFAULT_GEMINI_MODEL, normalizeModel } = await import('../../services/foodAnalysis/gemini');
+        const p = updated.prescription.find((x) => x.order === order);
+        const a = logged.find((x) => x.order === order);
+        const raw = await coachCheckinWithGemini({
+          apiKey: profile.geminiKey,
+          model: normalizeModel(profile.geminiModel ?? DEFAULT_GEMINI_MODEL),
+          text: checkinPrompt({
+            exercise: t(`exercise.${updated.exerciseId}` as StringKey),
+            slot: updated.slot,
+            setNumber: order + 1,
+            ordered: p ? `${p.kg ?? '?'} kg x ${p.repMax}` : '?',
+            logged: a ? `${a.kg ?? '?'} kg x ${a.reps ?? '?'}` : 'nothing yet',
+            flag,
+            note,
+            remaining: String(remainingWork(updated).length),
+            phase: cycle.phase,
+          }),
+        });
+        const reply = parseCoachReply(raw);
+        if (reply?.stop) {
+          save({ ...session, exercises: session.exercises.map((e, i) => (i === index ? { ...updated, actual: logged.map((x) => (x.order === order ? { ...x, pain: true } : x)) } : e)) });
+          proposal = null;
+        } else if (reply) {
+          proposal = { change: reply.change, message: reply.message || t('checkin.geminiFallbackLine'), source: 'gemini' };
+        }
+      } catch {
+        // No connection or a bad reply: Philip's rules still answer.
+      } finally {
+        setThinking(null);
+      }
+    }
+    setPending(proposal ? { index, proposal } : null);
+  };
+  const accept = () => {
+    if (!pending) return;
+    const ex = session.exercises[pending.index];
+    if (!ex) return;
+    const next = applyTodayChange(ex, pending.proposal.change, program.bar, program.weightUnit);
+    void applyCheckin({ ...session, exercises: session.exercises.map((e, i) => (i === pending.index ? next : e)) });
+    setPending(null);
+  };
+
   const finish = () => {
     const done: WorkoutSession = { ...session, status: 'done', finishedAt: Date.now() };
     save(done);
-    onFinished({ s: summarize(done, sessions, Date.now()), lift });
+    onFinished({ s: summarize(done, sessions, Date.now()), lift, session: done });
   };
 
   return (
@@ -342,6 +416,11 @@ function LiveSession({
             setRestEnds(Date.now() + sec * 1000);
           }}
           onSwap={(to) => swap(i, to)}
+          onCheckin={(order, flag, note) => void checkin(i, order, flag, note)}
+          proposal={pending?.index === i ? pending.proposal : null}
+          thinking={thinking === i}
+          onAccept={accept}
+          onDecline={() => setPending(null)}
         />
       ))}
       <button type="button" className="btn btn-primary btn-block" onClick={finish}>
@@ -359,7 +438,21 @@ function LiveSession({
   );
 }
 
-function Summary({ summary, lift, unit }: { summary: SessionSummary; lift: LiftId; unit: 'kg' | 'lb' }) {
+function Summary({
+  summary,
+  lift,
+  unit,
+  session,
+  cycle,
+  tmHistory,
+}: {
+  summary: SessionSummary;
+  lift: LiftId;
+  unit: 'kg' | 'lb';
+  session: WorkoutSession;
+  cycle: CycleRecord;
+  tmHistory: readonly TmRecord[];
+}) {
   const { navigate } = useUI();
   const line: StringKey = summary.pain ? 'summary.pain' : summary.pr ? 'summary.pr' : summary.missed ? 'summary.miss' : 'summary.done';
   const pose = summary.pr ? 'fist-pump' : summary.missed ? 'cross-unimpressed' : 'cross-smug';
@@ -385,9 +478,85 @@ function Summary({ summary, lift, unit }: { summary: SessionSummary; lift: LiftI
           ))}
         </dl>
       </section>
+      <Review session={session} cycle={cycle} tmHistory={tmHistory} unit={unit} />
       <button type="button" className="btn btn-primary btn-block" onClick={() => navigate('home')}>
         {t('summary.home')}
       </button>
     </div>
+  );
+}
+
+/**
+ * Philip's look back at today (owner feedback, Nov 5): what he noticed and what he'd change for the
+ * rest of this cycle. Nothing changes until the owner taps OK; each change can be unticked.
+ */
+function Review({ session, cycle, tmHistory, unit }: { session: WorkoutSession; cycle: CycleRecord; tmHistory: readonly TmRecord[]; unit: 'kg' | 'lb' }) {
+  const items = useMemo(() => reviewSession(session), [session]);
+  const changes = items.filter((i): i is Exclude<ReviewItem, { kind: 'note' }> => i.kind !== 'note');
+  const notes = items.filter((i): i is Extract<ReviewItem, { kind: 'note' }> => i.kind === 'note');
+  const [on, setOn] = useState<boolean[]>(() => changes.map(() => true));
+  const [answered, setAnswered] = useState(false);
+  const tms = tmsForCycle(tmHistory, cycle.index);
+  if (items.length === 0) return null;
+  const label = (c: (typeof changes)[number]) => {
+    if (c.kind === 'rest') return t('dayReview.rest', { s: c.extraSec });
+    const tm = tms[c.lift];
+    return t(c.why === 'miss' ? 'dayReview.tmMiss' : 'dayReview.tmFlag', {
+      lift: t(LIFT_KEY[c.lift]),
+      from: tm !== null ? fmtIn(tm, unit) : '–',
+      to: tm !== null ? fmtIn(adjustedTm(tm, c.factor), unit) : '–',
+    });
+  };
+  const apply = async () => {
+    for (let i = 0; i < changes.length; i++) {
+      const c = changes[i];
+      if (!c || !on[i]) continue;
+      if (c.kind === 'tm') {
+        const tm = tms[c.lift];
+        if (tm !== null) await addTm({ lift: c.lift, tmKg: adjustedTm(tm, c.factor), effectiveCycle: cycle.index, reason: 'adjust' });
+      } else {
+        await setCycleRestBonus(cycle.index, Math.min(MAX_REST_BONUS_SEC, (cycle.restBonusSec ?? 0) + c.extraSec));
+      }
+    }
+    await saveWorkoutSession({ ...session, reviewed: true });
+    setAnswered(true);
+  };
+  return (
+    <section className="card stack-sm" aria-labelledby="review-h">
+      <h2 id="review-h">{t('dayReview.title')}</h2>
+      {notes.map((n) => (
+        <p key={n.note} className={n.note === 'pain' ? 'ex-pain' : 'small'}>
+          {t(`dayReview.note.${n.note}` as StringKey)}
+        </p>
+      ))}
+      {changes.length > 0 &&
+        (answered ? (
+          <p className="small" role="status">
+            {t('dayReview.done')}
+          </p>
+        ) : (
+          <>
+            <p className="small">{t('dayReview.propose')}</p>
+            {changes.map((c, i) => (
+              <label key={i} className="review-item">
+                <input type="checkbox" checked={on[i] ?? false} onChange={(e) => setOn((o) => o.map((v, j) => (j === i ? e.target.checked : v)))} />
+                <span>{label(c)}</span>
+              </label>
+            ))}
+            <div className="ex-actions">
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => void apply()}>
+                {t('dayReview.ok')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => void saveWorkoutSession({ ...session, reviewed: true }).then(() => setAnswered(true))}
+              >
+                {t('dayReview.no')}
+              </button>
+            </div>
+          </>
+        ))}
+    </section>
   );
 }

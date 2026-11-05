@@ -124,7 +124,7 @@ function tmRecord(x: unknown, i: number): TmRecord {
     lift: oneOf(o, 'lift', LIFTS, p),
     tmKg: num(o, 'tmKg', p, 0, 1000),
     effectiveCycle: num(o, 'effectiveCycle', p, 0, 10000),
-    reason: oneOf(o, 'reason', ['setup', 'cycle', 'miss', 'pain', 'retest'], p),
+    reason: oneOf(o, 'reason', ['setup', 'cycle', 'miss', 'pain', 'retest', 'adjust'], p),
     createdAt: num(o, 'createdAt', p),
   };
 }
@@ -148,6 +148,7 @@ function cycle(x: unknown, i: number): CycleRecord {
       source: oneOf(g, 'source', ['philip', 'user'], `${p}.goal`),
       targetPlanId: numOrNull(g, 'targetPlanId', `${p}.goal`),
     },
+    ...(o.restBonusSec != null ? { restBonusSec: num(o, 'restBonusSec', p, 0, 600) } : {}),
   };
 }
 
@@ -176,6 +177,8 @@ function actual(x: unknown, path: string): ActualSet {
     done: bool(o, 'done'),
     pain: bool(o, 'pain'),
     copiedFromOrder: bool(o, 'copiedFromOrder'),
+    ...(o.flag != null ? { flag: oneOf(o, 'flag', ['breath', 'heavy', 'easy', 'pain'] as const, path) } : {}),
+    ...(o.note != null ? { note: str(o, 'note', path, 1000) } : {}),
   };
 }
 
@@ -189,6 +192,9 @@ function exercise(x: unknown, path: string): SessionExercise {
     prescription: list(o.prescription, `${path}.prescription`).map((s, i) => prescribed(s, `${path}.prescription[${i}]`)),
     actual: list(o.actual, `${path}.actual`).map((s, i) => actual(s, `${path}.actual[${i}]`)),
     ...(o.skipped === true ? { skipped: true } : {}),
+    ...(o.originalPrescription != null
+      ? { originalPrescription: list(o.originalPrescription, `${path}.originalPrescription`).map((s, i) => prescribed(s, `${path}.originalPrescription[${i}]`)) }
+      : {}),
   };
 }
 
@@ -208,6 +214,7 @@ function session(x: unknown, i: number): WorkoutSession {
     startedAt: num(o, 'startedAt', p),
     finishedAt: numOrNull(o, 'finishedAt', p),
     exercises: list(o.exercises, `${p}.exercises`).map((e, j) => exercise(e, `${p}.exercises[${j}]`)),
+    ...(o.reviewed === true ? { reviewed: true } : {}),
   };
 }
 

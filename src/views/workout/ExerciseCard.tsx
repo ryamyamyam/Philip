@@ -7,6 +7,7 @@ import { loadFor, type BarSetup, type PlateUnit } from '../../lib/training/plate
 import type { Block, Day } from '../../lib/training/program';
 import type { Prescribed } from '../../lib/training/session';
 import { canCopyOrder, canMarkDone, copyOrder, infoFor } from '../../lib/training/sessionLog';
+import { CHECKIN_FLAGS, type CheckinFlag, type TodayChange } from '../../lib/training/checkin';
 import { fmtBoth, fmtRest, fromDisplay, inputValue } from './units';
 
 const SLOT_KEY: Record<SessionExercise['slot'], StringKey> = {
@@ -27,13 +28,20 @@ export interface ExerciseCardProps {
   onChange: (next: SessionExercise) => void;
   onRest: (sec: number) => void;
   onSwap: (to: ExerciseId) => void;
+  /** Owner tells Philip how a set went (owner feedback, Nov 5). */
+  onCheckin: (order: number, flag: CheckinFlag | null, note: string) => void;
+  /** Philip's proposed change for the rest of today, waiting for OK. */
+  proposal?: CheckinProposal | null;
+  thinking?: boolean;
+  onAccept?: () => void;
+  onDecline?: () => void;
 }
 
 /**
  * One exercise: PHILIP'S ORDERS (read-only, frozen on the session) above YOUR LIFT (the owner's own
  * numbers, empty until he types or taps "As ordered"). The two never overwrite each other.
  */
-export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap }: ExerciseCardProps) {
+export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, onCheckin, proposal, thinking, onAccept, onDecline }: ExerciseCardProps) {
   const info = infoFor(ex.exerciseId);
   const [noteOpen, setNoteOpen] = useState(ex.note !== '');
   const [swapOpen, setSwapOpen] = useState(false);
@@ -86,11 +94,19 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
                 bodyweight={!!info.bodyweight}
                 locked={stopped && !a.done && !a.pain}
                 onChange={(next, rest) => setActual(p.order, next, rest)}
+                onCheckin={(flag, note) => onCheckin(p.order, flag, note)}
               />
             );
           })}
         </ol>
       )}
+
+      {thinking && (
+        <p className="small muted" role="status">
+          {t('checkin.thinking')}
+        </p>
+      )}
+      {proposal && <ProposalCard proposal={proposal} unit={unit} onAccept={onAccept} onDecline={onDecline} />}
 
       {stopped && (
         <p className="ex-pain" role="alert">
@@ -174,6 +190,7 @@ function SetRow({
   bodyweight,
   locked,
   onChange,
+  onCheckin,
 }: {
   p: Prescribed;
   a: ActualSet;
@@ -183,7 +200,9 @@ function SetRow({
   bodyweight: boolean;
   locked: boolean;
   onChange: (next: ActualSet, restSec?: number) => void;
+  onCheckin: (flag: CheckinFlag | null, note: string) => void;
 }) {
+  const [talk, setTalk] = useState(false);
   const [kg, setKg] = useState(inputValue(a.kg, unit));
   const [reps, setReps] = useState(a.reps === null ? '' : String(a.reps));
   const plates = barbell && p.kg !== null ? loadFor(p.kg, bar) : null;
@@ -276,6 +295,117 @@ function SetRow({
           {a.done ? '✓' : t('session.done')}
         </button>
       </div>
+      {p.kind !== 'warmup' && !locked && (
+        <button type="button" className="set-talk small" aria-expanded={talk} onClick={() => setTalk((v) => !v)}>
+          {a.flag ? t(FLAG_KEY[a.flag]) : t('checkin.open')}
+          {a.note ? ` · “${a.note.slice(0, 40)}${a.note.length > 40 ? '…' : ''}”` : ''}
+        </button>
+      )}
+      {talk && (
+        <CheckinPanel
+          n={n}
+          initialFlag={a.flag ?? null}
+          initialNote={a.note ?? ''}
+          onSend={(flag, note) => {
+            setTalk(false);
+            onCheckin(flag, note);
+          }}
+        />
+      )}
     </li>
+  );
+}
+
+const FLAG_KEY: Record<CheckinFlag, StringKey> = {
+  breath: 'checkin.flag.breath',
+  heavy: 'checkin.flag.heavy',
+  easy: 'checkin.flag.easy',
+  pain: 'checkin.flag.pain',
+};
+
+/** Tell Philip how this set went: one tap on a flag, an optional note, Send. */
+function CheckinPanel({
+  n,
+  initialFlag,
+  initialNote,
+  onSend,
+}: {
+  n: number;
+  initialFlag: CheckinFlag | null;
+  initialNote: string;
+  onSend: (flag: CheckinFlag | null, note: string) => void;
+}) {
+  const [flag, setFlag] = useState<CheckinFlag | null>(initialFlag);
+  const [note, setNote] = useState(initialNote);
+  return (
+    <div className="checkin" role="group" aria-label={t('checkin.title', { n })}>
+      <div className="checkin-flags" role="radiogroup" aria-label={t('checkin.how')}>
+        {CHECKIN_FLAGS.map((f) => (
+          <button key={f} type="button" role="radio" aria-checked={flag === f} className="btn btn-sm btn-secondary" onClick={() => setFlag(flag === f ? null : f)}>
+            {t(FLAG_KEY[f])}
+          </button>
+        ))}
+      </div>
+      <label className="field">
+        <span className="field-label">{t('checkin.noteLabel')}</span>
+        <textarea className="input" rows={2} value={note} maxLength={400} onChange={(e) => setNote(e.target.value)} />
+      </label>
+      <button type="button" className="btn btn-sm btn-primary" disabled={!flag && !note.trim()} onClick={() => onSend(flag, note.trim())}>
+        {t('checkin.send')}
+      </button>
+    </div>
+  );
+}
+
+export interface CheckinProposal {
+  change: TodayChange;
+  message: string;
+  source: 'rules' | 'gemini';
+}
+
+function ProposalCard({
+  proposal,
+  onAccept,
+  onDecline,
+}: {
+  proposal: CheckinProposal;
+  unit: PlateUnit;
+  onAccept?: () => void;
+  onDecline?: () => void;
+}) {
+  const c = proposal.change;
+  const lines: string[] = [];
+  if (c.loadFactor !== 1) lines.push(t(c.loadFactor < 1 ? 'checkin.change.lighter' : 'checkin.change.heavier', { pct: Math.round(Math.abs(1 - c.loadFactor) * 100) }));
+  if (c.restExtraSec > 0) lines.push(t('checkin.change.rest', { s: c.restExtraSec }));
+  if (c.dropSets > 0) lines.push(t('checkin.change.drop', { n: c.dropSets }));
+  return (
+    <div className="checkin-proposal" role="status">
+      <p className="pm-dialog-text">
+        <span className="checkin-speaker">{t('coach.speaker')}</span> {proposal.message}
+      </p>
+      {lines.length > 0 && (
+        <ul className="small">
+          {lines.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+      )}
+      <div className="ex-actions">
+        {lines.length > 0 ? (
+          <>
+            <button type="button" className="btn btn-sm btn-primary" onClick={onAccept}>
+              {t('checkin.accept')}
+            </button>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={onDecline}>
+              {t('checkin.decline')}
+            </button>
+          </>
+        ) : (
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onDecline}>
+            {t('checkin.ok')}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

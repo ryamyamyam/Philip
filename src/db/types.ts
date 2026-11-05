@@ -1,6 +1,7 @@
 /** Persistent data types. All nutrition values are metric (grams, kcal); training loads in kg. */
 import type { Prescribed, SessionSlot } from '../lib/training/session';
 import type { Block, Day, LiftId, Phase, TmReason, Week } from '../lib/training/program';
+import type { CheckinFlag } from '../lib/training/checkin';
 import type { PlateUnit } from '../lib/training/plates';
 
 export type Meal = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -181,6 +182,8 @@ export interface CycleRecord {
   phase: Phase;
   tms: Record<LiftId, number>;
   goal: CycleGoalSnapshot;
+  /** Extra rest (s) for the rest of this cycle, accepted in a review. */
+  restBonusSec?: number;
 }
 
 /** What the owner actually did on one set. Never derived from the order unless he taps "As ordered". */
@@ -191,6 +194,10 @@ export interface ActualSet {
   done: boolean;
   pain: boolean;
   copiedFromOrder: boolean;
+  /** Owner's check-in on this set (Nov 5 feedback). */
+  flag?: CheckinFlag;
+  /** What the owner told Philip about this set. */
+  note?: string;
 }
 
 export interface SessionExercise {
@@ -204,6 +211,8 @@ export interface SessionExercise {
   actual: ActualSet[];
   /** The owner skipped this exercise today (its sets stay unlogged). */
   skipped?: boolean;
+  /** Philip's original orders, kept when the owner OKs a mid-workout change. */
+  originalPrescription?: Prescribed[];
 }
 
 export type SessionStatus = 'in_progress' | 'done' | 'skipped';
@@ -220,6 +229,8 @@ export interface WorkoutSession {
   startedAt: number;
   finishedAt: number | null;
   exercises: SessionExercise[];
+  /** The end-of-day review was answered (applied or declined). */
+  reviewed?: boolean;
 }
 
 /** The owner's sticky pick for a menu slot (one of Philip's approved swaps). */

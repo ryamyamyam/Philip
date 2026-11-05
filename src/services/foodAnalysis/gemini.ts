@@ -233,3 +233,20 @@ export async function listGeminiModels(apiKey: string, fetchImpl: FetchLike = fe
     .filter((n) => /flash|pro/i.test(n) && !/image|tts|audio|live|embedding/i.test(n))
     .sort();
 }
+
+/**
+ * Workout check-in (owner feedback, Nov 5): Philip reads the owner's note about a set. Returns the
+ * raw JSON; the caller validates and clamps it (`parseCoachReply`) and never applies it without OK.
+ */
+export async function coachCheckinWithGemini(req: GeminiTextRequest): Promise<unknown> {
+  if (!req.apiKey.trim()) throw new AnalysisError('noKey');
+  const res = await post({ apiKey: req.apiKey, model: req.model, parts: [{ text: req.text }], signal: req.signal, fetchImpl: req.fetchImpl }, false);
+  if (!res.ok) {
+    const payload = (await res.json().catch(() => null)) as GeminiErrorBody | null;
+    throw mapHttpError(res.status, payload, res.headers);
+  }
+  const json = (await res.json().catch(() => {
+    throw new AnalysisError('invalidResponse', 'Body is not JSON');
+  })) as GeminiResponse;
+  return extractJson(responseText(json));
+}

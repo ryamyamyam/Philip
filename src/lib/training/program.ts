@@ -124,7 +124,7 @@ export const TM_INCREMENT_KG: Readonly<Record<Phase, { upper: number; lower: num
 export const tmIncrement = (lift: LiftId, phase: Phase): number =>
   UPPER.has(lift) ? TM_INCREMENT_KG[phase].upper : TM_INCREMENT_KG[phase].lower;
 
-export type TmReason = 'setup' | 'cycle' | 'miss' | 'pain' | 'retest';
+export type TmReason = 'setup' | 'cycle' | 'miss' | 'pain' | 'retest' | 'adjust';
 export type CycleOutcome = 'hit' | 'miss' | 'pain' | 'none';
 
 export interface LoggedMainSet {

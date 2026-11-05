@@ -9,6 +9,11 @@ async function openWorkout(page: Page) {
   await expect(page.getByRole('heading', { name: 'Workout', level: 1 })).toBeVisible();
 }
 
+/** Workout opens on the calendar once a cycle runs; tap today's button to get into the session. */
+async function openToday(page: Page) {
+  await main(page).getByRole('button', { name: /Today’s workout|Next workout|Resume:/ }).click();
+}
+
 /** Setup with test numbers (squat 150, bench 100, OHP 50 kg 1RM; RDL left blank), then start cycle 1. */
 async function setUpAndStart(page: Page) {
   await openWorkout(page);
@@ -25,6 +30,7 @@ async function setUpAndStart(page: Page) {
   await page.reload();
   await expect(main(page)).toContainText('Goal in 4 weeks');
   await main(page).getByRole('button', { name: 'Start cycle 1' }).click();
+  await openToday(page);
   await expect(main(page).getByRole('heading', { name: 'Day 1: Back squat' })).toBeVisible();
 }
 
@@ -34,7 +40,7 @@ test.describe('Workout (Story 5, T-013)', () => {
     await setUpAndStart(page);
     await main(page).getByRole('button', { name: 'Start workout' }).click();
 
-    const squat = main(page).getByRole('region', { name: 'Back squat' });
+    const squat = main(page).getByRole('region', { name: 'Back squat', exact: true });
     // 85% of TM 135 = 114.75 → 115.3 kg loaded as 45+45+10+5 lb per side (20 kg bar, lb plates).
     await expect(squat).toContainText('Per side: 45 + 45 + 10 + 5 lb');
     // Orders are read-only text; the log starts empty.
@@ -55,7 +61,8 @@ test.describe('Workout (Story 5, T-013)', () => {
     // Autosave: reload resumes with the log intact.
     await page.reload();
     await openWorkout(page);
-    const again = main(page).getByRole('region', { name: 'Back squat' });
+    await openToday(page);
+    const again = main(page).getByRole('region', { name: 'Back squat', exact: true });
     await expect(again.getByRole('listitem').nth(5).getByRole('textbox').nth(1)).toHaveValue('8');
     await noHorizontalScroll(page);
 
@@ -70,13 +77,14 @@ test.describe('Workout (Story 5, T-013)', () => {
     await fresh(page);
     await setUpAndStart(page);
     await main(page).getByRole('button', { name: 'Start workout' }).click();
-    const squat = main(page).getByRole('region', { name: 'Back squat' });
+    const squat = main(page).getByRole('region', { name: 'Back squat', exact: true });
     await squat.getByRole('button', { name: 'Hurts' }).click();
     await expect(squat.getByRole('alert')).toContainText('Stop this exercise');
     await main(page).getByRole('button', { name: 'Finish workout' }).click();
     await main(page).getByRole('button', { name: 'Back to Home' }).last().click();
     // Day 2: skip it. Day 3 is the RDL, which has no training max yet.
     await openWorkout(page);
+    await openToday(page);
     await main(page).getByRole('button', { name: 'Skip this day' }).click();
     await expect(main(page).getByRole('heading', { name: 'Calibrate: Romanian deadlift' })).toBeVisible();
     await main(page).getByRole('radio', { name: 'kg' }).click();
@@ -120,6 +128,7 @@ test.describe('Workout T-014: briefing, plan, strength, settings', () => {
     await expect(main(page).getByRole('button', { name: 'Start cycle 1' })).toBeDisabled();
     await main(page).getByLabel('Body fat target % (optional)').fill('14');
     await main(page).getByRole('button', { name: 'Start cycle 1' }).click();
+    await openToday(page);
     await expect(main(page).getByRole('heading', { name: 'Day 1: Back squat' })).toBeVisible();
 
     // The plan: week tabs, every day, the next block.
@@ -135,7 +144,7 @@ test.describe('Workout T-014: briefing, plan, strength, settings', () => {
     await fresh(page);
     await setUpAndStart(page);
     await main(page).getByRole('button', { name: 'Start workout' }).click();
-    const plus = main(page).getByRole('region', { name: 'Back squat' }).getByRole('listitem').nth(5);
+    const plus = main(page).getByRole('region', { name: 'Back squat', exact: true }).getByRole('listitem').nth(5);
     await plus.getByRole('textbox').first().fill('254');
     await plus.getByRole('textbox').nth(1).fill('7');
     await plus.getByRole('button', { name: 'Set 6: mark done' }).click();
@@ -176,6 +185,7 @@ test.describe('Workout owner feedback (Nov 5)', () => {
     await page.reload();
     await expect(main(page)).toContainText('From your latest weigh-in');
     await main(page).getByRole('button', { name: 'Start cycle 1' }).click();
+    await openToday(page);
 
     await main(page).getByRole('button', { name: /A1 Bulgarian split squat/ }).click();
     await main(page).getByRole('radio', { name: 'Hack squat' }).click();
@@ -210,4 +220,47 @@ test.describe('Story 5 at 150% text (T-015)', () => {
       await check();
     });
   }
+});
+
+test.describe('Check-in and calendar (T-017)', () => {
+  test('flag a set → Philip lightens the rest of today; review applies to the cycle', async ({ page }) => {
+    await fresh(page);
+    await setUpAndStart(page);
+    await main(page).getByRole('button', { name: 'Start workout' }).click();
+    const squat = main(page).getByRole('region', { name: 'Back squat', exact: true });
+    const firstWork = squat.getByRole('listitem').nth(3);
+    await firstWork.getByRole('button', { name: 'Set 4: as ordered' }).click();
+    await firstWork.getByRole('button', { name: 'Tell Philip' }).click();
+    await firstWork.getByRole('radio', { name: 'Too heavy' }).click();
+    await firstWork.getByRole('button', { name: 'Send' }).click();
+    await expect(squat).toContainText('10% lighter on the sets left');
+    await squat.getByRole('button', { name: 'OK, change it' }).click();
+    // 85% of TM 135 → 115.3 kg; 10% lighter → about 104 kg on the + set.
+    await expect(squat).not.toContainText('Per side: 45 + 45 + 10 + 5 lb');
+    await noHorizontalScroll(page);
+
+    await main(page).getByRole('button', { name: 'Finish workout' }).click();
+    await expect(main(page)).toContainText('Philip’s review');
+    await expect(main(page)).toContainText('Back squat: training max');
+    await main(page).getByRole('button', { name: 'OK, apply' }).click();
+    await expect(main(page)).toContainText('The rest of the cycle is updated');
+  });
+
+  test('calendar: today selected; a trained day is marked and shows the log', async ({ page }) => {
+    await fresh(page);
+    await setUpAndStart(page);
+    await main(page).getByRole('button', { name: 'Start workout' }).click();
+    const firstWork = main(page).getByRole('region', { name: 'Back squat', exact: true }).getByRole('listitem').nth(3);
+    await firstWork.getByRole('button', { name: 'Set 4: as ordered' }).click();
+    await main(page).getByRole('button', { name: 'Finish workout' }).click();
+    await main(page).getByRole('button', { name: 'Back to Home' }).last().click();
+    await openWorkout(page);
+    const grid = main(page).getByRole('grid');
+    await expect(grid.locator('.cal-day.is-today')).toHaveAttribute('aria-selected', 'true');
+    await expect(grid.locator('.cal-day.is-today')).toHaveAttribute('aria-label', /Done/);
+    await main(page).locator('.cal-session summary').first().click();
+    await expect(main(page).locator('.cal-log')).toContainText('Back squat');
+    await expect(main(page).getByRole('button', { name: 'Next workout: Day 2, Bench press' })).toBeVisible();
+    await noHorizontalScroll(page);
+  });
 });

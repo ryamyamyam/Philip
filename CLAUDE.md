@@ -34,6 +34,7 @@ Stages 0–7 implemented; Stage 8 (QA) partially done. QA round 2 (branch `qa-ro
 Story 3 (branch `story-3-simplify`, on top of `qa-round-2`): 3 tabs (Today · Progress · Settings; Meals folded into Today; Targets moved to Settings › `#/targets`), Take photo + Log food on Today, compact review rows, saved meals (Dexie v3 `savedMeals`), weight on-track status, optional Gemini “What should I eat?”, QA only from Settings with archive asked after generation. See docs/ARCHITECTURE.md.
 Owner feedback round (Nov 2026): Today has Take photo · Choose photo · Enter yourself (inline `AddPanel`; Log food removed), Targets has a metric ⇄ imperial switch + 1-month target suggestion, Gemini 3+ requests use the default temperature, and the copy uses the dominant/campy coach voice with emoji (D-017 – D-020).
 **All of the above is merged into `main` and deployed** (owner pushed 2026-11-03). See docs/PROJECT_CONTEXT.md §Branches.
+Story 4 (tour, D-024) and Story 5 (Home hub + workouts, D-025) are built on stacked branches `feat/T-010-tutorial` → `feat/T-012-training-engine` → `feat/T-011-home` → `feat/T-013-session` → `feat/T-014-plan` → `feat/T-015-qa` in the `../philip-T010` worktree, **not merged yet**. The app now opens on Home (`#/home`); the former Today screen is the Meal log (`#/meals`). Spec: `docs/stories/STORY_5_WORKOUTS.md`.
 
 ## Stack & constraints
 - React 19 + TypeScript (strict) + Vite 7, plain CSS with tokens, Dexie 4 (IndexedDB) + `useLiveQuery`
@@ -81,6 +82,7 @@ Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, b
 - Export uses the Web Share sheet when available; if iOS rejects the share after the async DB read, it falls back to a download.
 - OBS-AFF348 (Progress date out of screen): fixed with `.input-date` on every date input plus a weigh-in grid that stacks below ~2×9.5rem. Chromium doesn't reproduce iOS's intrinsic date-input width, so the e2e guard (`e2e/obs-nov3.spec.ts`) passes on old and new code; confirm on WebKit and a real iPhone.
 - Philip's tour (T-010): Pixelify's "fi" ligature draws like "A"; ligatures are off inside the tour only (`.pm-tour-text`). Philip's pose art varies in outfit between poses and has no mouth frames.
+- Story 4/5 branches: Chromium e2e 80/80 in a cloud clone; **WebKit not yet run** (Playwright's WebKit can't be downloaded in the cloud or the Mac's Linux VM). Run `npx playwright test --project=webkit-iphone` on the Mac before merging.
 - `node_modules` on the Mac is built for macOS; a Linux sandbox (e.g. Cowork's shell) can't run `npm test` against it. Run tests in Terminal on the Mac or in a separate clone.
 
 ## Next task

@@ -80,6 +80,14 @@ Settings and Targets cards get the panel look through `.view-settings .card` / `
 
 The QA & Feedback module is themed only by re-mapping its `--qa-*` variables in `src/styles/qa-theme.css`. Never style `qa-` classes from Philip code. Its pill-shaped chips and white button text are hard-coded in the module, so they stay as they are.
 
+## Workout patterns (Story 5)
+
+- **Orders vs log:** every exercise card has a panel-colored "Philip's orders" block (cue, why-line) and set rows. A set row shows the order (set number, kind, load in both units with the chosen unit first, reps, reps in reserve, rest, and a per-side plate line for barbell sets) above the owner's log (weight and reps inputs with the order as placeholder, "As ordered", a Done toggle). Done rows turn success-soft; warm-ups use surface-2.
+- **Rest bar:** a dark dialog-colored bar fixed above the tab bar while resting (`role="timer"`), with Skip rest.
+- **Day preview:** accessories are full-width row buttons with an underlined "Swap" hint; options open inline as slate buttons, the current one marked with the pixel check.
+- **Pain text** (`.ex-pain`) is plain danger-soft text, never Philip's voice.
+- Styles live in `src/styles/workout.css`.
+
 ## Rules (carried over)
 
 - **Touch targets:** at least 44px (`--touch`).

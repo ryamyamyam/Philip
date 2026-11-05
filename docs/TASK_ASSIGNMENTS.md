@@ -14,6 +14,7 @@ Base branch for new work: `main`.
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
+| T-015 | Story 5 QA + docs | QA | Ready for owner device review + WebKit on the Mac | `feat/T-015-qa` | T-014 (`32b03ae`) |
 | T-014 | Story 5 cycle briefing, cycle plan, Progress › Strength, Settings › Training | Feature | Phase A — screenshots for owner review | `feat/T-014-plan` | T-013 (`b386728`) |
 | T-013 | Story 5 setup, cycle start (minimum briefing) and Today's session | Feature | Phase A — screenshots for owner review | `feat/T-013-session` | T-011 (`7668646`) |
 | T-011 | Story 5 Home hub + navigation (Home · Progress · Settings; Meal log and Workout from Home; tour starts on Home) | Core | Phase A — screenshots for owner review | `feat/T-011-home` | T-012 (`d535ce9`) |
@@ -22,6 +23,13 @@ Base branch for new work: `main`.
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-015 — Story 5 QA and docs
+- **Role:** QA. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §11.
+- **Done:** weigh-ins voluntary (`MIN_WEIGH_INS` = 2 for the average, owner: about twice a week); 150% text checks on Home, setup, briefing, session, plan, Strength and Settings at 375 and 440 px (`e2e/workout.spec.ts`); docs: D-025 as built, ARCHITECTURE (workout screens), DESIGN_SYSTEM (workout patterns), CLAUDE.md (stage + WebKit gap), story "as built" notes.
+- **Acceptance criteria (§11):** 1 opens on Home ✅ · 2 setup + calibration ✅ · 2b plate loader ✅ · 3 block weights ✅ (unit) · 4 rotation ✅ (unit) · 5 orders vs actuals ✅ · 6 45 minutes ✅ (unit, every combination) · 7 phase ✅ (unit) · 8 progression ✅ (unit; applied at the briefing) · 9 resume ✅ · 10 units ✅ (session both units; plan in plate unit, owner OK) · 11 backup ✅ (unit) · 12 layout ✅ (Chromium, incl. 150% text) · 12b cycle goal ✅ (weigh-in rule changed by owner) · 12c menu ✅ · 13 checks: tsc, unit, build, Chromium e2e ✅; **WebKit pending on the Mac**.
+- **Status:** Ready for owner review · **Branch:** `feat/T-015-qa` from `32b03ae`.
+- **Log:** 2026-11-05 QA: tsc clean, 281/281 unit, build OK, Chromium e2e 80/80 (cloud clone, byte-identical tree). WebKit can't be installed in the cloud or the Mac's Linux VM.
 
 ### T-014 — Story 5 briefing, plan, Strength, Training settings
 - **Role:** Feature. **Spec:** `docs/stories/STORY_5_WORKOUTS.md` §4.8, §6, §7.

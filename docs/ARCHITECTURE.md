@@ -166,6 +166,10 @@ A reusable, self-contained module for capturing observations (bugs, UI/usability
 
 Pure modules, all tested: `program.ts` (blocks, waves, deload, RDL caps, TM progression, double progression), `session.ts` (builds a day's orders and the 45-minute time model + trim order), `plates.ts` (loadable rounding and per-side plates), `cycleGoal.ts` (goal briefing defaults and checks), `exercises.ts` (library + Appendix A menu; copy in `en.ts` as `exercise.*`, `cue.*`, `why.*`), `progress.ts` (TMs per cycle, next day in sequence, e1RM points), `trainingBackup.ts` (optional `training` backup block). Days are a sequence, not weekdays. Cycle numbers never repeat, even after a program reset.
 
+## Workout screens (Story 5, T-013/T-014)
+
+`src/views/WorkoutView.tsx` routes by state (`workoutCardState`): no program → `workout/SetupView` (1RM or weight × reps per lift, kg/lb, bar and plate unit); cycle not started or finished → `workout/StartCycleView` (the goal briefing: phase, Philip's goal or "Set my own" checked by `checkUserGoal`; confirming applies TM progression via `cycleOutcomes`/`nextTm`, updates the profile goal/target/rate, writes a target plan through `calculateTargets` when body stats exist, and calls `startCycle`); otherwise `workout/SessionView` (day preview with tap-to-swap → `createSession` → live log with `ExerciseCard` per exercise → finish → `summarize`). A lift with no TM gets a calibration card on its day. `#/workout/plan` is `workout/PlanView` (read-only). Progress › Strength is `StrengthPanel`; Settings › Training is `TrainingSettings` (re-test, bar/plates, exercise menu, end cycle now, reset program). Orders vs log: `saveWorkoutSession` keeps a session's frozen `prescription` unless the slot's exercise was swapped; everything the owner types lives in `actual`, `note`, `skipped`.
+
 ## Offline / PWA
 
 `vite.config.ts` generates `dist/sw.js` with a precache list of all build assets. Navigations are network-first with the cached shell as fallback; same-origin assets are cache-first; cross-origin requests (Gemini) bypass the SW. `navigator.storage.persist()` is requested at boot.

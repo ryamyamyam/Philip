@@ -46,8 +46,10 @@ describe('checkUserGoal', () => {
 
 describe('rollingWeight', () => {
   const e = (date: string, weightKg: number) => ({ date, weightKg });
-  it('needs 3 weigh-ins in the last 7 days', () => {
-    expect(rollingWeight([e('2026-11-01', 73), e('2026-11-05', 73.2)], '2026-11-05')).toBeNull();
+  it('needs 2 weigh-ins in the last 7 days (owner: about twice a week)', () => {
+    expect(rollingWeight([e('2026-11-05', 73.2)], '2026-11-05')).toBeNull();
+    expect(rollingWeight([e('2026-10-28', 80), e('2026-11-05', 73.2)], '2026-11-05')).toBeNull();
+    expect(rollingWeight([e('2026-11-01', 73), e('2026-11-05', 73.2)], '2026-11-05')).toBeCloseTo(73.1, 5);
     expect(rollingWeight([e('2026-10-29', 80), e('2026-10-30', 73), e('2026-11-02', 73.2), e('2026-11-05', 73.4)], '2026-11-05')).toBeCloseTo(73.2, 5);
   });
 });

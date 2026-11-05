@@ -25,15 +25,15 @@ export const RATE_PCT: Readonly<Record<Phase, RateRange>> = {
 /** At or above this BF%, Philip recommends a cut. */
 export const CUT_AT_BF = 20;
 export const CYCLE_WEEKS = 4;
-/** Weigh-ins needed in the last 7 days before a cycle can start. */
-export const MIN_WEIGH_INS = 3;
+/** Weigh-ins in the last 7 days for the briefing to use their average (owner: voluntary, about twice a week). */
+export const MIN_WEIGH_INS = 2;
 
 export interface WeighIn {
   date: string;
   weightKg: number;
 }
 
-/** Average of the weigh-ins in the 7 days up to `today` (inclusive), or null with fewer than 3. */
+/** Average of the weigh-ins in the 7 days up to `today` (inclusive), or null with fewer than MIN_WEIGH_INS. */
 export function rollingWeight(entries: readonly WeighIn[], today: string): number | null {
   const start = addDays(today, -6);
   const recent = entries.filter((e) => e.date >= start && e.date <= today);

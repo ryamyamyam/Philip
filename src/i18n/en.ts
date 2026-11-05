@@ -622,7 +622,7 @@ export const en = {
   'brief.phase': 'Phase: {phase}',
   'brief.now': 'Now: {weight} (7-day average)',
   'brief.nowSingle': 'Now: {weight}',
-  'brief.fromLatest': 'From your latest weigh-in. Weigh in 3 times a week and I use the average instead: one reading swings with water and food.',
+  'brief.fromLatest': 'From your latest weigh-in. Weighing in is up to you, but about twice a week lets me use the average: one reading swings with water and food.',
   'brief.fromProfile': 'From the weight in your Targets. Log your weight in Progress a few times a week and I use the real trend.',
   'brief.goal': 'Goal in 4 weeks: {weight} ({rate}% a week)',
   'brief.bfCeiling': 'Body fat ceiling: {bf}%',

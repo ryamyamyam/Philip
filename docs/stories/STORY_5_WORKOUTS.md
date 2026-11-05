@@ -1,5 +1,11 @@
 # Story 5: Workouts + Home hub
 
+> **As built (2026-11-05, T-011 – T-015).** Differences from the spec below, all owner-approved:
+> - Weigh-ins are voluntary, about twice a week. The briefing uses the 7-day average with 2+ weigh-ins, else the latest weigh-in (14 days), else the Targets weight. It never blocks on weigh-ins.
+> - Swaps: tap an accessory in the day check before starting, or use Settings › Training › Exercise menu. No equipment-availability list.
+> - The cycle plan shows weights in the plate unit (lb by default); the session shows both units.
+> - Home's empty space under the cards stays for future features.
+
 > **Revision 4 (2026-11-05).** Changes:
 > - **Cycle goal briefing** (§4.8): before every cycle, Philip proposes a body-weight and body-fat goal. His proposal is the default; Ryan can set his own instead.
 > - **Day 3 main lift is the Romanian deadlift** (`LiftId 'rdl'`), with safety caps: no singles, RIR ≥ 2 on every set. The Day 3 hinge accessories were reworked so none duplicates it.

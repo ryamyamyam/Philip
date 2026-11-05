@@ -184,3 +184,30 @@ test.describe('Workout owner feedback (Nov 5)', () => {
     await expect(main(page).getByRole('region', { name: 'Hack squat' })).toBeVisible();
   });
 });
+
+test.describe('Story 5 at 150% text (T-015)', () => {
+  for (const width of [375, 440]) {
+    test(`no horizontal scroll on the workout screens at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 812 });
+      await fresh(page);
+      await page.addStyleTag({ content: 'html { font-size: 150% !important; }' });
+      const check = async () => {
+        await page.addStyleTag({ content: 'html { font-size: 150% !important; }' });
+        await noHorizontalScroll(page);
+      };
+      await tab(page, 'Home').click();
+      await check();
+      await setUpAndStart(page);
+      await check();
+      await main(page).getByRole('button', { name: 'Start workout' }).click();
+      await check();
+      await main(page).getByRole('button', { name: 'Cycle plan' }).click();
+      await check();
+      await tab(page, 'Progress').click();
+      await page.getByRole('tab', { name: 'Strength' }).click();
+      await check();
+      await tab(page, 'Settings').click();
+      await check();
+    });
+  }
+});

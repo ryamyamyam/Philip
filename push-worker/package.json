@@ -1,0 +1,11 @@
+{
+  "name": "philip-push-worker",
+  "private": true,
+  "type": "module",
+  "description": "Philip rest alerts: Cloudflare Worker + Durable Object alarm + Web Push (Story 6, T-022). No runtime dependencies.",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "keys": "node scripts/gen-vapid.mjs",
+    "deploy": "npx wrangler@4 deploy"
+  }
+}

@@ -1,0 +1,20 @@
+# Philip rest-alert Worker (Story 6 §8.2). Free plan: Workers + SQLite-backed Durable Objects.
+name = "philip-push"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# The GitHub Pages origin that may call this Worker (scheme + host, no path, no trailing slash).
+ALLOWED_ORIGIN = "https://YOUR-GITHUB-USERNAME.github.io"
+# VAPID "sub": a URL or mailto: that identifies the sender to push services.
+VAPID_SUBJECT = "https://YOUR-GITHUB-USERNAME.github.io/philip-v0.1/"
+
+# Secrets (never in this file): npx wrangler secret put VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
+
+[[durable_objects.bindings]]
+name = "REST_TIMER"
+class_name = "RestTimer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RestTimer"]

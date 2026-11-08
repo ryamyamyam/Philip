@@ -25,6 +25,14 @@ Base branch for new work: `main`.
 
 ---
 
+### T-022 — Story 6: rest-alert push Worker
+- **Role:** Core (infra). **Spec:** `docs/stories/STORY_6_OPTIMIZATION.md` §8.2 (server). Owner request 2026-11-07 ("send a push alert when done"; no keep-screen-on).
+- **Files:** new `push-worker/` only (`src/{index,timer,webpush}.js`, `test/*.test.js`, `scripts/gen-vapid.mjs`, `wrangler.toml`, `package.json`, `README.md`, `.gitignore`). No app code.
+- **Built:** Cloudflare Worker + one SQLite-backed Durable Object per device (`RestTimer`, named by SHA-256 of the endpoint). `PUT /timer` replaces the pending timer and sets the alarm; `DELETE /timer` cancels; the alarm sends one Web Push. Guards: Origin/CORS = `ALLOWED_ORIGIN`, Apple/Google/Mozilla/Microsoft endpoints only, `fireAt` ≤ 15 min, text ≤ 120 chars, 120 requests/hour/device, 4 KB body cap. VAPID (ES256 JWT) and aes128gcm encryption hand-written on WebCrypto: **no dependencies** (no library exception needed for D-028).
+- **Free-plan check:** could not re-read Cloudflare's pricing pages from the cloud session (fetch blocked). Known quotas (Workers 100k requests/day; Durable Objects with SQLite storage on the free plan) fit about 100 timers a day by a wide margin (≈2–3 requests per timer). Owner verifies on the pricing page at setup; README says so.
+- **Status:** Ready for owner setup (README) · **Branch:** `feat/T-022-push-worker` on top of `feat/T-019-core` (linear, to keep TASK_ASSIGNMENTS merge-free).
+- **Log:** 2026-11-08 Core (cloud): `node --test` 11/11 (payload decrypts on the subscriber side, VAPID JWT verifies, PUT/replace/DELETE, alarm sends once, guards); `wrangler@4 deploy --dry-run` OK (9.97 KiB).
+
 ### T-019 — Story 6 core: schedule, one workout a day, delete + undo, starting weights
 - **Role:** Core. **Spec:** `docs/stories/STORY_6_OPTIMIZATION.md` §2, §3.1–3.2, §4, §6, §7 (data). Owner request 2026-11-06/07.
 - **Files:** new `src/lib/training/{schedule,startLoad}.ts` + tests, `src/db/story6.test.ts`; `src/lib/training/{progress,session,sessionLog,program,trainingBackup}.ts` (+ tests), `src/db/{types,repo}.ts`, `src/views/{HomeView,WorkoutView}.tsx`, `src/views/workout/{WorkoutCalendar,SessionView}.tsx` (minimal wiring only), `src/i18n/en.ts` (5 keys), `e2e/workout.spec.ts`.

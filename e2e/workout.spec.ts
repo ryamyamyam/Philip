@@ -70,7 +70,9 @@ test.describe('Workout (Story 5, T-013)', () => {
     await expect(main(page)).toContainText('Workout done');
     await expect(main(page)).toContainText('Back squat e1RM');
     await main(page).getByRole('button', { name: 'Back to Home' }).last().click();
-    await expect(main(page).getByRole('button', { name: /^Workout/ })).toContainText('Day 2: Bench press');
+    // Story 6 §2: one workout a day — Home says done and names the next day instead of offering it.
+    await expect(main(page).getByRole('button', { name: /^Workout/ })).toContainText('Done today');
+    await expect(main(page).getByRole('button', { name: /^Workout/ })).toContainText('Next: Day 2, Bench press');
   });
 
   test('Hurts stops the exercise with plain text; a blank lift is calibrated on its day', async ({ page }) => {
@@ -82,6 +84,9 @@ test.describe('Workout (Story 5, T-013)', () => {
     await expect(squat.getByRole('alert')).toContainText('Stop this exercise');
     await main(page).getByRole('button', { name: 'Finish workout' }).click();
     await main(page).getByRole('button', { name: 'Back to Home' }).last().click();
+    // One workout a day (Story 6): come back tomorrow.
+    await page.clock.setSystemTime(new Date(Date.now() + 86_400_000));
+    await page.reload();
     // Day 2: skip it. Day 3 is the RDL, which has no training max yet.
     await openWorkout(page);
     await openToday(page);
@@ -260,7 +265,10 @@ test.describe('Check-in and calendar (T-017)', () => {
     await expect(grid.locator('.cal-day.is-today')).toHaveAttribute('aria-label', /Done/);
     await main(page).locator('.cal-session summary').first().click();
     await expect(main(page).locator('.cal-log')).toContainText('Back squat');
-    await expect(main(page).getByRole('button', { name: 'Next workout: Day 2, Bench press' })).toBeVisible();
+    // Story 6 §2: no second workout today.
+    await expect(main(page)).toContainText('Done for today');
+    await expect(main(page)).toContainText('Next: Day 2, Bench press');
+    await expect(main(page).getByRole('button', { name: /Today’s workout|Next workout/ })).toHaveCount(0);
     await noHorizontalScroll(page);
   });
 });

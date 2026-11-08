@@ -53,6 +53,8 @@ export interface Profile {
 export type TargetMethod = 'calculated' | 'manual';
 /** 0 = Sunday … 6 = Saturday (matches Date#getDay). */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+/** ISO weekday: 1 = Monday … 7 = Sunday. */
+export type IsoWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface TargetPlan extends Macros {
   id?: number;
@@ -149,6 +151,8 @@ export interface TrainingProgram {
   unavailableEquipment: string[];
   /** 1-based cycle in progress; 0 = set up but the first cycle hasn't started (briefing pending). */
   currentCycle: number;
+  /** Training weekdays for the projected calendar (Story 6 §3.1), 1 = Mon … 7 = Sun. Absent = Philip's pick. */
+  trainingDays?: IsoWeekday[];
   createdAt: number;
   updatedAt: number;
 }
@@ -231,6 +235,14 @@ export interface WorkoutSession {
   exercises: SessionExercise[];
   /** The end-of-day review was answered (applied or declined). */
   reviewed?: boolean;
+  /** What "OK, apply" in this session's review changed (Story 6 §4), so deleting the log can undo it. */
+  reviewApplied?: ReviewApplied;
+}
+
+/** One TM change and the rest bonus a review applied. Undo is additive: TM += fromKg − toKg. */
+export interface ReviewApplied {
+  tm: { lift: LiftId; fromKg: number; toKg: number }[];
+  restBonusAddedSec: number;
 }
 
 /** The owner's sticky pick for a menu slot (one of Philip's approved swaps). */

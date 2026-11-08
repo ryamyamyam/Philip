@@ -116,7 +116,7 @@ export function WorkoutCalendar({
           </details>
         ))}
         {selected === today ? (
-          <TodayAction state={state} trainedToday={daySessions.some((s) => s.status === 'done')} onOpen={onOpenToday} />
+          <TodayAction state={state} onOpen={onOpenToday} />
         ) : daySessions.length === 0 ? (
           <p className="small muted">{selected < today ? t('cal.rest') : t('cal.future')}</p>
         ) : null}
@@ -125,7 +125,25 @@ export function WorkoutCalendar({
   );
 }
 
-function TodayAction({ state, trainedToday, onOpen }: { state: WorkoutCardState; trainedToday: boolean; onOpen: () => void }) {
+function TodayAction({ state, onOpen }: { state: WorkoutCardState; onOpen: () => void }) {
+  // Story 6 §2: one workout a day. Once today's is done, nothing else starts today.
+  if (state.kind === 'doneToday') {
+    return (
+      <>
+        <p className="small" role="status">
+          {t('cal.doneToday')}
+        </p>
+        {state.next && state.nextDate && (
+          <p className="small num">{t('cal.doneNext', { day: state.next.day, lift: t(LIFT_KEY[DAY_LIFT[state.next.day]]), date: fmtDate(state.nextDate, 'weekday') })}</p>
+        )}
+        {state.cycleDone && (
+          <button type="button" className="btn btn-primary btn-block" onClick={onOpen}>
+            {t('home.workout.briefing')}
+          </button>
+        )}
+      </>
+    );
+  }
   if (state.kind === 'resume') {
     return (
       <button type="button" className="btn btn-primary btn-block" onClick={onOpen}>
@@ -136,7 +154,7 @@ function TodayAction({ state, trainedToday, onOpen }: { state: WorkoutCardState;
   if (state.kind === 'next') {
     return (
       <button type="button" className="btn btn-primary btn-block" onClick={onOpen}>
-        {t(trainedToday ? 'cal.openNext' : 'cal.open', { day: state.day, lift: t(LIFT_KEY[DAY_LIFT[state.day]]) })}
+        {t('cal.open', { day: state.day, lift: t(LIFT_KEY[DAY_LIFT[state.day]]) })}
       </button>
     );
   }

@@ -15,6 +15,7 @@ import {
 import { t } from '../i18n';
 import type { ExerciseId } from '../lib/training/exercises';
 import { workoutCardState } from '../lib/training/progress';
+import { todayYmd } from '../lib/date';
 import { useUI } from '../ui';
 import { SessionView } from './workout/SessionView';
 import { SetupView } from './workout/SetupView';
@@ -29,6 +30,8 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
   const { navigate } = useUI();
   // Owner feedback (Nov 5): Workout opens on a calendar; today's session is one tap away.
   const [inSession, setInSession] = useState(false);
+  // Story 6 §2: the cycle briefing can open on a day whose workout is already done (no training today).
+  const [briefingOpen, setBriefingOpen] = useState(false);
   const program = useTrainingProgram();
   const sessions = useWorkoutSessions();
   const cycles = useCycles();
@@ -51,14 +54,14 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
         </DialogBar>
       ) : null;
   } else if (loaded) {
-    const state = workoutCardState(program, sessions);
+    const state = workoutCardState(program, sessions, todayYmd());
     const cycle = cycles.find((c) => c.index === program?.currentCycle) ?? null;
     const choiceMap = Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>;
     if (!program || state.kind === 'setup') body = <SetupView />;
-    else if (state.kind === 'briefing' || state.kind === 'cycleDone' || !cycle) {
+    else if (state.kind === 'briefing' || state.kind === 'cycleDone' || !cycle || (briefingOpen && state.kind === 'doneToday' && state.cycleDone)) {
       body = <StartCycleView profile={profile} weights={weights} cycles={cycles} sessions={sessions} tmHistory={tmHistory} />;
     } else if (!inSession) {
-      body = <WorkoutCalendar sessions={sessions} state={state} unit={program.weightUnit} onOpenToday={() => setInSession(true)} />;
+      body = <WorkoutCalendar sessions={sessions} state={state} unit={program.weightUnit} onOpenToday={() => (state.kind === 'doneToday' ? setBriefingOpen(true) : setInSession(true))} />;
     } else {
       body = (
         <SessionView
@@ -80,8 +83,8 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
           <CornerButton
             side="left"
             icon="chevronLeft"
-            label={t(plan ? 'workout.backWorkout' : inSession ? 'workout.backCalendar' : 'workout.backHome')}
-            onClick={() => (plan ? navigate('workout') : inSession ? setInSession(false) : navigate('home'))}
+            label={t(plan ? 'workout.backWorkout' : inSession || briefingOpen ? 'workout.backCalendar' : 'workout.backHome')}
+            onClick={() => (plan ? navigate('workout') : inSession || briefingOpen ? (setInSession(false), setBriefingOpen(false)) : navigate('home'))}
           />
         }
         center={

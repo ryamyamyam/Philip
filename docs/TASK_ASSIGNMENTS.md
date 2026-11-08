@@ -25,6 +25,18 @@ Base branch for new work: `main`.
 
 ---
 
+### T-019 — Story 6 core: schedule, one workout a day, delete + undo, starting weights
+- **Role:** Core. **Spec:** `docs/stories/STORY_6_OPTIMIZATION.md` §2, §3.1–3.2, §4, §6, §7 (data). Owner request 2026-11-06/07.
+- **Files:** new `src/lib/training/{schedule,startLoad}.ts` + tests, `src/db/story6.test.ts`; `src/lib/training/{progress,session,sessionLog,program,trainingBackup}.ts` (+ tests), `src/db/{types,repo}.ts`, `src/views/{HomeView,WorkoutView}.tsx`, `src/views/workout/{WorkoutCalendar,SessionView}.tsx` (minimal wiring only), `src/i18n/en.ts` (5 keys), `e2e/workout.spec.ts`.
+- **Built:**
+  - `planDates` projects the rest of the cycle onto training weekdays (Philip's pick Mon/Tue/Thu/Fri; `trainingProgram.trainingDays` optional), never stored; the last date is the goal day. `squatRdlTooClose` replaces the spec's back-to-back check: with exactly 4 distinct weekdays squat and RDL can never be back to back, so the warning fires when they're only 2 days apart (three training days in a row).
+  - `workoutCardState(program, sessions, today)` gains `doneToday` (one workout a day); `cal.openNext` removed; Home and the calendar show "Done today" + the next planned date (minimal UI, T-020 restyles). Briefing can still open on a done day (`briefingOpen`).
+  - `applyReview` (one transaction, records `reviewApplied`) and `deleteWorkoutSession` (current cycle only, `LockedSessionError` otherwise; appends `undo` TM rows additively, lowers the rest bonus). `TmReason` gains `undo`. `setTrainingDays`. `reviewApplied.tm` has no row id (backups drop TM ids; undo is additive so it isn't needed).
+  - `startLoad.ts`: anchor × ratio for every accessory (group table §6), rounded down, body-weight fallback; `Prescribed.targetReps` / `estimate` / `assist`; `nextTargetReps` (middle of range first, bottom after a weight increase, else weakest set + 1). `copyOrder` copies the target reps; `canCopyOrder(p, bodyweight)`.
+  - `swapInSession` (allowed until the first set is ticked; swapping back clears `swappedFrom`) and `swap(index, to, keep = true)` in SessionView (T-021 adds the Keep checkbox).
+- **Status:** Review gate (starting-weight table) · **Branch:** `feat/T-019-core` from `3a5cd6f`.
+- **Log:** 2026-11-08 Core (cloud clone): tsc clean, 316/316 unit, build OK, Chromium e2e 84/84 (workout spec updated for one-a-day). WebKit pending on the Mac.
+
 ### T-017 — Mid-workout check-in, day review, calendar (D-027)
 - **Role:** Feature. **Owner request:** 2026-11-05 (voice notes).
 - **Files:** `src/lib/training/checkin.ts` + test (new), `src/views/workout/WorkoutCalendar.tsx` (new), `src/views/workout/{ExerciseCard,SessionView}.tsx`, `src/views/WorkoutView.tsx`, `src/db/{types,repo}.ts`, `src/lib/training/{program,session,trainingBackup}.ts`, `src/services/foodAnalysis/gemini.ts` (`coachCheckinWithGemini`), `src/i18n/en.ts`, `src/styles/workout.css`, `e2e/workout.spec.ts`.

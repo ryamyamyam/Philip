@@ -74,7 +74,7 @@ export function HomeView() {
   const consumed = useMemo(() => sumMacros(entries ?? []), [entries]);
   const rem = target ? remainingAll(foodPhase, consumed, target) : null;
 
-  const card: WorkoutCardState | null = program === undefined || !sessions ? null : workoutCardState(program, sessions);
+  const card: WorkoutCardState | null = program === undefined || !sessions ? null : workoutCardState(program, sessions, today);
   const cycle = cycles?.find((c) => c.index === program?.currentCycle) ?? null;
 
   const goToMeals = () => {
@@ -222,6 +222,20 @@ function WorkoutCardBody({
           </span>
         </>
       );
+    case 'doneToday':
+      return (
+        <>
+          <span className="pm-cart-big">{t('home.workout.doneToday')}</span>
+          <span className="pm-cart-sub num">
+            {t('home.workout.dayTitle', { day: state.session.day, lift: t(LIFT_KEY[DAY_LIFT[state.session.day]]) })}
+          </span>
+          {state.next && state.nextDate && (
+            <span className="pm-cart-sub num">
+              {t('home.workout.doneNext', { day: state.next.day, lift: t(LIFT_KEY[DAY_LIFT[state.next.day]]), date: fmtDate(state.nextDate, 'weekday') })}
+            </span>
+          )}
+        </>
+      );
     case 'next': {
       const lift = DAY_LIFT[state.day];
       const tms = tmsForCycle(tmHistory, state.cycle);
@@ -262,6 +276,7 @@ function WorkoutCardBody({
 function homeLine(card: WorkoutCardState | null, rem: ReturnType<typeof remainingAll> | null): StringKey {
   if (card?.kind === 'setup') return 'home.line.setup';
   if (card?.kind === 'resume') return 'home.line.resume';
+  if (card?.kind === 'doneToday') return 'home.line.doneToday';
   if (card?.kind === 'briefing' || card?.kind === 'cycleDone') return 'home.line.briefing';
   if (card?.kind === 'next' && card.week === DELOAD_WEEK) return 'home.line.deload';
   if (rem && rem.proteinG.status === 'toGo') return 'home.line.protein';

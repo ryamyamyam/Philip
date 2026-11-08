@@ -34,9 +34,15 @@ describe('orders vs actuals', () => {
     const p = sets.find((x) => x.kind === 'main')!;
     expect(copyOrder(p, emptyActual(p))).toMatchObject({ kg: p.kg, reps: p.repMax, done: true, copiedFromOrder: true });
   });
+  it('As ordered copies Philip\'s target reps when there is one (Story 6 §6)', () => {
+    const p = { ...plan.exercises[1]!.prescription[0]!, targetReps: 10 };
+    expect(copyOrder(p, emptyActual(p))).toMatchObject({ kg: p.kg, reps: 10, done: true });
+  });
   it('is not offered for + sets or orders with no weight yet', () => {
     expect(canCopyOrder(sets.find((x) => x.kind === 'amrap')!)).toBe(false);
-    expect(canCopyOrder(plan.exercises[1]!.prescription[0]!)).toBe(false); // accessory, no history → no kg
+    const noLoad = { ...plan.exercises[1]!.prescription[0]!, kg: null, targetReps: 10 };
+    expect(canCopyOrder(noLoad)).toBe(false); // accessory with no number yet ("Your pick")
+    expect(canCopyOrder(noLoad, true)).toBe(true); // bodyweight move: reps only
   });
   it('a set is done only with reps, and a weight unless bodyweight', () => {
     const a = emptyActual(sets[0]!);

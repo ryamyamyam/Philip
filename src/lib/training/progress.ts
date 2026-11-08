@@ -3,7 +3,8 @@
  * Days are a sequence, not weekdays: "today" is the next day of the current cycle that isn't done
  * or skipped. Missing a calendar day never skips or resets anything.
  */
-import type { TmRecord, WorkoutSession } from '../../db/types';
+import type { IsoWeekday, TmRecord, WorkoutSession, YMD } from '../../db/types';
+import { planDates } from './schedule';
 import {
   cycleOutcome,
   DAY_LIFT,
@@ -94,19 +95,33 @@ export type WorkoutCardState =
   | { kind: 'setup' }
   | { kind: 'briefing'; cycle: number }
   | { kind: 'resume'; session: WorkoutSession }
+  /** Story 6 §2: today's workout is done; nothing else starts today. */
+  | { kind: 'doneToday'; session: WorkoutSession; next: SessionRef | null; nextDate: YMD | null; cycleDone: boolean }
   | { kind: 'next'; cycle: number; week: Week; day: Day }
   | { kind: 'cycleDone'; cycle: number };
 
-/** What the Workout card on Home shows, from stored records. */
+/**
+ * What the Workout card on Home (and the calendar's today box) shows, from stored records.
+ * Order: setup → briefing → resume → doneToday → cycleDone → next. One workout a day: a `done`
+ * session dated today (sessions keep their start date) blocks starting another; a skipped one doesn't.
+ */
 export function workoutCardState(
-  program: { currentCycle: number } | null,
+  program: { currentCycle: number; trainingDays?: readonly IsoWeekday[] } | null,
   sessions: readonly WorkoutSession[],
+  today: YMD,
 ): WorkoutCardState {
   if (!program) return { kind: 'setup' };
   if (program.currentCycle < 1) return { kind: 'briefing', cycle: 1 };
   const open = inProgress(sessions);
   if (open) return { kind: 'resume', session: open };
   const next = nextSessionRef(sessions, program.currentCycle);
+  const doneToday = sessions
+    .filter((s) => s.date === today && s.status === 'done')
+    .sort((a, b) => (b.finishedAt ?? b.startedAt) - (a.finishedAt ?? a.startedAt))[0];
+  if (doneToday) {
+    const planned = planDates({ today, trainingDays: program.trainingDays, sessions, cycle: program.currentCycle });
+    return { kind: 'doneToday', session: doneToday, next, nextDate: planned[0]?.date ?? null, cycleDone: next === null };
+  }
   if (!next) return { kind: 'cycleDone', cycle: program.currentCycle };
   return { kind: 'next', cycle: program.currentCycle, week: next.week, day: next.day };
 }

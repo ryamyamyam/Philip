@@ -3,6 +3,8 @@ import { db, newId, defaultProfile, type PhilipDB } from './db';
 import type {
   CycleRecord,
   FoodEntry,
+  IsoWeekday,
+  ReviewApplied,
   Macros,
   Meal,
   Profile,
@@ -17,6 +19,8 @@ import type {
   YMD,
 } from './types';
 import type { LiftId } from '../lib/training/program';
+import { adjustedTm, MAX_REST_BONUS_SEC } from '../lib/training/checkin';
+import { tmsForCycle } from '../lib/training/progress';
 import { roundMacros } from '../lib/nutrition';
 
 export type NewFoodEntry = Omit<FoodEntry, 'id' | 'createdAt' | 'updatedAt'>;
@@ -423,4 +427,95 @@ export async function applyCheckin(session: WorkoutSession, database: PhilipDB =
 /** Extra rest for the rest of a cycle, accepted in an end-of-day review. */
 export async function setCycleRestBonus(index: number, restBonusSec: number, database: PhilipDB = db): Promise<void> {
   await database.cycles.update(index, { restBonusSec });
+}
+
+/* ---------------- Story 6 (T-019): training days, review apply/undo, delete a log ---------------- */
+
+/** The owner's training weekdays for the projected calendar (Settings › Training › Training days). */
+export async function setTrainingDays(days: IsoWeekday[] | null, database: PhilipDB = db): Promise<void> {
+  const program = await database.trainingProgram.get('me');
+  if (!program) return;
+  const next: TrainingProgram = { ...program, updatedAt: Date.now() };
+  if (days === null) delete next.trainingDays;
+  else next.trainingDays = [...new Set(days)].sort((a, b) => a - b);
+  await database.trainingProgram.put(next);
+}
+
+export type ReviewChange = { kind: 'tm'; lift: LiftId; factor: number } | { kind: 'rest'; extraSec: number };
+
+/**
+ * "OK, apply" in the end-of-workout review (D-027), in one transaction: appends `adjust` TM rows,
+ * raises the cycle's rest bonus (capped), and records what actually changed on the session
+ * (`reviewApplied`) so deleting the log can undo it.
+ */
+export async function applyReview(sessionId: string, changes: readonly ReviewChange[], database: PhilipDB = db): Promise<ReviewApplied> {
+  return database.transaction('rw', [database.workoutSessions, database.tmHistory, database.cycles], async () => {
+    const session = await database.workoutSessions.get(sessionId);
+    if (!session) throw new Error('Session not found');
+    const cycle = await database.cycles.get(session.cycle);
+    const tms = tmsForCycle(await database.tmHistory.toArray(), session.cycle);
+    const applied: ReviewApplied = { tm: [], restBonusAddedSec: 0 };
+    const now = Date.now();
+    for (const c of changes) {
+      if (c.kind === 'tm') {
+        const from = tms[c.lift];
+        if (from === null) continue;
+        const to = adjustedTm(from, c.factor);
+        await database.tmHistory.add({ lift: c.lift, tmKg: to, effectiveCycle: session.cycle, reason: 'adjust', createdAt: now });
+        tms[c.lift] = to;
+        applied.tm.push({ lift: c.lift, fromKg: from, toKg: to });
+      } else if (cycle) {
+        const before = cycle.restBonusSec ?? 0;
+        const after = Math.min(MAX_REST_BONUS_SEC, before + c.extraSec);
+        cycle.restBonusSec = after;
+        applied.restBonusAddedSec += after - before;
+        await database.cycles.update(cycle.index, { restBonusSec: after });
+      }
+    }
+    await database.workoutSessions.put({ ...session, reviewed: true, reviewApplied: applied });
+    return applied;
+  });
+}
+
+export class LockedSessionError extends Error {
+  constructor() {
+    super('Logs from finished cycles are locked');
+    this.name = 'LockedSessionError';
+  }
+}
+
+/**
+ * Deletes a workout log of the current cycle (Story 6 §4), in one transaction:
+ * - each TM change its review applied gets an appended `undo` row (TM += from − to, additive, so a
+ *   later change isn't wiped out; tmHistory stays append-only);
+ * - the rest bonus it added comes off (floor 0);
+ * - the session row goes. Everything else (next day, e1RM, PRs) is derived from sessions.
+ * Throws LockedSessionError for a session from another cycle.
+ */
+export async function deleteWorkoutSession(id: string, database: PhilipDB = db): Promise<void> {
+  await database.transaction('rw', [database.workoutSessions, database.tmHistory, database.cycles, database.trainingProgram], async () => {
+    const session = await database.workoutSessions.get(id);
+    if (!session) return;
+    const program = await database.trainingProgram.get('me');
+    if (!program || session.cycle !== program.currentCycle) throw new LockedSessionError();
+    const applied = session.reviewApplied;
+    if (applied) {
+      const records = await database.tmHistory.toArray();
+      const now = Date.now();
+      for (const change of applied.tm) {
+        const effective = session.cycle;
+        const current = tmsForCycle(records, effective)[change.lift];
+        if (current === null) continue;
+        const tmKg = Math.round((current + change.fromKg - change.toKg) * 100) / 100;
+        const row = { lift: change.lift, tmKg, effectiveCycle: effective, reason: 'undo' as const, createdAt: now };
+        const newId = (await database.tmHistory.add(row)) as number;
+        records.push({ ...row, id: newId });
+      }
+      if (applied.restBonusAddedSec > 0) {
+        const cycle = await database.cycles.get(session.cycle);
+        if (cycle) await database.cycles.update(cycle.index, { restBonusSec: Math.max(0, (cycle.restBonusSec ?? 0) - applied.restBonusAddedSec) });
+      }
+    }
+    await database.workoutSessions.delete(id);
+  });
 }

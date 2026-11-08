@@ -45,14 +45,14 @@ export function createSession(plan: PlannedSession, id: string, date: string, no
   };
 }
 
-/** "As ordered": copies the order into the log. Not offered for + sets or orders with no weight yet. */
-export function canCopyOrder(p: Prescribed): boolean {
-  return p.kind !== 'amrap' && (p.kg !== null || isBodyweightOrder(p));
+/** "As ordered": copies the order into the log. Not offered for + sets or orders with no weight yet (bodyweight moves excepted). */
+export function canCopyOrder(p: Prescribed, bodyweight = false): boolean {
+  return p.kind !== 'amrap' && (p.kg !== null || bodyweight || isBodyweightOrder(p));
 }
 const isBodyweightOrder = (p: Prescribed) => p.kind === 'accessory' && p.kg === null && p.repMin === p.repMax;
 
 export function copyOrder(p: Prescribed, a: ActualSet): ActualSet {
-  return { ...a, kg: p.kg, reps: p.repMax, done: true, copiedFromOrder: true };
+  return { ...a, kg: p.kg, reps: p.targetReps ?? p.repMax, done: true, copiedFromOrder: true };
 }
 
 /**
@@ -145,3 +145,22 @@ export function infoFor(id: string): ExerciseInfo {
 }
 
 export const isBodyweight = (id: string): boolean => !!infoFor(id).bodyweight;
+
+/**
+ * Swaps one accessory in a live session for a freshly planned one (Story 6 §7). Allowed until the
+ * exercise's first set is ticked; returns null otherwise (or for the main lift). The new exercise
+ * brings its own orders (estimate or progression); `swappedFrom` keeps the original, and the note stays.
+ */
+export function swapInSession(session: WorkoutSession, index: number, fresh: PlannedExercise): WorkoutSession | null {
+  const ex = session.exercises[index];
+  if (!ex || ex.slot === 'main' || fresh.slot !== ex.slot) return null;
+  if (ex.actual.some((a) => a.done)) return null;
+  if (fresh.exerciseId === ex.exerciseId) return session;
+  const original = ex.swappedFrom ?? ex.exerciseId;
+  return {
+    ...session,
+    exercises: session.exercises.map((e, i) =>
+      i === index ? { ...toSessionExercise(fresh), swappedFrom: fresh.exerciseId === original ? null : original, note: e.note } : e,
+    ),
+  };
+}

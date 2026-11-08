@@ -32,14 +32,18 @@ describe('buildSession', () => {
     expect(bulk.exercises.find((e) => e.slot === 'A1')?.prescription).toHaveLength(4);
   });
 
-  it('accessories progress from the last logged sets and start empty without history', () => {
-    const first = buildSession({ cycle: 1, week: 1, day: 2, phase: 'maintain', tms: TMS });
-    expect(first.exercises.find((e) => e.slot === 'A1')?.prescription[0]?.kg).toBeNull();
+  it('accessories progress from the last logged sets and start from Philip\'s estimate without history', () => {
+    const first = buildSession({ cycle: 1, week: 1, day: 2, phase: 'maintain', tms: TMS, weightUnit: 'kg' });
+    const a1 = first.exercises.find((e) => e.slot === 'A1')?.prescription[0];
+    expect(a1).toMatchObject({ kg: 22.5, estimate: true, targetReps: 10 }); // chest-supported DB row: 0.25 × bench TM 90, per hand
     const next = buildSession({
       cycle: 1, week: 2, day: 2, phase: 'maintain', tms: TMS, weightUnit: 'kg',
       lastSets: (id) => (id === 'cs-db-row' ? [12, 12, 12].map((r) => ({ kg: 30, reps: r, done: true })) : null),
     });
-    expect(next.exercises.find((e) => e.slot === 'A1')?.prescription[0]?.kg).toBe(32.5);
+    const a1next = next.exercises.find((e) => e.slot === 'A1')?.prescription[0];
+    expect(a1next?.kg).toBe(32.5);
+    expect(a1next?.estimate).toBeUndefined();
+    expect(a1next?.targetReps).toBe(8); // weight went up → bottom of the range
   });
 
   it('only approved swaps are honoured', () => {

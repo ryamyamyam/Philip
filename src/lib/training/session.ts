@@ -3,6 +3,7 @@
  * Pure. The result is frozen onto the stored session; later rule changes never rewrite it.
  */
 import { exerciseFor, exerciseInfo, MAIN_EXERCISE, menuSlot, type ExerciseId, type Slot } from './exercises';
+import { startingKg, startRule } from './startLoad';
 import { DEFAULT_BAR_SETUP, KG_PER_LB, loadFor, roundToStep, type BarSetup, type PlateUnit } from './plates';
 import {
   accessoryRules,
@@ -10,6 +11,7 @@ import {
   DAY_LIFT,
   DELOAD_WEEK,
   nextAccessoryKg,
+  nextTargetReps,
   tmIncrement,
   warmupSets,
   workSets,
@@ -38,6 +40,12 @@ export interface Prescribed {
   perSide: boolean;
   rir: number;
   restSec: number;
+  /** Philip's single rep (or seconds) target inside repMin–repMax (Story 6 §6). Older sessions: absent. */
+  targetReps?: number;
+  /** The load is Philip's first-time estimate (no log for this exercise yet). */
+  estimate?: boolean;
+  /** The load is machine assistance (counterweight), not added weight. */
+  assist?: boolean;
 }
 
 export interface PlannedExercise {
@@ -78,6 +86,8 @@ export interface SessionInput {
   weightUnit?: PlateUnit;
   /** Extra rest (s) on every work set, accepted in a review (owner feedback, Nov 5). */
   restBonusSec?: number;
+  /** Body weight (kg) for bodyweight-anchored starting estimates (Story 6 §6). */
+  bodyWeightKg?: number | null;
 }
 
 export const SESSION_BUDGET_MIN = 45;
@@ -169,8 +179,17 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
     if (input.phase === 'lose' && slot === 'B') sets = 2;
     if (input.phase === 'gain' && slot !== 'B') sets += 1;
   }
-  const next = nextAccessoryKg(input.lastSets?.(id) ?? null, rules.sets, m.repMax, incrementKg(unit));
-  const kg = next.kg === null ? null : input.week === DELOAD_WEEK ? next.kg : roundToStep(next.kg, unit);
+  const last = input.lastSets?.(id) ?? null;
+  const next = nextAccessoryKg(last, rules.sets, m.repMax, incrementKg(unit));
+  let kg = next.kg === null ? null : input.week === DELOAD_WEEK ? next.kg : roundToStep(next.kg, unit);
+  // Story 6 §6: no log for this exercise yet → Philip's starting estimate instead of "Your pick".
+  let estimate = false;
+  if (kg === null) {
+    kg = startingKg(id, { tms: input.tms, bodyWeightKg: input.bodyWeightKg ?? null, unit });
+    estimate = kg !== null;
+  }
+  const assist = startRule(id).kind === 'assist';
+  const targetReps = nextTargetReps(last, m.repMin, m.repMax, next.change);
   return {
     slot,
     exerciseId: id,
@@ -185,6 +204,9 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
       perSide: !!info.perSide,
       rir: rules.rir,
       restSec: rules.restSec,
+      targetReps,
+      ...(estimate ? { estimate: true } : {}),
+      ...(assist ? { assist: true } : {}),
     })),
   };
 }

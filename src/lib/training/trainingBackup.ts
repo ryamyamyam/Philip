@@ -5,6 +5,8 @@
  */
 import type { PhilipDB } from '../../db/db';
 import type {
+  IsoWeekday,
+  ReviewApplied,
   ActualSet,
   CycleRecord,
   SessionExercise,
@@ -114,6 +116,28 @@ function program(x: unknown): TrainingProgram | null {
     currentCycle: num(o, 'currentCycle', p, 0, 10000),
     createdAt: num(o, 'createdAt', p),
     updatedAt: num(o, 'updatedAt', p),
+    ...(o.trainingDays != null ? { trainingDays: trainingDays(o.trainingDays, `${p}.trainingDays`) } : {}),
+  };
+}
+
+function trainingDays(x: unknown, path: string): IsoWeekday[] {
+  const days = list(x, path).map((v) => {
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > 7) fail(path, 'weekdays must be 1–7');
+    return v as IsoWeekday;
+  });
+  if (new Set(days).size !== days.length || days.length > 7) fail(path, 'weekdays must be distinct');
+  return days;
+}
+
+function reviewApplied(x: unknown, path: string): ReviewApplied {
+  const o = obj(x, path);
+  return {
+    tm: list(o.tm, `${path}.tm`).map((v, i) => {
+      const q = `${path}.tm[${i}]`;
+      const t = obj(v, q);
+      return { lift: oneOf(t, 'lift', LIFTS, q), fromKg: num(t, 'fromKg', q, 0, 1000), toKg: num(t, 'toKg', q, 0, 1000) };
+    }),
+    restBonusAddedSec: num(o, 'restBonusAddedSec', path, 0, 600),
   };
 }
 
@@ -124,7 +148,7 @@ function tmRecord(x: unknown, i: number): TmRecord {
     lift: oneOf(o, 'lift', LIFTS, p),
     tmKg: num(o, 'tmKg', p, 0, 1000),
     effectiveCycle: num(o, 'effectiveCycle', p, 0, 10000),
-    reason: oneOf(o, 'reason', ['setup', 'cycle', 'miss', 'pain', 'retest', 'adjust'], p),
+    reason: oneOf(o, 'reason', ['setup', 'cycle', 'miss', 'pain', 'retest', 'adjust', 'undo'], p),
     createdAt: num(o, 'createdAt', p),
   };
 }
@@ -165,6 +189,9 @@ function prescribed(x: unknown, path: string): Prescribed {
     perSide: bool(o, 'perSide'),
     rir: num(o, 'rir', path, 0, 10),
     restSec: num(o, 'restSec', path, 0, 3600),
+    ...(o.targetReps != null ? { targetReps: num(o, 'targetReps', path, 0, 600) } : {}),
+    ...(o.estimate === true ? { estimate: true } : {}),
+    ...(o.assist === true ? { assist: true } : {}),
   };
 }
 
@@ -215,6 +242,7 @@ function session(x: unknown, i: number): WorkoutSession {
     finishedAt: numOrNull(o, 'finishedAt', p),
     exercises: list(o.exercises, `${p}.exercises`).map((e, j) => exercise(e, `${p}.exercises[${j}]`)),
     ...(o.reviewed === true ? { reviewed: true } : {}),
+    ...(o.reviewApplied != null ? { reviewApplied: reviewApplied(o.reviewApplied, `${p}.reviewApplied`) } : {}),
   };
 }
 

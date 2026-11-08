@@ -124,7 +124,7 @@ export const TM_INCREMENT_KG: Readonly<Record<Phase, { upper: number; lower: num
 export const tmIncrement = (lift: LiftId, phase: Phase): number =>
   UPPER.has(lift) ? TM_INCREMENT_KG[phase].upper : TM_INCREMENT_KG[phase].lower;
 
-export type TmReason = 'setup' | 'cycle' | 'miss' | 'pain' | 'retest' | 'adjust';
+export type TmReason = 'setup' | 'cycle' | 'miss' | 'pain' | 'retest' | 'adjust' | 'undo';
 export type CycleOutcome = 'hit' | 'miss' | 'pain' | 'none';
 
 export interface LoggedMainSet {
@@ -206,4 +206,21 @@ export function nextAccessoryKg(
   const kg = Math.max(...logged.map((s) => s.kg ?? 0));
   const allTop = logged.length >= prescribedSets && logged.every((s) => (s.reps ?? 0) >= repMax);
   return allTop ? { kg: kg + incrementKg, change: 'add' } : { kg, change: 'hold' };
+}
+
+/**
+ * Target reps (or seconds) for the next accessory session (Story 6 §6). No log → the middle of the
+ * range. After a weight increase → the bottom of the range. Otherwise one more than the weakest
+ * logged set, capped at the top of the range.
+ */
+export function nextTargetReps(
+  last: readonly LoggedAccessorySet[] | null,
+  repMin: number,
+  repMax: number,
+  change: 'first' | 'add' | 'hold',
+): number {
+  if (change === 'add') return repMin;
+  const reps = (last ?? []).filter((s) => s.done && s.reps !== null).map((s) => s.reps ?? 0);
+  if (reps.length === 0) return Math.floor((repMin + repMax) / 2);
+  return Math.min(repMax, Math.max(repMin, Math.min(...reps) + 1));
 }

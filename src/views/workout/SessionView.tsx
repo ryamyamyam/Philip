@@ -3,8 +3,8 @@ import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
-import { addTm, applyCheckin, saveWorkoutSession, setCycleRestBonus, setSlotChoice } from '../../db/repo';
-import { useProfile } from '../../hooks/useData';
+import { addTm, applyCheckin, applyReview, saveWorkoutSession, setSlotChoice, type ReviewChange } from '../../db/repo';
+import { useProfile, useWeightEntries } from '../../hooks/useData';
 import { newId } from '../../db/db';
 import type { CycleRecord, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
@@ -14,14 +14,14 @@ import { exerciseFor, menuSlot, slotKey, type ExerciseId, type Slot } from '../.
 import { DAY_LIFT, DELOAD_WEEK, epley, tmFromOneRm, type LiftId } from '../../lib/training/program';
 import { nextSessionRef, tmsForCycle } from '../../lib/training/progress';
 import { buildSession, liftOutlook, SESSION_BUDGET_MIN, type PlannedSession } from '../../lib/training/session';
-import { createSession, lastSetsFor, summarize, toSessionExercise, type SessionSummary } from '../../lib/training/sessionLog';
+import { createSession, lastSetsFor, summarize, swapInSession, type SessionSummary } from '../../lib/training/sessionLog';
+import { startingWeight } from '../../lib/training/cycleGoal';
 import { useUI } from '../../ui';
 import { ExerciseCard, type CheckinProposal } from './ExerciseCard';
 import {
   adjustedTm,
   applyTodayChange,
   checkinPrompt,
-  MAX_REST_BONUS_SEC,
   parseCoachReply,
   remainingWork,
   reviewSession,
@@ -60,6 +60,7 @@ function planFor(
   choices: Readonly<Record<string, ExerciseId>>,
   week: 1 | 2 | 3 | 4,
   day: 1 | 2 | 3 | 4,
+  bodyWeightKg: number | null = null,
 ): { plan: PlannedSession | null; missing: LiftId | null } {
   const tms = tmsForCycle(tmHistory, cycle.index);
   const lift = DAY_LIFT[day];
@@ -76,14 +77,23 @@ function planFor(
       bar: program.bar,
       weightUnit: program.weightUnit,
       restBonusSec: cycle.restBonusSec ?? 0,
+      bodyWeightKg,
     }),
     missing: null,
   };
 }
 
+/** Body weight for bodyweight-anchored starting estimates (Story 6 §6): same source rule as the briefing. */
+function useBodyWeightKg(): number | null {
+  const profile = useProfile();
+  const weights = useWeightEntries();
+  return useMemo(() => startingWeight(weights ?? [], todayYmd(), profile?.weightKg ?? null)?.kg ?? null, [weights, profile?.weightKg]);
+}
+
 function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Props, 'open'>) {
+  const bodyWeightKg = useBodyWeightKg();
   const ref = nextSessionRef(sessions, cycle.index);
-  const { plan, missing } = ref ? planFor(program, cycle, sessions, tmHistory, choices, ref.week, ref.day) : { plan: null, missing: null };
+  const { plan, missing } = ref ? planFor(program, cycle, sessions, tmHistory, choices, ref.week, ref.day, bodyWeightKg) : { plan: null, missing: null };
   if (!ref) return <p>{t('session.cycleDone')}</p>;
   if (missing) return <Calibration lift={missing} cycle={cycle.index} unit={program.weightUnit} />;
   if (!plan) return null;
@@ -292,6 +302,7 @@ function LiveSession({
 }) {
   const [unit, setUnit] = useState(program.weightUnit);
   const profile = useProfile();
+  const bodyWeightKg = useBodyWeightKg();
   const [pending, setPending] = useState<{ index: number; proposal: CheckinProposal } | null>(null);
   const [thinking, setThinking] = useState<number | null>(null);
   const [restEnds, setRestEnds] = useState<number | null>(null);
@@ -307,21 +318,20 @@ function LiveSession({
   }, [restEnds, restLeft]);
 
   const save = (next: WorkoutSession) => void saveWorkoutSession(next);
-  const swap = (index: number, to: ExerciseId) => {
+  // Story 6 §7: `keep` writes the sticky slot choice; otherwise the swap is for today only.
+  // T-021 adds the "Keep this swap" checkbox; until then the card keeps today's behaviour (keep).
+  const swap = (index: number, to: ExerciseId, keep = true) => {
     const ex = session.exercises[index];
     if (!ex || ex.slot === 'main') return;
     const slot = ex.slot as Slot;
     const nextChoices = { ...choices, [slotKey(session.day, slot, session.block)]: to };
-    const { plan } = planFor(program, cycle, sessions, tmHistory, nextChoices, session.week, session.day);
+    const { plan } = planFor(program, cycle, sessions, tmHistory, nextChoices, session.week, session.day, bodyWeightKg);
     const fresh = plan?.exercises.find((e) => e.slot === slot);
     if (!fresh) return;
-    void setSlotChoice(slotKey(session.day, slot, session.block), to);
-    save({
-      ...session,
-      exercises: session.exercises.map((e, i) =>
-        i === index ? { ...toSessionExercise(fresh), swappedFrom: e.swappedFrom ?? e.exerciseId, note: e.note } : e,
-      ),
-    });
+    const next = swapInSession(session, index, fresh);
+    if (!next) return;
+    if (keep) void setSlotChoice(slotKey(session.day, slot, session.block), to);
+    save(next);
   };
   // Owner tells Philip how a set went (Nov 5): save it, then propose a change for the rest of today.
   const checkin = async (index: number, order: number, flag: CheckinFlag | null, note: string) => {
@@ -508,17 +518,11 @@ function Review({ session, cycle, tmHistory, unit }: { session: WorkoutSession; 
     });
   };
   const apply = async () => {
-    for (let i = 0; i < changes.length; i++) {
-      const c = changes[i];
-      if (!c || !on[i]) continue;
-      if (c.kind === 'tm') {
-        const tm = tms[c.lift];
-        if (tm !== null) await addTm({ lift: c.lift, tmKg: adjustedTm(tm, c.factor), effectiveCycle: cycle.index, reason: 'adjust' });
-      } else {
-        await setCycleRestBonus(cycle.index, Math.min(MAX_REST_BONUS_SEC, (cycle.restBonusSec ?? 0) + c.extraSec));
-      }
-    }
-    await saveWorkoutSession({ ...session, reviewed: true });
+    // Story 6 §4: one transaction that also records what changed, so deleting the log can undo it.
+    const picked: ReviewChange[] = changes.flatMap((c, i): ReviewChange[] =>
+      !on[i] ? [] : c.kind === 'tm' ? [{ kind: 'tm', lift: c.lift, factor: c.factor }] : [{ kind: 'rest', extraSec: c.extraSec }],
+    );
+    await applyReview(session.id, picked);
     setAnswered(true);
   };
   return (

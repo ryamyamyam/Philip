@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
-import { addTm, applyCheckin, applyReview, saveWorkoutSession, setSlotChoice, type ReviewChange } from '../../db/repo';
+import { addTm, applyCheckin, applyReview, deleteWorkoutSession, saveWorkoutSession, setSlotChoice, type ReviewChange } from '../../db/repo';
 import { useProfile, useWeightEntries } from '../../hooks/useData';
 import { newId } from '../../db/db';
 import type { CycleRecord, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
@@ -41,14 +42,16 @@ interface Props {
   tmHistory: readonly TmRecord[];
   choices: Readonly<Record<string, ExerciseId>>;
   open: WorkoutSession | null;
+  /** Back to the calendar (Story 6): `finished` plays today's stamp press. */
+  onBack?: (finished: boolean) => void;
 }
 
 /** Today's session (Story 5 §5, T-013): start screen, live log, finish summary. */
-export function SessionView({ program, cycle, sessions, tmHistory, choices, open }: Props) {
+export function SessionView({ program, cycle, sessions, tmHistory, choices, open, onBack }: Props) {
   const [summary, setSummary] = useState<{ s: SessionSummary; lift: LiftId; session: WorkoutSession } | null>(null);
   if (summary)
-    return <Summary summary={summary.s} lift={summary.lift} unit={program.weightUnit} session={summary.session} cycle={cycle} tmHistory={tmHistory} />;
-  if (open) return <LiveSession program={program} session={open} sessions={sessions} choices={choices} cycle={cycle} tmHistory={tmHistory} onFinished={setSummary} />;
+    return <Summary summary={summary.s} lift={summary.lift} unit={program.weightUnit} session={summary.session} cycle={cycle} tmHistory={tmHistory} onBack={onBack} />;
+  if (open) return <LiveSession program={program} session={open} sessions={sessions} choices={choices} cycle={cycle} tmHistory={tmHistory} onFinished={setSummary} onDiscarded={() => onBack?.(false)} />;
   return <StartScreen program={program} cycle={cycle} sessions={sessions} tmHistory={tmHistory} choices={choices} />;
 }
 
@@ -291,6 +294,7 @@ function LiveSession({
   cycle,
   tmHistory,
   onFinished,
+  onDiscarded,
 }: {
   program: TrainingProgram;
   session: WorkoutSession;
@@ -299,7 +303,9 @@ function LiveSession({
   cycle: CycleRecord;
   tmHistory: readonly TmRecord[];
   onFinished: (s: { s: SessionSummary; lift: LiftId; session: WorkoutSession }) => void;
+  onDiscarded: () => void;
 }) {
+  const [discarding, setDiscarding] = useState(false);
   const [unit, setUnit] = useState(program.weightUnit);
   const profile = useProfile();
   const bodyWeightKg = useBodyWeightKg();
@@ -436,6 +442,22 @@ function LiveSession({
       <button type="button" className="btn btn-primary btn-block" onClick={finish}>
         {t('session.finish')}
       </button>
+      <button type="button" className="btn btn-ghost btn-block" onClick={() => setDiscarding(true)}>
+        {t('session.discard')}
+      </button>
+      {discarding && (
+        <ConfirmDialog
+          title={t('session.discardTitle')}
+          body={<p>{t('session.discardBody')}</p>}
+          confirmLabel={t('session.discardConfirm')}
+          destructive
+          onConfirm={() => {
+            setDiscarding(false);
+            void deleteWorkoutSession(session.id).then(onDiscarded);
+          }}
+          onCancel={() => setDiscarding(false)}
+        />
+      )}
       {restEnds !== null && restLeft > 0 && (
         <div className="rest-bar" role="timer" aria-label={t('session.restLabel')}>
           <span className="pm-display num">{t('session.restLeft', { t: fmtRest(restLeft) })}</span>
@@ -455,6 +477,7 @@ function Summary({
   session,
   cycle,
   tmHistory,
+  onBack,
 }: {
   summary: SessionSummary;
   lift: LiftId;
@@ -462,6 +485,7 @@ function Summary({
   session: WorkoutSession;
   cycle: CycleRecord;
   tmHistory: readonly TmRecord[];
+  onBack?: (finished: boolean) => void;
 }) {
   const { navigate } = useUI();
   const line: StringKey = summary.pain ? 'summary.pain' : summary.pr ? 'summary.pr' : summary.missed ? 'summary.miss' : 'summary.done';
@@ -489,7 +513,12 @@ function Summary({
         </dl>
       </section>
       <Review session={session} cycle={cycle} tmHistory={tmHistory} unit={unit} />
-      <button type="button" className="btn btn-primary btn-block" onClick={() => navigate('home')}>
+      {onBack && (
+        <button type="button" className="btn btn-primary btn-block" onClick={() => onBack(true)}>
+          {t('summary.calendar')}
+        </button>
+      )}
+      <button type="button" className={`btn btn-block ${onBack ? 'btn-secondary' : 'btn-primary'}`} onClick={() => navigate('home')}>
         {t('summary.home')}
       </button>
     </div>

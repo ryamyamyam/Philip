@@ -262,7 +262,7 @@ test.describe('Check-in and calendar (T-017)', () => {
     await openWorkout(page);
     const grid = main(page).getByRole('grid');
     await expect(grid.locator('.cal-day.is-today')).toHaveAttribute('aria-selected', 'true');
-    await expect(grid.locator('.cal-day.is-today')).toHaveAttribute('aria-label', /Done/);
+    await expect(grid.locator('.cal-day.is-today')).toHaveAttribute('aria-label', /trained/);
     await main(page).locator('.cal-session summary').first().click();
     await expect(main(page).locator('.cal-log')).toContainText('Back squat');
     // Story 6 §2: no second workout today.

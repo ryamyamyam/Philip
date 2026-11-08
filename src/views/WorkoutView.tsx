@@ -32,6 +32,7 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
   const [inSession, setInSession] = useState(false);
   // Story 6 §2: the cycle briefing can open on a day whose workout is already done (no training today).
   const [briefingOpen, setBriefingOpen] = useState(false);
+  const [justFinished, setJustFinished] = useState(false);
   const program = useTrainingProgram();
   const sessions = useWorkoutSessions();
   const cycles = useCycles();
@@ -61,7 +62,23 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
     else if (state.kind === 'briefing' || state.kind === 'cycleDone' || !cycle || (briefingOpen && state.kind === 'doneToday' && state.cycleDone)) {
       body = <StartCycleView profile={profile} weights={weights} cycles={cycles} sessions={sessions} tmHistory={tmHistory} />;
     } else if (!inSession) {
-      body = <WorkoutCalendar sessions={sessions} state={state} unit={program.weightUnit} onOpenToday={() => (state.kind === 'doneToday' ? setBriefingOpen(true) : setInSession(true))} />;
+      body = (
+        <WorkoutCalendar
+          sessions={sessions}
+          state={state}
+          program={program}
+          cycle={cycle}
+          tmHistory={tmHistory}
+          profile={profile}
+          weights={weights}
+          justFinished={justFinished}
+          onOpenToday={() => {
+            setJustFinished(false);
+            if (state.kind === 'doneToday') setBriefingOpen(true);
+            else setInSession(true);
+          }}
+        />
+      );
     } else {
       body = (
         <SessionView
@@ -71,6 +88,10 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
           tmHistory={tmHistory}
           choices={choiceMap}
           open={state.kind === 'resume' ? state.session : null}
+          onBack={(finished) => {
+            setJustFinished(finished);
+            setInSession(false);
+          }}
         />
       );
     }

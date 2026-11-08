@@ -24,6 +24,8 @@
   --color-warning-soft: #fef6dc;
   --color-danger: #b91c1c;
   --color-danger-soft: #fdecec;
+  /* Teacher's ink stamp on the workout calendar (Story 6): red ink, 5.9:1 on white. */
+  --color-stamp: #c62828;
   --color-track: #f0eeec;
   /* Macro colors re-point to the category palette (D-022): protein coral, fat sand, carbs sky. */
   --color-protein: var(--cat-coral);

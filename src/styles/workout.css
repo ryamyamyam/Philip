@@ -381,3 +381,92 @@
 .cal-flag {
   color: var(--color-text-2);
 }
+
+/* Story 6 (T-020): stamps, planned tags, goal flower, day notice, training days */
+.pm-stamp {
+  display: block;
+  fill: var(--color-stamp);
+}
+.pm-stamp-cell {
+  width: 20px;
+  height: 20px;
+}
+.pm-stamp-large {
+  width: 72px;
+  height: auto;
+  flex: none;
+}
+.pm-stamp-kana {
+  font-family: var(--font-family);
+  font-size: 4.6px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+  fill: var(--color-stamp);
+}
+.cal-day {
+  gap: 1px;
+  padding: var(--space-0-5) 0;
+}
+.cal-num {
+  line-height: 1;
+}
+.cal-day.is-done {
+  background: var(--color-surface);
+}
+.cal-day[aria-selected='true'] .pm-stamp {
+  fill: var(--color-on-action);
+}
+.cal-day.is-planned:not([aria-selected='true']) {
+  border-style: dashed;
+}
+.cal-tag {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  line-height: 1;
+  padding: 0 2px;
+  border: var(--border-hair) solid currentColor;
+}
+.cal-stamp.is-pressing {
+  animation: pm-stamp-press 360ms steps(2, end) 1;
+}
+@keyframes pm-stamp-press {
+  0% {
+    transform: scale(1.6) rotate(-12deg);
+    opacity: 0.4;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-stamp.is-pressing {
+    animation: none;
+  }
+}
+.cal-notice {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+.cal-notice > .stack-sm {
+  min-width: 0;
+}
+.cal-notice-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  margin: 0;
+}
+.days-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.day-toggle {
+  min-width: 0;
+  padding-inline: 0;
+}
+.day-toggle[aria-pressed='true'] {
+  background: var(--color-action);
+  color: var(--color-on-action);
+}

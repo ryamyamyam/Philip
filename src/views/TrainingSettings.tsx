@@ -3,8 +3,9 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Icon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { newId } from '../db/db';
-import { addTm, resetTrainingProgram, saveWorkoutSession, setSlotChoice, updateTrainingProgram } from '../db/repo';
-import type { TrainingProgram, WorkoutSession } from '../db/types';
+import { addTm, resetTrainingProgram, saveWorkoutSession, setSlotChoice, setTrainingDays, updateTrainingProgram } from '../db/repo';
+import type { IsoWeekday, TrainingProgram, WorkoutSession } from '../db/types';
+import { DEFAULT_TRAINING_DAYS, squatRdlTooClose, TRAINING_DAYS_PER_WEEK, trainingDaysOrDefault } from '../lib/training/schedule';
 import { useSlotChoices, useTrainingProgram, useWorkoutSessions } from '../hooks/useData';
 import { t, type StringKey } from '../i18n';
 import { todayYmd } from '../lib/date';
@@ -35,6 +36,7 @@ export function TrainingSettings() {
         </button>
       ) : (
         <>
+          <TrainingDays program={program} />
           <Retest program={program} />
           <BarSettings program={program} />
           <Menu program={program} choices={Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>} />
@@ -42,6 +44,47 @@ export function TrainingSettings() {
         </>
       )}
     </section>
+  );
+}
+
+/** Story 6 §3.1: the weekdays Philip plans workout dates on. Exactly 4; Philip's pick is the default. */
+function TrainingDays({ program }: { program: TrainingProgram }) {
+  const toast = useToast();
+  const [days, setDays] = useState<IsoWeekday[]>(() => trainingDaysOrDefault(program.trainingDays));
+  const isPick = (d: readonly IsoWeekday[]) => d.length === DEFAULT_TRAINING_DAYS.length && d.every((x) => DEFAULT_TRAINING_DAYS.includes(x));
+  const toggle = (d: IsoWeekday) => setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort((a, b) => a - b)));
+  const ok = days.length === TRAINING_DAYS_PER_WEEK;
+  return (
+    <div className="stack-sm" role="group" aria-labelledby="days-h">
+      <h3 id="days-h">{t('training.days')}</h3>
+      <p className="small muted">{t('training.daysHint')}</p>
+      <div className="days-row">
+        {([1, 2, 3, 4, 5, 6, 7] as const).map((d) => (
+          <button key={d} type="button" className="btn btn-sm btn-secondary day-toggle" aria-pressed={days.includes(d)} onClick={() => toggle(d)}>
+            {t(`training.wd.${d}` as StringKey)}
+          </button>
+        ))}
+      </div>
+      <p className="small num" aria-live="polite">
+        {isPick(days) ? t('training.daysPick') : t('training.daysCount', { n: days.length })}
+      </p>
+      {ok && squatRdlTooClose(days) && <p className="small">{t('training.daysClose')}</p>}
+      <div className="ex-actions">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={!ok}
+          onClick={() => ok && void setTrainingDays(isPick(days) ? null : days).then(() => toast(t('training.daysSaved')))}
+        >
+          {t('training.daysSave')}
+        </button>
+        {!isPick(days) && (
+          <button type="button" className="btn btn-ghost" onClick={() => setDays([...DEFAULT_TRAINING_DAYS])}>
+            {t('training.daysUsePick')}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

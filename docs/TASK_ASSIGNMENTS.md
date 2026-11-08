@@ -25,6 +25,14 @@ Base branch for new work: `main`.
 
 ---
 
+### T-020 — Story 6 calendar UI: stamps, planned days, goal flower, delete log, training days
+- **Role:** Feature. **Spec:** `docs/stories/STORY_6_OPTIMIZATION.md` §2 (UI), §3.3–3.5, §4 (UI), §5.
+- **Files:** new `src/components/PixelStamp.tsx`, `e2e/calendar.spec.ts`; `src/views/workout/{WorkoutCalendar,SessionView}.tsx`, `src/views/{WorkoutView,TrainingSettings}.tsx`, `src/i18n/en.ts`, `src/styles/{workout,tokens}.css` (`--color-stamp`), `e2e/workout.spec.ts` (aria label).
+- **Built:** `PixelStamp` (original pixel art generated from shapes on a 16/32 grid: round tick stamp; hanamaru flower, large one with よくできました in the system font). Calendar cells: done stamp (stamp-press animation after Finish, off with reduced motion), SQ/BP/RDL/OHP tags on projected days (dashed border), flower on the goal day; aria-labels carry the meaning. Day box with a Philip line per state: done today (large stamp, summary, top set, next date, View log, Delete log, briefing when the cycle ended), resume (+ Delete log), today open (on-plan vs off-day line, preview, Start), future planned (preview), goal day (goal snapshot per phase, Now line with its source, BF footnote), past logs (Delete log, or Locked line for finished cycles). Delete confirm (plain copy; legacy-review variant) + toast. Session: "Discard workout". Summary: "Back to calendar" (primary) + "Back to Home". Settings › Training › Training days (7 toggles, exactly 4, squat/RDL-two-days warning, Philip's pick).
+- **Notes:** the BF "Now" reading has no date in the data model (profile.bodyFatPct), so it shows without one. Kana in the system font (owner to decide at review: keep or pixel-draw).
+- **Status:** Phase A screenshots for owner review · **Branch:** `feat/T-020-calendar` on top of `feat/T-022-push-worker`.
+- **Log:** 2026-11-08 Feature (cloud clone): tsc clean, 316/316 unit, build OK, Chromium e2e 88/88 (one unrelated food-logging flake passed on rerun). WebKit pending on the Mac.
+
 ### T-022 — Story 6: rest-alert push Worker
 - **Role:** Core (infra). **Spec:** `docs/stories/STORY_6_OPTIMIZATION.md` §8.2 (server). Owner request 2026-11-07 ("send a push alert when done"; no keep-screen-on).
 - **Files:** new `push-worker/` only (`src/{index,timer,webpush}.js`, `test/*.test.js`, `scripts/gen-vapid.mjs`, `wrangler.toml`, `package.json`, `README.md`, `.gitignore`). No app code.

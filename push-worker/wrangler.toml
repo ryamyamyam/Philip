@@ -5,9 +5,9 @@ compatibility_date = "2026-10-01"
 
 [vars]
 # The GitHub Pages origin that may call this Worker (scheme + host, no path, no trailing slash).
-ALLOWED_ORIGIN = "https://YOUR-GITHUB-USERNAME.github.io"
+ALLOWED_ORIGIN = "https://ryamyamyam.github.io"
 # VAPID "sub": a URL or mailto: that identifies the sender to push services.
-VAPID_SUBJECT = "https://YOUR-GITHUB-USERNAME.github.io/philip-v0.1/"
+VAPID_SUBJECT = "https://ryamyamyam.github.io/Philip/"
 
 # Secrets (never in this file): npx wrangler secret put VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
 

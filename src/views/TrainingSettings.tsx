@@ -3,10 +3,12 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Icon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { newId } from '../db/db';
-import { addTm, resetTrainingProgram, saveWorkoutSession, setSlotChoice, setTrainingDays, updateTrainingProgram } from '../db/repo';
+import { addTm, META, resetTrainingProgram, setMeta, saveWorkoutSession, setSlotChoice, setTrainingDays, updateTrainingProgram } from '../db/repo';
 import type { IsoWeekday, TrainingProgram, WorkoutSession } from '../db/types';
 import { DEFAULT_TRAINING_DAYS, squatRdlTooClose, TRAINING_DAYS_PER_WEEK, trainingDaysOrDefault } from '../lib/training/schedule';
-import { useSlotChoices, useTrainingProgram, useWorkoutSessions } from '../hooks/useData';
+import { useMeta, useSlotChoices, useTrainingProgram, useWorkoutSessions } from '../hooks/useData';
+import { isStandalone } from '../lib/pwa';
+import { pushConfig, pushSupported, scheduleRestAlert, subscribeRestAlerts, unsubscribeRestAlerts, type StoredSubscription } from '../services/restPush';
 import { t, type StringKey } from '../i18n';
 import { todayYmd } from '../lib/date';
 import { parseDecimal } from '../lib/numbers';
@@ -37,6 +39,7 @@ export function TrainingSettings() {
       ) : (
         <>
           <TrainingDays program={program} />
+          <RestSettings />
           <Retest program={program} />
           <BarSettings program={program} />
           <Menu program={program} choices={Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>} />
@@ -44,6 +47,72 @@ export function TrainingSettings() {
         </>
       )}
     </section>
+  );
+}
+
+/** Story 6 §8: rest-end beep and push alerts (this device only; not in backups). */
+function RestSettings() {
+  const toast = useToast();
+  const soundOff = useMeta<boolean>(META.restSound) === false;
+  const sub = useMeta<StoredSubscription>(META.restAlertSub) ?? null;
+  const cfg = pushConfig();
+  const [busy, setBusy] = useState(false);
+  const [sound, setSound] = useState<boolean | null>(null);
+  const installed = isStandalone();
+  const turnOn = async () => {
+    if (!cfg) return;
+    setBusy(true);
+    const r = await subscribeRestAlerts(cfg);
+    setBusy(false);
+    if (r.ok) {
+      await setMeta(META.restAlertSub, r.sub);
+      toast(t('training.restAlertsOn'));
+    } else toast(t(r.reason === 'denied' ? 'training.restAlertsDenied' : 'training.restAlertsError'));
+  };
+  const turnOff = async () => {
+    await unsubscribeRestAlerts();
+    await setMeta(META.restAlertSub, null);
+    toast(t('training.restAlertsOff'));
+  };
+  const test = async () => {
+    if (!cfg || !sub) return;
+    const ok = await scheduleRestAlert(cfg, sub, Date.now() + 5000, t('session.timesUp'), t('training.restAlertsTestBody'));
+    toast(t(ok ? 'training.restAlertsTestSent' : 'training.restAlertsOffline'));
+  };
+  return (
+    <div className="stack-sm" role="group" aria-labelledby="rest-h">
+      <h3 id="rest-h">{t('training.rest')}</h3>
+      <label className="review-item">
+        <input
+          type="checkbox"
+          checked={sound ?? !soundOff}
+          onChange={(e) => {
+            setSound(e.target.checked);
+            void setMeta(META.restSound, e.target.checked);
+          }}
+        />
+        <span>{t('training.restSound')}</span>
+      </label>
+      {cfg && pushSupported() && (
+        <div className="stack-sm">
+          <label className="review-item">
+            <input
+              type="checkbox"
+              checked={sub !== null}
+              disabled={busy || (!installed && sub === null)}
+              onChange={(e) => void (e.target.checked ? turnOn() : turnOff())}
+            />
+            <span>{t('training.restAlerts')}</span>
+          </label>
+          <p className="small muted">{installed || sub ? t('training.restAlertsHint') : t('training.restAlertsInstall')}</p>
+          {sub && (
+            <button type="button" className="btn btn-secondary" onClick={() => void test()}>
+              {t('training.restAlertsTest')}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

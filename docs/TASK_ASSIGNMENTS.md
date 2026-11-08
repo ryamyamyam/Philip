@@ -25,6 +25,20 @@ Base branch for new work: `main`.
 
 ---
 
+### T-023 — Story 6 QA and docs
+- **Role:** QA. **Spec:** `docs/stories/STORY_6_OPTIMIZATION.md` §11.
+- **Docs:** DECISIONS **D-028**, ARCHITECTURE (Story 6 section, Network, deploy row), DESIGN_SYSTEM (Story 6 patterns), DEVELOPMENT_RULES (network list), this file.
+- **Acceptance criteria (§11):** 1 one a day ✅ (unit + e2e) · 2 done stamp + box ✅ (e2e) · 3 delete / locked / discard ✅ (unit + e2e) · 4 review undo ✅ (unit, AC example) · 5 planned dates + goal day ✅ (unit dates incl. 27 → 30 Nov; e2e cells; settings move dates live) · 6 goal box ✅ bulk wording in e2e; cut/maintain wording by code review only · 7 training days ✅ (e2e) · 8 data/backup ✅ (unit round-trip) · 9 starting weights ✅ (unit table + e2e) · 10 swap mid-workout ✅ (e2e, today-only vs keep, logged → skip) · 11 rest banner ✅ (e2e with a fake clock); "x s ago" after unlock by code review only · 12 push alert ⏳ **manual iPhone check** (below) · 13 layout ✅ Chromium 393 px + existing 150%-text checks; **WebKit pending on the Mac** · 14 checks ✅ tsc, 319/319 unit, build, Chromium e2e 92/92, push-worker 11/11.
+- **Manual iPhone check (AC 12), after deploy:** Home Screen app → Settings › Training › Rest alerts on → allow notifications → "Send a test alert" → lock the phone → a "Time's up." notification within ~10 s. Then in a workout tick a set, lock the phone, and wait for the rest to end. Skip rest → no notification.
+- **Status:** Ready for owner review · **Branch:** `feat/T-021-session` (QA commit on top).
+
+### T-021 — Story 6 session fixes: numbers on every exercise, swap mid-workout, rest alert
+- **Role:** Feature. **Spec:** §6 (UI), §7, §8.1, §8.2 (app side).
+- **Files:** new `src/services/restPush.ts` + test, `e2e/session-fixes.spec.ts`; `src/views/workout/{ExerciseCard,SessionView}.tsx`, `src/views/TrainingSettings.tsx`, `src/components/Icon.tsx` (`swap`), `src/db/repo.ts` (META keys), `src/sw-template.js` (push + notificationclick), `src/vite-env.d.ts`, `.github/workflows/deploy.yml` (VITE_PUSH_* vars), `src/i18n/en.ts`, `src/styles/workout.css`, `e2e/workout.spec.ts` (wait for autosave before reload).
+- **Built:** order summary "4 × 9 per side @ 35 lb (8–10)", Estimate pill + why, single target reps, Bodyweight/Band/Assist; As ordered copies target reps (also for bodyweight/band/timed). Swap from the exercise name or a labelled Swap button, options show their first-set weight, "Keep this swap" (default off = today only), "Sets logged. Skip the rest instead.", "swapped from" line. Time's up banner (8 s, next set, "x s ago" after unlock) + beep; Settings › Training › Rest timer (beep toggle; Rest alerts toggle shown only when the build has the Worker variables, installed app only, test alert). Rest start → `PUT /timer`; skip/finish/leave → `DELETE`.
+- **Status:** Ready for owner review · **Branch:** `feat/T-021-session` on top of `feat/T-020-calendar`.
+- **Log:** 2026-11-08 Feature (cloud clone): tsc clean, 319/319 unit, build OK, Chromium e2e 92/92. WebKit pending on the Mac.
+
 ### T-020 — Story 6 calendar UI: stamps, planned days, goal flower, delete log, training days
 - **Role:** Feature. **Spec:** `docs/stories/STORY_6_OPTIMIZATION.md` §2 (UI), §3.3–3.5, §4 (UI), §5.
 - **Files:** new `src/components/PixelStamp.tsx`, `e2e/calendar.spec.ts`; `src/views/workout/{WorkoutCalendar,SessionView}.tsx`, `src/views/{WorkoutView,TrainingSettings}.tsx`, `src/i18n/en.ts`, `src/styles/{workout,tokens}.css` (`--color-stamp`), `e2e/workout.spec.ts` (aria label).

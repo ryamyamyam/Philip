@@ -88,6 +88,15 @@ The QA & Feedback module is themed only by re-mapping its `--qa-*` variables in 
 - **Pain text** (`.ex-pain`) is plain danger-soft text, never Philip's voice.
 - Styles live in `src/styles/workout.css`.
 
+## Story 6 patterns (D-028)
+
+- **PixelStamp** (`components/PixelStamp.tsx`): red-ink stamps (`--color-stamp`) drawn as an SVG pixel grid: `done` (round tick) and `goal` (hanamaru flower; the large one carries よくできました in the system font), cell (16 px grid) and large (32 px grid). Always `aria-hidden`; meaning lives in the cell's aria-label.
+- **Calendar cells:** trained = stamp (stamp-press animation once after Finish, off with reduced motion); planned = outlined lift tag (SQ/BP/RDL/OHP) and a dashed border; goal = flower. Never color alone.
+- **Day box:** a Philip DialogBar line per state above a card; delete/confirm/locked text stays plain.
+- **Exercise card:** the name is a dotted-underlined button with the pixel `swap` icon (accessories only); an order summary line "4 × 9 per side @ 35 lb (8–10)"; an "Estimate" pill until the exercise has a log. Set rows show Philip's single target reps; "Bodyweight", "Band", "Assist" replace a weight where it applies.
+- **Time's up:** the rest bar turns into an alert bar with a yellow focus-colored frame for 8 s.
+- **Training days:** a 7-column grid of slate toggles; pressed = action color.
+
 **Font (D-026):** the family is now Jersey 15 (finer pixel grid); the Pixelify/Silkscreen notes above describe the previous version.
 
 ## Rules (carried over)

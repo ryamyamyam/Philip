@@ -170,6 +170,20 @@ Pure modules, all tested: `program.ts` (blocks, waves, deload, RDL caps, TM prog
 
 `src/views/WorkoutView.tsx` routes by state (`workoutCardState`): no program → `workout/SetupView` (1RM or weight × reps per lift, kg/lb, bar and plate unit); cycle not started or finished → `workout/StartCycleView` (the goal briefing: phase, Philip's goal or "Set my own" checked by `checkUserGoal`; confirming applies TM progression via `cycleOutcomes`/`nextTm`, updates the profile goal/target/rate, writes a target plan through `calculateTargets` when body stats exist, and calls `startCycle`); otherwise `workout/SessionView` (day preview with tap-to-swap → `createSession` → live log with `ExerciseCard` per exercise → finish → `summarize`). A lift with no TM gets a calibration card on its day. `#/workout/plan` is `workout/PlanView` (read-only). Progress › Strength is `StrengthPanel`; Settings › Training is `TrainingSettings` (re-test, bar/plates, exercise menu, end cycle now, reset program). Orders vs log: `saveWorkoutSession` keeps a session's frozen `prescription` unless the slot's exercise was swapped; everything the owner types lives in `actual`, `note`, `skipped`.
 
+## Story 6 (D-028)
+
+- **Schedule:** `lib/training/schedule.ts` `planDates({ today, trainingDays, sessions, cycle })` → the rest of the cycle on training weekdays (default `DEFAULT_TRAINING_DAYS` Mon/Tue/Thu/Fri); never stored. `workoutCardState(program, sessions, today)` adds `doneToday` (one workout a day).
+- **Calendar:** `workout/WorkoutCalendar.tsx` — cells (stamp / lift tag / goal flower via `components/PixelStamp.tsx`) and a day box (done, resume, start, planned, goal with the cycle goal snapshot, past logs with Delete log; finished cycles locked).
+- **Delete + undo:** `repo.applyReview(sessionId, changes)` records `reviewApplied`; `repo.deleteWorkoutSession(id)` appends `undo` TM rows, lowers `cycle.restBonusSec`, deletes the row (`LockedSessionError` outside the current cycle). `repo.setTrainingDays`.
+- **Starting weights:** `lib/training/startLoad.ts` (`startRule`, `startingKg`, rounding down) feeds `session.ts#accessory` when an exercise has no log; `program.ts#nextTargetReps`. `sessionLog.ts#swapInSession` swaps one accessory until its first set is ticked.
+- **Rest alerts:** `services/restPush.ts` (config from `VITE_PUSH_URL`/`VITE_PUSH_VAPID_KEY`, subscribe, `scheduleRestAlert`/`cancelRestAlert` with a 3 s timeout, `beep`). The service worker handles `push` (type `rest`) and `notificationclick`. Server: `push-worker/` (Cloudflare Worker + Durable Object alarm; see its README).
+
+## Network
+
+Two destinations, both optional; the app works fully offline without them:
+- **Gemini** (`services/foodAnalysis/gemini.ts`), with the owner's key.
+- **Rest-alert Worker** (`services/restPush.ts` → `push-worker/`), only when Rest alerts are on: the push subscription, the rest end time and the next-set text. Apple/Google/Mozilla push services deliver the notification.
+
 ## Offline / PWA
 
 `vite.config.ts` generates `dist/sw.js` with a precache list of all build assets. Navigations are network-first with the cached shell as fallback; same-origin assets are cache-first; cross-origin requests (Gemini) bypass the SW. `navigator.storage.persist()` is requested at boot.
@@ -191,7 +205,7 @@ These are the seams that keep parallel work safe. Changing any of them is an arc
 | Styles | Tokens in `styles/tokens.css`; shared classes in `global.css`; screen styles in `today.css` / `views.css`; QA module uses `qa-` classes only. | CSS custom properties |
 | QA module | `modules/qa-feedback/` imports nothing from Philip. Philip wiring only in `src/qaFeedback.config.ts` + `<QaFeedback>` in `App.tsx` + Settings card. | `QaFeedbackConfig`, `index.ts` exports |
 | Build / offline | `vite.config.ts` (SW generator plugin, base `./`), `src/sw-template.js`, `public/manifest.webmanifest`. | precache list |
-| Deploy | `.github/workflows/deploy.yml`: push to `main` → `npm ci` → `npm test` → `npm run build` → GitHub Pages. E2E is not run in CI. | `main` branch |
+| Deploy | `.github/workflows/deploy.yml`: push to `main` → `npm ci` → `npm test` → `npm run build` (with the `VITE_PUSH_*` repository variables) → GitHub Pages. E2E is not run in CI. The push Worker deploys separately with `wrangler` (`push-worker/README.md`). | `main` branch |
 
 ## Owner feedback round (Nov 2026)
 

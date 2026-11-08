@@ -1,5 +1,12 @@
 # Story 6: Optimization (training calendar, delete log, one workout a day, gym fixes)
 
+> **As built (2026-11-08, T-019 → T-022 → T-020 → T-021, D-028).** Differences from the text below:
+> - The squat/RDL warning fires when they're 2 days apart; with exactly 4 distinct weekdays they can never be back to back.
+> - `reviewApplied.tm` has no TM row id; backups drop TM ids, and the undo is additive, so it isn't needed.
+> - The BF "Now" line has no date (the profile stores no date for body fat).
+> - The large flower's よくできました is set in the system font (owner to confirm or ask for pixel lettering).
+> - Starting-weight ratios shipped as listed in `claude/story-6-starting-weights.md` (owner said go, 2026-11-08); they live in one table in `startLoad.ts`.
+
 > Owner: Ryan. Written 2026-11-06 from the code on `main` @ `3a5cd6f` (T-017).
 > **Base: latest `main`.** It doesn't depend on T-018 (Philip art), which is on hold until the new creatives arrive. Proposed tasks: T-019 to T-023.
 > Read first: CLAUDE.md, `docs/ARCHITECTURE.md`, `docs/DESIGN_SYSTEM.md`, `docs/DECISIONS.md` (D-022 to D-027), `docs/DEVELOPMENT_RULES.md`, `docs/stories/STORY_5_WORKOUTS.md`.

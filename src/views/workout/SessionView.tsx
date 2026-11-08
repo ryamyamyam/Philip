@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
-import { addTm, applyCheckin, applyReview, deleteWorkoutSession, saveWorkoutSession, setSlotChoice, type ReviewChange } from '../../db/repo';
-import { useProfile, useWeightEntries } from '../../hooks/useData';
+import { addTm, applyCheckin, applyReview, deleteWorkoutSession, META, saveWorkoutSession, setSlotChoice, type ReviewChange } from '../../db/repo';
+import { useMeta, useProfile, useWeightEntries } from '../../hooks/useData';
+import { beep, cancelRestAlert, pushConfig, scheduleRestAlert, type StoredSubscription } from '../../services/restPush';
 import { newId } from '../../db/db';
 import type { CycleRecord, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
@@ -319,14 +320,60 @@ function LiveSession({
   const lift = DAY_LIFT[session.day];
   const over = elapsedMin >= SESSION_BUDGET_MIN;
 
+  // Story 6 §8: rest end → "Time's up" banner (8 s), a beep, and a push alert scheduled at rest start.
+  const soundOff = useMeta<boolean>(META.restSound) === false;
+  const alertSub = useMeta<StoredSubscription>(META.restAlertSub) ?? null;
+  const push = pushConfig();
+  const [timesUp, setTimesUp] = useState<{ endedAt: number; shownAt: number } | null>(null);
+  const alertPending = useRef(false);
+  const cancelAlert = () => {
+    if (alertPending.current && push && alertSub) void cancelRestAlert(push, alertSub);
+    alertPending.current = false;
+  };
   useEffect(() => {
-    if (restEnds !== null && restLeft <= 0) setRestEnds(null);
-  }, [restEnds, restLeft]);
+    if (restEnds === null || restLeft > 0) return;
+    const shownAt = Date.now();
+    setTimesUp({ endedAt: restEnds, shownAt });
+    alertPending.current = false; // the Worker already sent (or will send) it
+    if (!soundOff && document.visibilityState === 'visible' && shownAt - restEnds < 3000) beep();
+    setRestEnds(null);
+  }, [restEnds, restLeft, soundOff]);
+  useEffect(() => {
+    if (timesUp && now - timesUp.shownAt >= 8000) setTimesUp(null);
+  }, [timesUp, now]);
+  // Leaving the session (finish, discard, back) cancels a pending alert.
+  const cancelRef = useRef(cancelAlert);
+  cancelRef.current = cancelAlert;
+  useEffect(() => () => cancelRef.current(), []);
+
+  const next = nextSetLabel(session);
+  const startRest = (sec: number) => {
+    const ends = Date.now() + sec * 1000;
+    setRestDur(sec);
+    setRestEnds(ends);
+    setTimesUp(null);
+    if (push && alertSub) {
+      const body = next ? t('session.timesUpNextBody', { name: next.name, n: next.n }) : '';
+      alertPending.current = true;
+      void scheduleRestAlert(push, alertSub, ends, t('session.timesUp'), body);
+    }
+  };
+  const stopRest = () => {
+    setRestEnds(null);
+    cancelAlert();
+  };
 
   const save = (next: WorkoutSession) => void saveWorkoutSession(next);
   // Story 6 §7: `keep` writes the sticky slot choice; otherwise the swap is for today only.
-  // T-021 adds the "Keep this swap" checkbox; until then the card keeps today's behaviour (keep).
-  const swap = (index: number, to: ExerciseId, keep = true) => {
+  /** First-set weight Philip would order for a swap option (shown in the swap list). */
+  const swapPreview = (index: number, to: ExerciseId): number | null => {
+    const ex = session.exercises[index];
+    if (!ex || ex.slot === 'main') return null;
+    const slot = ex.slot as Slot;
+    const { plan } = planFor(program, cycle, sessions, tmHistory, { ...choices, [slotKey(session.day, slot, session.block)]: to }, session.week, session.day, bodyWeightKg);
+    return plan?.exercises.find((e) => e.slot === slot)?.prescription[0]?.kg ?? null;
+  };
+  const swap = (index: number, to: ExerciseId, keep = false) => {
     const ex = session.exercises[index];
     if (!ex || ex.slot === 'main') return;
     const slot = ex.slot as Slot;
@@ -396,6 +443,7 @@ function LiveSession({
   };
 
   const finish = () => {
+    cancelAlert();
     const done: WorkoutSession = { ...session, status: 'done', finishedAt: Date.now() };
     save(done);
     onFinished({ s: summarize(done, sessions, Date.now()), lift, session: done });
@@ -427,11 +475,9 @@ function LiveSession({
           unit={unit}
           bar={program.bar}
           onChange={(next) => save({ ...session, exercises: session.exercises.map((e, j) => (j === i ? next : e)) })}
-          onRest={(sec) => {
-            setRestDur(sec);
-            setRestEnds(Date.now() + sec * 1000);
-          }}
-          onSwap={(to) => swap(i, to)}
+          onRest={startRest}
+          onSwap={(to, keep) => swap(i, to, keep)}
+          swapPreviewKg={(to) => swapPreview(i, to)}
           onCheckin={(order, flag, note) => void checkin(i, order, flag, note)}
           proposal={pending?.index === i ? pending.proposal : null}
           thinking={thinking === i}
@@ -461,8 +507,22 @@ function LiveSession({
       {restEnds !== null && restLeft > 0 && (
         <div className="rest-bar" role="timer" aria-label={t('session.restLabel')}>
           <span className="pm-display num">{t('session.restLeft', { t: fmtRest(restLeft) })}</span>
-          <button type="button" className="btn btn-sm" onClick={() => setRestEnds(null)}>
+          <button type="button" className="btn btn-sm" onClick={stopRest}>
             {t('session.restSkip')}
+          </button>
+        </div>
+      )}
+      {timesUp && (
+        <div className="rest-bar is-up" role="alert">
+          <span className="pm-display">
+            {(() => {
+              const ago = Math.round((timesUp.shownAt - timesUp.endedAt) / 1000);
+              if (ago >= 3) return next ? t('session.timesUpAgoNext', { s: ago, name: next.name, n: next.n }) : t('session.timesUpAgo', { s: ago });
+              return next ? t('session.timesUpNext', { name: next.name, n: next.n }) : t('session.timesUp');
+            })()}
+          </span>
+          <button type="button" className="btn btn-sm" onClick={() => setTimesUp(null)}>
+            {t('session.timesUpDismiss')}
           </button>
         </div>
       )}
@@ -592,4 +652,14 @@ function Review({ session, cycle, tmHistory, unit }: { session: WorkoutSession; 
         ))}
     </section>
   );
+}
+
+/** The next set to do (first unticked set of a live exercise), for the "Time's up" line. */
+function nextSetLabel(session: WorkoutSession): { name: string; n: number } | null {
+  for (const ex of session.exercises) {
+    if (ex.skipped || ex.actual.some((a) => a.pain)) continue;
+    const a = ex.actual.find((x) => !x.done);
+    if (a) return { name: t(`exercise.${ex.exerciseId}` as StringKey), n: a.order + 1 };
+  }
+  return null;
 }

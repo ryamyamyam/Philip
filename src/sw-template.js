@@ -53,3 +53,40 @@ self.addEventListener('fetch', (event) => {
     ),
   );
 });
+
+/* Rest alerts (Story 6 §8.2): "Time's up." pushed by the rest-alert Worker at the end of a rest. */
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  if (data.type !== 'rest') return;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      // A visible Philip window shows its own banner; no system notification on top of it.
+      if (wins.some((w) => w.visibilityState === 'visible')) return undefined;
+      return self.registration.showNotification(data.title || 'Time’s up.', {
+        body: data.body || '',
+        tag: 'rest',
+        renotify: true,
+        icon: './icon-192.png',
+        badge: './icon-192.png',
+        data: { url: './#/workout' },
+      });
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || './#/workout', self.registration.scope).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      const win = wins[0];
+      if (win) return win.focus().then((w) => (w && 'navigate' in w ? w.navigate(url) : undefined));
+      return self.clients.openWindow(url);
+    }),
+  );
+});

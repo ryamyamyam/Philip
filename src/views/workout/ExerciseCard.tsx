@@ -8,7 +8,17 @@ import type { Block, Day } from '../../lib/training/program';
 import type { Prescribed } from '../../lib/training/session';
 import { canCopyOrder, canMarkDone, copyOrder, infoFor } from '../../lib/training/sessionLog';
 import { CHECKIN_FLAGS, type CheckinFlag, type TodayChange } from '../../lib/training/checkin';
-import { fmtBoth, fmtRest, fromDisplay, inputValue } from './units';
+import { fmtBoth, fmtIn, fmtRest, fromDisplay, inputValue } from './units';
+import { Icon } from '../../components/Icon';
+import { startRule } from '../../lib/training/startLoad';
+
+const loadKindOf = (id: string): LoadKind => {
+  try {
+    return startRule(id as ExerciseId).kind;
+  } catch {
+    return 'load';
+  }
+};
 
 const SLOT_KEY: Record<SessionExercise['slot'], StringKey> = {
   main: 'session.slot.main',
@@ -27,7 +37,10 @@ export interface ExerciseCardProps {
   bar: BarSetup;
   onChange: (next: SessionExercise) => void;
   onRest: (sec: number) => void;
-  onSwap: (to: ExerciseId) => void;
+  /** Swap to an approved exercise; `keep` makes it this slot's pick for future workouts (Story 6 §7). */
+  onSwap: (to: ExerciseId, keep: boolean) => void;
+  /** Philip's first-set weight for a swap option (estimate or last progression), for the swap list. */
+  swapPreviewKg?: (to: ExerciseId) => number | null;
   /** Owner tells Philip how a set went (owner feedback, Nov 5). */
   onCheckin: (order: number, flag: CheckinFlag | null, note: string) => void;
   /** Philip's proposed change for the rest of today, waiting for OK. */
@@ -41,10 +54,11 @@ export interface ExerciseCardProps {
  * One exercise: PHILIP'S ORDERS (read-only, frozen on the session) above YOUR LIFT (the owner's own
  * numbers, empty until he types or taps "As ordered"). The two never overwrite each other.
  */
-export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, onCheckin, proposal, thinking, onAccept, onDecline }: ExerciseCardProps) {
+export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, swapPreviewKg, onCheckin, proposal, thinking, onAccept, onDecline }: ExerciseCardProps) {
   const info = infoFor(ex.exerciseId);
   const [noteOpen, setNoteOpen] = useState(ex.note !== '');
   const [swapOpen, setSwapOpen] = useState(false);
+  const [keep, setKeep] = useState(false);
   const stopped = ex.actual.some((a) => a.pain);
   const anyDone = ex.actual.some((a) => a.done);
   const slot = ex.slot === 'main' ? null : (ex.slot as Slot);
@@ -66,14 +80,28 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
       <header className="ex-head">
         <span className="pm-pill ex-slot">{t(SLOT_KEY[ex.slot])}</span>
         <h2 id={titleId} className="ex-name">
-          {exName(ex.exerciseId)}
+          {menu && !ex.skipped ? (
+            <button type="button" className="ex-name-btn" aria-expanded={swapOpen} onClick={() => setSwapOpen((v) => !v)}>
+              {exName(ex.exerciseId)}
+              <Icon name="swap" />
+            </button>
+          ) : (
+            exName(ex.exerciseId)
+          )}
         </h2>
       </header>
+      {ex.swappedFrom && <p className="small muted">{t('cal.swappedFrom', { name: exName(ex.swappedFrom) })}</p>}
 
       <div className="ex-orders" aria-label={t('session.orders')}>
         <p className="ex-label">{t('session.orders')}</p>
         <p className="small ex-cue">{t(`cue.${ex.exerciseId}` as StringKey)}</p>
         {slot && <p className="small muted ex-why">{t(`why.D${day}-${slot}` as StringKey)}</p>}
+        {slot && summaryLine(ex, { kind: loadKindOf(ex.exerciseId) }, unit) && <p className="ex-summary num">{summaryLine(ex, { kind: loadKindOf(ex.exerciseId) }, unit)}</p>}
+        {ex.prescription.some((p) => p.estimate) && (
+          <p className="small ex-estimate">
+            <span className="pm-pill">{t('session.estimate')}</span> {t('session.estimateWhy')}
+          </p>
+        )}
       </div>
 
       {ex.skipped ? (
@@ -91,7 +119,8 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
                 unit={unit}
                 bar={bar}
                 barbell={!!info.barbell}
-                bodyweight={!!info.bodyweight}
+                bodyweight={!!info.bodyweight || loadKindOf(ex.exerciseId) === 'band' || loadKindOf(ex.exerciseId) === 'timed'}
+                loadKind={loadKindOf(ex.exerciseId)}
                 locked={stopped && !a.done && !a.pain}
                 onChange={(next, rest) => setActual(p.order, next, rest)}
                 onCheckin={(flag, note) => onCheckin(p.order, flag, note)}
@@ -123,28 +152,42 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
 
       {swapOpen && menu && (
         <div className="ex-swap" role="group" aria-label={t('session.swapTitle')}>
-          <p className="small">{t('session.swapHint')}</p>
-          {[menu.pick, ...menu.swaps].map((id) => (
-            <button
-              key={id}
-              type="button"
-              className="btn btn-sm btn-secondary"
-              aria-pressed={ex.exerciseId === id}
-              onClick={() => {
-                setSwapOpen(false);
-                if (id !== ex.exerciseId) onSwap(id);
-              }}
-            >
-              {exName(id)}
-              {id === menu.pick ? ` · ${t('session.philipsPick')}` : ''}
-            </button>
-          ))}
+          {anyDone ? (
+            <p className="small">{t('session.swapLogged')}</p>
+          ) : (
+            <>
+              <p className="small">{t('session.swapHint')}</p>
+              {[menu.pick, ...menu.swaps].map((id) => {
+                const kg = id === ex.exerciseId ? (ex.prescription[0]?.kg ?? null) : (swapPreviewKg?.(id) ?? null);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    aria-pressed={ex.exerciseId === id}
+                    onClick={() => {
+                      setSwapOpen(false);
+                      if (id !== ex.exerciseId) onSwap(id, keep);
+                    }}
+                  >
+                    {exName(id)}
+                    {id === menu.pick ? ` · ${t('session.philipsPick')}` : ''}
+                    {kg !== null ? ` · ${fmtIn(kg, unit)}` : ''}
+                  </button>
+                );
+              })}
+              <label className="review-item">
+                <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
+                <span>{t('session.swapKeep')}</span>
+              </label>
+            </>
+          )}
         </div>
       )}
 
       <div className="ex-actions">
-        {menu && !anyDone && !ex.skipped && (
-          <button type="button" className="btn btn-sm btn-ghost" aria-expanded={swapOpen} onClick={() => setSwapOpen((v) => !v)}>
+        {menu && !ex.skipped && (
+          <button type="button" className="btn btn-sm btn-secondary" aria-expanded={swapOpen} onClick={() => setSwapOpen((v) => !v)}>
             {t('session.swap')}
           </button>
         )}
@@ -164,12 +207,39 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
   );
 }
 
-function orderText(p: Prescribed, unit: PlateUnit): string {
-  const reps = p.repMin === p.repMax ? String(p.repMax) : `${p.repMin}–${p.repMax}`;
-  const amount = p.timed ? t('session.seconds', { n: reps }) : `${reps}${p.kind === 'amrap' ? '+' : ''}`;
+type LoadKind = ReturnType<typeof startRule>['kind'];
+
+/** What goes before the ×: weight, assistance, Bodyweight, Band, or (nothing to anchor on) Your pick. */
+function loadText(p: Prescribed, kind: LoadKind, unit: PlateUnit, both = true): string | null {
+  const w = (kg: number) => (both ? fmtBoth(kg, unit) : fmtIn(kg, unit));
+  if (p.kg !== null) return p.assist ? t('session.assist', { w: w(p.kg) }) : w(p.kg);
+  if (kind === 'bodyweight') return t('session.bodyweight');
+  if (kind === 'band') return t('session.band');
+  if (kind === 'timed') return null;
+  return t('session.yourPick');
+}
+
+/** Reps for one set: Philip's single target when he has one, else the range (+ for AMRAP sets). */
+function repsText(p: Prescribed): string {
+  const reps = p.targetReps !== undefined && p.kind === 'accessory' ? String(p.targetReps) : p.repMin === p.repMax ? String(p.repMax) : `${p.repMin}–${p.repMax}`;
+  return p.timed ? t('session.seconds', { n: reps }) : `${reps}${p.kind === 'amrap' ? '+' : ''}`;
+}
+
+function orderText(p: Prescribed, unit: PlateUnit, kind: LoadKind): string {
   const side = p.perSide ? ` ${t('session.perSide')}` : '';
-  const load = p.kg !== null ? fmtBoth(p.kg, unit) : t('session.yourPick');
-  return `${load} × ${amount}${side}`;
+  const load = loadText(p, kind, unit);
+  return `${load ? `${load} × ` : ''}${repsText(p)}${side}`;
+}
+
+/** Story 6 §6: "3 × 10 @ 25 kg (8–12)" — sets × target reps @ weight, the range in brackets. */
+function summaryLine(ex: SessionExercise, info: { kind: LoadKind }, unit: PlateUnit): string | null {
+  const first = ex.prescription.find((p) => p.kind === 'accessory');
+  if (!first) return null;
+  const sets = ex.prescription.filter((p) => p.kind === 'accessory').length;
+  const load = loadText(first, info.kind, unit, false);
+  const range = first.repMin !== first.repMax ? ` (${first.repMin}–${first.repMax})` : '';
+  const side = first.perSide ? ` ${t('session.perSide')}` : '';
+  return `${sets} × ${repsText(first)}${side}${load ? ` @ ${load}` : ''}${range}`;
 }
 
 const KIND_KEY: Record<Prescribed['kind'], StringKey> = {
@@ -188,10 +258,12 @@ function SetRow({
   bar,
   barbell,
   bodyweight,
+  loadKind,
   locked,
   onChange,
   onCheckin,
 }: {
+  loadKind: LoadKind;
   p: Prescribed;
   a: ActualSet;
   unit: PlateUnit;
@@ -229,7 +301,7 @@ function SetRow({
       <div className="set-order">
         <span className="set-n">{t('session.setN', { n })}</span>
         <span className="set-kind small">{t(KIND_KEY[p.kind])}</span>
-        <span className="set-target num">{orderText(p, unit)}</span>
+        <span className="set-target num">{orderText(p, unit, loadKind)}</span>
         <span className="set-meta small muted num">
           {p.kind === 'warmup'
             ? t('session.restOnly', { t: fmtRest(p.restSec) })
@@ -263,12 +335,12 @@ function SetRow({
             className="input num"
             inputMode="numeric"
             value={reps}
-            placeholder={p.kind === 'amrap' ? '?' : String(p.repMax)}
+            placeholder={p.kind === 'amrap' ? '?' : String(p.targetReps ?? p.repMax)}
             disabled={locked}
             onChange={(e) => edit(kg, e.target.value)}
           />
         </label>
-        {canCopyOrder(p) && !a.done && (
+        {canCopyOrder(p, bodyweight || loadKind === 'band' || loadKind === 'timed') && !a.done && (
           <button
             type="button"
             className="btn btn-sm btn-secondary"
@@ -276,7 +348,7 @@ function SetRow({
             aria-label={t('session.asOrderedN', { n })}
             onClick={() => {
               const next = copyOrder(p, a);
-              setKg(inputValue(next.kg, unit));
+              setKg(next.kg === null ? '' : inputValue(next.kg, unit));
               setReps(String(next.reps));
               onChange(next, p.restSec);
             }}

@@ -81,7 +81,7 @@ Only one active task may modify each of these at a time unless the PM explicitly
 - AI output is untrusted: validate (`validateAnalysis`) and show the Review sheet before saving.
 - User text sent to AI is fenced as data in prompts.
 - Photos are never stored.
-- No new network destinations without a DECISIONS.md entry.
+- No new network destinations without a DECISIONS.md entry. Current list: Gemini (D-005) and the owner's rest-alert push Worker (D-028), which receives only a push subscription, the rest end time and the next-set text.
 
 ## 10. Testing
 

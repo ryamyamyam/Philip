@@ -26,6 +26,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # Rest alerts (Story 6 §8.2): public values, set as repository Variables (not Secrets).
+          VITE_PUSH_URL: ${{ vars.VITE_PUSH_URL }}
+          VITE_PUSH_VAPID_KEY: ${{ vars.VITE_PUSH_VAPID_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

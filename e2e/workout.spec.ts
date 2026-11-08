@@ -57,6 +57,8 @@ test.describe('Workout (Story 5, T-013)', () => {
     await expect(plus.getByRole('button', { name: 'Set 6: mark done' })).toBeDisabled();
     await plus.getByRole('textbox').nth(1).fill('8');
     await plus.getByRole('button', { name: 'Set 6: mark done' }).click();
+    await expect(plus.getByRole('button', { name: /Set 6: done/ })).toHaveAttribute('aria-pressed', 'true');
+    await page.waitForTimeout(300); // let the autosave land before the reload
 
     // Autosave: reload resumes with the log intact.
     await page.reload();

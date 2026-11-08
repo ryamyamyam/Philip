@@ -310,6 +310,10 @@ export const META = {
   tutorialSeenAt: 'tutorialSeenAt',
   /** Owner feedback (Nov 5): the tour's current step id, so it resumes after Set targets or a reload. */
   tutorialStep: 'tutorialStep',
+  /** Story 6: rest-end beep on/off (absent = on). Device setting, not in backups. */
+  restSound: 'restSound',
+  /** Story 6: this device's push subscription for rest alerts (absent = alerts off). Not in backups. */
+  restAlertSub: 'restAlertSub',
 } as const;
 
 /* ---------------- Training (Story 5, T-012) ---------------- */

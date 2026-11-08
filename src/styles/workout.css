@@ -470,3 +470,36 @@
   background: var(--color-action);
   color: var(--color-on-action);
 }
+
+/* Story 6 (T-021): swap from the exercise name, order summary, estimate tag, Time's up banner */
+.ex-name-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.ex-name-btn .pm-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.ex-summary {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+}
+.ex-estimate .pm-pill {
+  margin-right: var(--space-1);
+}
+.rest-bar.is-up {
+  border: var(--border-frame) solid var(--color-focus-on-dark);
+}

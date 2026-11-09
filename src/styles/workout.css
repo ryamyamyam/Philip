@@ -503,3 +503,81 @@
 .rest-bar.is-up {
   border: var(--border-frame) solid var(--color-focus-on-dark);
 }
+
+/* Story 7 (OBS-F52773): move an exercise up or down. */
+.ex-move {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.ex-move .btn {
+  min-width: var(--touch);
+  min-height: var(--touch);
+}
+/* Story 7 (OBS-C94181): dumbbell pairs, weight per hand. */
+.set-total {
+  flex-basis: 100%;
+}
+.set-pair {
+  font-family: var(--font-display);
+}
+/* Story 7 (OBS-93A8C0): cardio finisher. */
+.cardio-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.cardio-fields .field {
+  flex: 1 1 6rem;
+}
+.cardio-fields .input {
+  min-height: var(--touch);
+}
+/* Story 7 (OBS-3DB146): Philip's report and chat. */
+.report-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.report-proposals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.report-proposal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: var(--border-hair) solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+.report-proposal.is-applied {
+  border-color: var(--color-success);
+  background: var(--color-success-soft);
+}
+.report-proposal.is-declined {
+  opacity: 0.7;
+}
+.report-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.report-msg {
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--color-surface-2);
+  white-space: pre-wrap;
+}
+.report-msg.is-me {
+  background: var(--color-panel);
+}
+.report-who {
+  font-family: var(--font-display);
+}

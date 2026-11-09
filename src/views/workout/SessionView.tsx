@@ -4,7 +4,7 @@ import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
-import { addTm, applyCheckin, applyReview, deleteWorkoutSession, META, saveWorkoutSession, setSlotChoice, type ReviewChange } from '../../db/repo';
+import { addTm, applyCheckin, applyReview, deleteWorkoutSession, META, saveWorkoutSession, setDayOrder, setSlotChoice, type ReviewChange } from '../../db/repo';
 import { useMeta, useProfile, useWeightEntries } from '../../hooks/useData';
 import { beep, cancelRestAlert, pushConfig, scheduleRestAlert, type StoredSubscription } from '../../services/restPush';
 import { newId } from '../../db/db';
@@ -16,7 +16,11 @@ import { exerciseFor, menuSlot, slotKey, type ExerciseId, type Slot } from '../.
 import { DAY_LIFT, DELOAD_WEEK, epley, tmFromOneRm, type LiftId } from '../../lib/training/program';
 import { nextSessionRef, tmsForCycle } from '../../lib/training/progress';
 import { buildSession, liftOutlook, SESSION_BUDGET_MIN, type PlannedSession } from '../../lib/training/session';
-import { createSession, lastSetsFor, summarize, swapInSession, type SessionSummary } from '../../lib/training/sessionLog';
+import { createSession, lastSessionIdFor, lastSetsFor, summarize, swapInSession, type SessionSummary } from '../../lib/training/sessionLog';
+import { applyOrder, canMove, moveExercise, orderOf } from '../../lib/training/order';
+import { plannedCardio } from '../../lib/training/cardio';
+import { CardioCard, cardioValue } from './CardioCard';
+import { CoachReport } from './CoachReport';
 import { startingWeight } from '../../lib/training/cycleGoal';
 import { useUI } from '../../ui';
 import { ExerciseCard, type CheckinProposal } from './ExerciseCard';
@@ -50,8 +54,13 @@ interface Props {
 /** Today's session (Story 5 §5, T-013): start screen, live log, finish summary. */
 export function SessionView({ program, cycle, sessions, tmHistory, choices, open, onBack }: Props) {
   const [summary, setSummary] = useState<{ s: SessionSummary; lift: LiftId; session: WorkoutSession } | null>(null);
-  if (summary)
-    return <Summary summary={summary.s} lift={summary.lift} unit={program.weightUnit} session={summary.session} cycle={cycle} tmHistory={tmHistory} onBack={onBack} />;
+  if (summary) {
+    // The live row, so Philip's report and chat update as they're saved.
+    const live = sessions.find((s) => s.id === summary.session.id) ?? summary.session;
+    return (
+      <Summary summary={summary.s} lift={summary.lift} unit={program.weightUnit} session={live} cycle={cycle} tmHistory={tmHistory} program={program} choices={choices} onBack={onBack} />
+    );
+  }
   if (open) return <LiveSession program={program} session={open} sessions={sessions} choices={choices} cycle={cycle} tmHistory={tmHistory} onFinished={setSummary} onDiscarded={() => onBack?.(false)} />;
   return <StartScreen program={program} cycle={cycle} sessions={sessions} tmHistory={tmHistory} choices={choices} />;
 }
@@ -82,6 +91,11 @@ function planFor(
       weightUnit: program.weightUnit,
       restBonusSec: cycle.restBonusSec ?? 0,
       bodyWeightKg,
+      // Story 7: a next-time order from an applied report, until the exercise is logged again.
+      override: (id) => {
+        const o = program.nextOverrides?.find((x) => x.exerciseId === id);
+        return o && lastSessionIdFor(sessions, id) === o.afterSessionId ? o : null;
+      },
     }),
     missing: null,
   };
@@ -101,9 +115,10 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
   if (!ref) return <p>{t('session.cycleDone')}</p>;
   if (missing) return <Calibration lift={missing} cycle={cycle.index} unit={program.weightUnit} />;
   if (!plan) return null;
-  const start = () => void saveWorkoutSession(createSession(plan, newId(), todayYmd(), Date.now()));
+  const opts = { order: program.dayOrder?.[String(plan.day)] ?? null, speedUnit: program.weightUnit === 'lb' ? ('mph' as const) : ('kmh' as const) };
+  const start = () => void saveWorkoutSession(createSession(plan, newId(), todayYmd(), Date.now(), opts));
   const skipDay = () => {
-    const s = createSession(plan, newId(), todayYmd(), Date.now());
+    const s = createSession(plan, newId(), todayYmd(), Date.now(), opts);
     void saveWorkoutSession({ ...s, status: 'skipped', finishedAt: Date.now() });
   };
   const deload = plan.week === DELOAD_WEEK;
@@ -118,9 +133,10 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
           {t('home.workout.blockLine', { block: plan.block, week: plan.week })} · {t('home.workout.minutes', { n: plan.estMinutes })}
         </p>
         <ul className="start-list">
-          {plan.exercises.map((e) => (
+          {applyOrder(plan.exercises, opts.order).map((e) => (
             <PreviewRow key={e.slot} e={e} day={plan.day} block={plan.block} choices={choices} />
           ))}
+          <li className="num">{t('cardio.preview', { n: plannedCardio(plan.phase).planMin })}</li>
         </ul>
         <p className="small muted">{t('session.checkHint')}</p>
       </section>
@@ -442,6 +458,16 @@ function LiveSession({
     setPending(null);
   };
 
+  // Story 7 (OBS-F52773): move an accessory; the new order is remembered for this day.
+  const move = (index: number, dir: -1 | 1) => {
+    const exercises = moveExercise(session.exercises, index, dir);
+    setPending(null);
+    save({ ...session, exercises });
+    void setDayOrder(session.day, orderOf(exercises));
+  };
+  // Older in-progress sessions have no cardio yet: show the plan, store it on first edit.
+  const cardio = session.cardio ?? plannedCardio(cycle.phase, program.weightUnit === 'lb' ? 'mph' : 'kmh');
+
   const finish = () => {
     cancelAlert();
     const done: WorkoutSession = { ...session, status: 'done', finishedAt: Date.now() };
@@ -483,8 +509,11 @@ function LiveSession({
           thinking={thinking === i}
           onAccept={accept}
           onDecline={() => setPending(null)}
+          onMoveUp={canMove(session.exercises, i, -1) ? () => move(i, -1) : undefined}
+          onMoveDown={canMove(session.exercises, i, 1) ? () => move(i, 1) : undefined}
         />
       ))}
+      <CardioCard cardio={cardio} cut={cycle.phase === 'lose'} onChange={(next) => save({ ...session, cardio: next })} />
       <button type="button" className="btn btn-primary btn-block" onClick={finish}>
         {t('session.finish')}
       </button>
@@ -537,6 +566,8 @@ function Summary({
   session,
   cycle,
   tmHistory,
+  program,
+  choices,
   onBack,
 }: {
   summary: SessionSummary;
@@ -545,6 +576,8 @@ function Summary({
   session: WorkoutSession;
   cycle: CycleRecord;
   tmHistory: readonly TmRecord[];
+  program: TrainingProgram;
+  choices: Readonly<Record<string, string>>;
   onBack?: (finished: boolean) => void;
 }) {
   const { navigate } = useUI();
@@ -555,8 +588,9 @@ function Summary({
       [t('summary.sets'), t('summary.setsValue', { done: summary.setsDone, total: summary.setsTotal })],
       [t('summary.time'), t('summary.timeValue', { n: summary.minutes })],
       ...(summary.e1rmKg !== null ? [[t('summary.e1rm', { lift: t(LIFT_KEY[lift]) }), fmtBoth(summary.e1rmKg, unit)]] : []),
+      ...(session.cardio ? [[t('cardio.summary'), cardioValue(session.cardio)]] : []),
     ],
-    [summary, lift, unit],
+    [summary, lift, unit, session.cardio],
   );
   return (
     <div className="stack">
@@ -573,6 +607,7 @@ function Summary({
         </dl>
       </section>
       <Review session={session} cycle={cycle} tmHistory={tmHistory} unit={unit} />
+      <CoachReport session={session} program={program} cycle={cycle} tmHistory={tmHistory} choices={choices} unit={unit} auto />
       {onBack && (
         <button type="button" className="btn btn-primary btn-block" onClick={() => onBack(true)}>
           {t('summary.calendar')}

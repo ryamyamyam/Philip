@@ -17,6 +17,9 @@ import { tmsForCycle, type WorkoutCardState } from '../../lib/training/progress'
 import { isoWeekday, planDates, trainingDaysOrDefault, type PlannedDay } from '../../lib/training/schedule';
 import { buildSession } from '../../lib/training/session';
 import { fmtIn } from './units';
+import { infoFor } from '../../lib/training/sessionLog';
+import { cardioValue } from './CardioCard';
+import { CoachReport } from './CoachReport';
 
 const LIFT_KEY: Record<LiftId, StringKey> = { squat: 'exercise.squat', bench: 'exercise.bench', rdl: 'exercise.rdl', ohp: 'exercise.ohp' };
 const TAG_KEY: Record<LiftId, StringKey> = { squat: 'cal.tag.squat', bench: 'cal.tag.bench', rdl: 'cal.tag.rdl', ohp: 'cal.tag.ohp' };
@@ -58,6 +61,8 @@ export interface WorkoutCalendarProps {
   weights: readonly WeightEntry[];
   /** Today's workout was just finished: play the stamp press once on today's cell (reduced motion: none). */
   justFinished?: boolean;
+  /** Owner's sticky swaps by slot key (Philip's report validates swaps against them). */
+  choices?: Readonly<Record<string, string>>;
   onOpenToday: () => void;
 }
 
@@ -67,7 +72,7 @@ export interface WorkoutCalendarProps {
  * planned day is the goal day with a flower stamp, and the box under it is Philip's notice for the
  * selected day (done, resume, start, planned, goal, or past logs with Delete log).
  */
-export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, profile, weights, justFinished, onOpenToday }: WorkoutCalendarProps) {
+export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, profile, weights, justFinished, choices, onOpenToday }: WorkoutCalendarProps) {
   const today = todayYmd();
   const [selected, setSelected] = useState(today);
   const [month, setMonth] = useState(monthStart(today));
@@ -167,6 +172,7 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
         tmHistory={tmHistory}
         profile={profile}
         weights={weights}
+        choices={choices ?? {}}
         onOpenToday={onOpenToday}
       />
     </div>
@@ -191,8 +197,10 @@ function DayBox({
   tmHistory,
   profile,
   weights,
+  choices,
   onOpenToday,
 }: {
+  choices: Readonly<Record<string, string>>;
   date: YMD;
   today: YMD;
   sessions: WorkoutSession[];
@@ -253,6 +261,7 @@ function DayBox({
           <summary>{t('cal.viewLog')}</summary>
           <SessionLog session={s} unit={unit} />
         </details>
+        <CoachReport session={s} program={program} cycle={cycle} tmHistory={tmHistory} choices={choices} unit={unit} />
         <div className="ex-actions">
           {state.cycleDone && (
             <button type="button" className="btn btn-primary" onClick={onOpenToday}>
@@ -356,6 +365,7 @@ function DayBox({
                 </summary>
                 <SessionLog session={s} unit={unit} />
               </details>
+              {s.status === 'done' && !locked && <CoachReport session={s} program={program} cycle={cycle} tmHistory={tmHistory} choices={choices} unit={unit} />}
               {locked ? (
                 <p className="small muted">{t('cal.lockedLine')}</p>
               ) : (
@@ -487,7 +497,9 @@ function SessionLog({ session, unit }: { session: WorkoutSession; unit: 'kg' | '
             {e.skipped
               ? t('session.skipped')
               : done.length
-                ? done.map((a) => `${a.kg !== null ? fmtIn(a.kg, unit) : t('cal.bw')} × ${a.reps ?? '?'}`).join(' · ')
+                ? done
+                    .map((a) => `${a.kg !== null ? (infoFor(e.exerciseId).pair ? t('session.pair', { w: fmtIn(a.kg, unit) }) : fmtIn(a.kg, unit)) : t('cal.bw')} × ${a.reps ?? '?'}`)
+                    .join(' · ')
                 : t('cal.notLogged')}
             {e.actual
               .filter((a) => a.flag || a.note)
@@ -502,6 +514,7 @@ function SessionLog({ session, unit }: { session: WorkoutSession; unit: 'kg' | '
           </li>
         );
       })}
+      {session.cardio && <li className="small num">{t('cardio.cal', { value: cardioValue(session.cardio) })}</li>}
     </ul>
   );
 }

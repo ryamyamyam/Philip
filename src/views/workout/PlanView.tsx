@@ -7,6 +7,7 @@ import { tmsForCycle } from '../../lib/training/progress';
 import { buildSession } from '../../lib/training/session';
 import { lastSetsFor } from '../../lib/training/sessionLog';
 import { fmtIn } from './units';
+import { infoFor } from '../../lib/training/sessionLog';
 
 const DAYS: Day[] = [1, 2, 3, 4];
 const WEEKS: Week[] = [1, 2, 3, 4];
@@ -104,7 +105,7 @@ export function PlanView({
                         <strong>{exName(e.exerciseId)}</strong>{' '}
                         {e.slot === 'main'
                           ? work.map((p) => `${p.kg !== null ? fmtIn(p.kg, unit) : '?'}×${p.repMax}${p.kind === 'amrap' ? '+' : ''}`).join(' · ')
-                          : `${work.length}×${work[0]?.repMin === work[0]?.repMax ? work[0]?.repMax : `${work[0]?.repMin}–${work[0]?.repMax}`}${work[0]?.kg != null ? ` @ ${fmtIn(work[0].kg, unit)}` : ''}`}
+                          : `${work.length}×${work[0]?.repMin === work[0]?.repMax ? work[0]?.repMax : `${work[0]?.repMin}–${work[0]?.repMax}`}${work[0]?.kg != null ? ` @ ${infoFor(e.exerciseId).pair ? t('session.pair', { w: fmtIn(work[0].kg, unit) }) : fmtIn(work[0].kg, unit)}` : ''}`}
                         {best && <span className="small plan-did"> {t('plan.did', { weight: fmtIn(best.kg ?? 0, unit), reps: best.reps ?? 0 })}</span>}
                       </li>
                     );

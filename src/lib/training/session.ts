@@ -88,6 +88,8 @@ export interface SessionInput {
   restBonusSec?: number;
   /** Body weight (kg) for bodyweight-anchored starting estimates (Story 6 §6). */
   bodyWeightKg?: number | null;
+  /** Story 7: a next-time order from Philip's report for this exercise (weight, reps, sets), or null. */
+  override?: (id: ExerciseId) => { kg: number | null; reps: number | null; sets: number | null } | null;
 }
 
 export const SESSION_BUDGET_MIN = 45;
@@ -189,7 +191,17 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
     estimate = kg !== null;
   }
   const assist = startRule(id).kind === 'assist';
-  const targetReps = nextTargetReps(last, m.repMin, m.repMax, next.change);
+  let targetReps = nextTargetReps(last, m.repMin, m.repMax, next.change);
+  // Story 7: an applied report proposal sets this exercise's next orders once.
+  const o = input.override?.(id) ?? null;
+  if (o) {
+    if (o.kg !== null) {
+      kg = o.kg;
+      estimate = false;
+    }
+    if (o.reps !== null) targetReps = o.reps;
+    if (o.sets !== null) sets = o.sets;
+  }
   return {
     slot,
     exerciseId: id,

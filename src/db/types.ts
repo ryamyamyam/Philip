@@ -153,6 +153,10 @@ export interface TrainingProgram {
   currentCycle: number;
   /** Training weekdays for the projected calendar (Story 6 §3.1), 1 = Mon … 7 = Sun. Absent = Philip's pick. */
   trainingDays?: IsoWeekday[];
+  /** Story 7 (OBS-F52773): the owner's exercise order per program day ('1'–'4'); main lift always first. */
+  dayOrder?: Partial<Record<string, SessionSlot[]>>;
+  /** Story 7 (OBS-3DB146): one-off accessory orders Philip's report set for the next time an exercise comes up. */
+  nextOverrides?: AccessoryOverride[];
   createdAt: number;
   updatedAt: number;
 }
@@ -237,12 +241,71 @@ export interface WorkoutSession {
   reviewed?: boolean;
   /** What "OK, apply" in this session's review changed (Story 6 §4), so deleting the log can undo it. */
   reviewApplied?: ReviewApplied;
+  /** Story 7 (OBS-93A8C0): the cardio finisher (outside the 45-minute budget). Older sessions: absent. */
+  cardio?: CardioLog;
+  /** Story 7 (OBS-3DB146): Philip's observation report, his proposals and the chat under it. */
+  coach?: CoachThread;
+}
+
+/** Cardio after the lifts (Story 7). Planned minutes come from the phase; the rest is the owner's log. */
+export interface CardioLog {
+  kind: 'incline-walk';
+  planMin: number;
+  minutes: number | null;
+  inclinePct: number | null;
+  speed: number | null;
+  speedUnit: 'mph' | 'kmh';
+  done: boolean;
+  skipped: boolean;
+}
+
+/** One next-time order for an accessory, set by an applied report proposal. Inert once the exercise is logged again. */
+export interface AccessoryOverride {
+  exerciseId: string;
+  /** The session whose report set it. It applies while that is the latest log of the exercise. */
+  afterSessionId: string;
+  kg: number | null;
+  reps: number | null;
+  sets: number | null;
+}
+
+/** A plan change Philip proposes in his report or in chat. Nothing applies until the owner taps Apply. */
+export type CoachChange =
+  | { kind: 'tm'; lift: LiftId; toKg: number }
+  | { kind: 'rest'; extraSec: number }
+  | { kind: 'swap'; day: Day; slot: 'A1' | 'A2' | 'B'; exerciseId: string }
+  | { kind: 'next'; exerciseId: string; kg: number | null; reps: number | null; sets: number | null }
+  | { kind: 'days'; days: IsoWeekday[] };
+
+export interface CoachProposal {
+  id: string;
+  change: CoachChange;
+  why: string;
+  status: 'open' | 'applied' | 'declined';
+}
+
+export interface CoachMessage {
+  from: 'me' | 'philip';
+  text: string;
+  at: number;
+}
+
+export interface CoachThread {
+  report: string;
+  proposals: CoachProposal[];
+  messages: CoachMessage[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 /** One TM change and the rest bonus a review applied. Undo is additive: TM += fromKg − toKg. */
 export interface ReviewApplied {
   tm: { lift: LiftId; fromKg: number; toKg: number }[];
   restBonusAddedSec: number;
+  /** Story 7: sticky swaps a report applied, with the choice they replaced (null = Philip's pick). */
+  swaps?: { slotKey: string; from: string | null; to: string }[];
+  /** Story 7: training days a report applied, with the days they replaced (null = Philip's pick). */
+  days?: { from: IsoWeekday[] | null; to: IsoWeekday[] };
 }
 
 /** The owner's sticky pick for a menu slot (one of Philip's approved swaps). */

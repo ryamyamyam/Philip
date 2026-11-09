@@ -30,7 +30,7 @@ test.describe('Session fixes (Story 6, T-021)', () => {
     await startDay1(page);
     const a1 = main(page).getByRole('region', { name: /Bulgarian split squat/ });
     // 0.12 × squat TM 135 = 16.2 → rounded down to 35 lb per hand; 8–10 reps → target 9.
-    await expect(a1).toContainText(/[34] × 9 per side @ 35 lb \(8–10\)/);
+    await expect(a1).toContainText(/[34] sets · 2 × 35 lb × 9 per side \(8–10\)/); // Story 7: dumbbells read per hand
     await expect(a1).toContainText('Estimate');
     await expect(a1).toContainText('First time: my estimate.');
     await expect(a1).not.toContainText('Your pick');
@@ -51,7 +51,7 @@ test.describe('Session fixes (Story 6, T-021)', () => {
     await squat.getByRole('listitem').nth(3).getByRole('button', { name: 'Set 4: as ordered' }).click();
 
     const curl = main(page).getByRole('region', { name: /Lying leg curl/ });
-    await curl.getByRole('button', { name: 'Lying leg curl' }).click();
+    await curl.getByRole('button', { name: 'Lying leg curl', exact: true }).click();
     const sheet = curl.getByRole('group', { name: 'Approved swaps' });
     await expect(sheet).toContainText('Today only, unless you tick Keep.');
     await expect(sheet.getByRole('button', { name: /Seated leg curl · 55 lb/ })).toBeVisible();

@@ -71,6 +71,7 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
           tmHistory={tmHistory}
           profile={profile}
           weights={weights}
+          choices={choiceMap}
           justFinished={justFinished}
           onOpenToday={() => {
             setJustFinished(false);

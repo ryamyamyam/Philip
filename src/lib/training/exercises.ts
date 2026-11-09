@@ -16,47 +16,50 @@ export interface ExerciseInfo {
   bodyweight?: boolean;
   /** A barbell lift loaded with plates (gets the plate line). */
   barbell?: boolean;
+  /** Two dumbbells, one per hand (Story 7, OBS-C94181): the weight is per hand and reads "2 × 12.5 kg". */
+  pair?: boolean;
 }
 
 const ps = { perSide: true } as const;
 const bw = { bodyweight: true } as const;
 const bb = { barbell: true } as const;
 const timed = { timed: true } as const;
+const db2 = { pair: true } as const;
 
 export const EXERCISES = {
   // Main lifts and their block-D variants
   'squat': bb, 'bench': bb, 'rdl': bb, 'ohp': bb,
   'pause-squat': bb, 'pause-bench': bb, 'pause-rdl': bb, 'tempo-ohp': bb,
   // Day 1
-  'bulgarian-split-squat': ps, 'hack-squat': {}, 'single-leg-leg-press': ps, 'leg-press': {}, 'pendulum-squat': {},
-  'ffe-reverse-lunge': ps, 'walking-lunge': ps, 'goblet-squat': {}, 'heel-raised-db-squat': {}, 'belt-squat': {},
+  'bulgarian-split-squat': { ...ps, ...db2 }, 'hack-squat': {}, 'single-leg-leg-press': ps, 'leg-press': {}, 'pendulum-squat': {},
+  'ffe-reverse-lunge': { ...ps, ...db2 }, 'walking-lunge': { ...ps, ...db2 }, 'goblet-squat': {}, 'heel-raised-db-squat': {}, 'belt-squat': {},
   'lying-leg-curl': {}, 'seated-leg-curl': {}, 'swiss-ball-leg-curl': bw, 'single-leg-seated-curl': ps,
   'nordic-curl': bw, 'glute-ham-raise': bw, 'single-leg-leg-curl': ps, 'slider-leg-curl': bw,
   'hanging-knee-raise': bw, 'captains-chair-raise': bw, 'reverse-crunch': bw, 'cable-crunch': {}, 'machine-crunch': {},
   'decline-crunch': bw, 'ab-wheel': bw, 'ball-rollout': bw, 'body-saw': bw, 'pallof-press': ps,
   'dead-bug': { ...bw, ...ps }, 'side-plank': { ...bw, ...ps, ...timed },
   // Day 2
-  'cs-db-row': {}, 'seal-row': bb, 'cs-tbar-row': {}, 'seated-cable-row': {}, 'machine-row': {}, 'wide-cable-row': {},
+  'cs-db-row': db2, 'seal-row': bb, 'cs-tbar-row': {}, 'seated-cable-row': {}, 'machine-row': {}, 'wide-cable-row': {},
   'barbell-row': bb, 'pendlay-row': bb, 'tbar-row': {}, 'single-arm-db-row': ps, 'single-arm-cable-row': ps, 'meadows-row': ps,
-  'incline-db-press': {}, 'incline-bb-press': bb, 'incline-machine-press': {}, 'machine-chest-press': {}, 'db-bench-press': {},
-  'weighted-push-up': bw, 'dips': bw, 'close-grip-bench': bb, 'db-fly': {}, 'cable-fly': {}, 'pec-deck': {},
-  'face-pull': {}, 'cable-rear-delt-fly': {}, 'band-face-pull': bw, 'rear-delt-fly': {}, 'reverse-pec-deck': {},
-  'band-pull-apart': bw, 'prone-y-raise': {}, 'triceps-pushdown': {}, 'overhead-cable-extension': {}, 'db-kickback': ps,
+  'incline-db-press': db2, 'incline-bb-press': bb, 'incline-machine-press': {}, 'machine-chest-press': {}, 'db-bench-press': db2,
+  'weighted-push-up': bw, 'dips': bw, 'close-grip-bench': bb, 'db-fly': db2, 'cable-fly': {}, 'pec-deck': {},
+  'face-pull': {}, 'cable-rear-delt-fly': {}, 'band-face-pull': bw, 'rear-delt-fly': db2, 'reverse-pec-deck': {},
+  'band-pull-apart': bw, 'prone-y-raise': db2, 'triceps-pushdown': {}, 'overhead-cable-extension': {}, 'db-kickback': ps,
   // Day 3
   'hip-thrust': bb, 'bb-glute-bridge': bb, 'machine-glute-bridge': {}, 'back-extension': bw, 'reverse-hyper': {},
   'good-morning': bb, 'ssb-good-morning': bb, 'cable-pull-through': {}, 'kb-swing': {},
-  'reverse-lunge': ps, 'split-squat': ps, 'step-up': ps, 'single-leg-rdl': ps, 'b-stance-rdl': ps, 'cable-sl-rdl': ps,
-  'db-reverse-lunge': ps, 'deficit-reverse-lunge': ps, 'lateral-lunge': ps,
+  'reverse-lunge': { ...ps, ...db2 }, 'split-squat': { ...ps, ...db2 }, 'step-up': { ...ps, ...db2 }, 'single-leg-rdl': { ...ps, ...db2 }, 'b-stance-rdl': ps, 'cable-sl-rdl': ps,
+  'db-reverse-lunge': { ...ps, ...db2 }, 'deficit-reverse-lunge': { ...ps, ...db2 }, 'lateral-lunge': ps,
   'standing-calf-raise': {}, 'leg-press-calf-raise': {}, 'smith-calf-raise': {}, 'seated-calf-raise': {},
   'single-leg-db-calf-raise': ps, 'weighted-plank': { ...bw, ...timed }, 'rkc-plank': { ...bw, ...timed },
   'long-lever-plank': { ...bw, ...timed }, 'tempo-calf-raise': {}, 'single-leg-calf-raise': ps, 'donkey-calf-raise': {},
   // Day 4
   'pull-up': bw, 'assisted-pull-up': {}, 'lat-pulldown': {}, 'single-arm-pulldown': ps, 'machine-pulldown': {},
   'chin-up': bw, 'neutral-pull-up': bw, 'close-grip-pulldown': {}, 'neutral-pulldown': {}, 'single-arm-cable-pulldown': ps,
-  'machine-high-row': {}, 'db-lateral-raise': {}, 'cable-lateral-raise': ps, 'machine-lateral-raise': {}, 'cable-y-raise': {},
-  'lean-away-lateral-raise': ps, 'btb-cable-lateral-raise': ps, 'seated-db-lateral-raise': {},
-  'db-curl': {}, 'cable-curl': {}, 'ez-curl': {}, 'preacher-curl': {}, 'hammer-curl': {}, 'rope-hammer-curl': {},
-  'cross-body-hammer-curl': {}, 'incline-db-curl': {}, 'bayesian-curl': ps, 'spider-curl': {},
+  'machine-high-row': {}, 'db-lateral-raise': db2, 'cable-lateral-raise': ps, 'machine-lateral-raise': {}, 'cable-y-raise': {},
+  'lean-away-lateral-raise': ps, 'btb-cable-lateral-raise': ps, 'seated-db-lateral-raise': db2,
+  'db-curl': db2, 'cable-curl': {}, 'ez-curl': {}, 'preacher-curl': {}, 'hammer-curl': db2, 'rope-hammer-curl': {},
+  'cross-body-hammer-curl': db2, 'incline-db-curl': db2, 'bayesian-curl': ps, 'spider-curl': db2,
 } as const satisfies Record<string, ExerciseInfo>;
 
 export type ExerciseId = keyof typeof EXERCISES;

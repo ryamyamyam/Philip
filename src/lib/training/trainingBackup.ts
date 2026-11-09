@@ -5,6 +5,10 @@
  */
 import type { PhilipDB } from '../../db/db';
 import type {
+  AccessoryOverride,
+  CardioLog,
+  CoachChange,
+  CoachThread,
   IsoWeekday,
   ReviewApplied,
   ActualSet,
@@ -117,6 +121,88 @@ function program(x: unknown): TrainingProgram | null {
     createdAt: num(o, 'createdAt', p),
     updatedAt: num(o, 'updatedAt', p),
     ...(o.trainingDays != null ? { trainingDays: trainingDays(o.trainingDays, `${p}.trainingDays`) } : {}),
+    ...(o.dayOrder != null ? { dayOrder: dayOrder(o.dayOrder, `${p}.dayOrder`) } : {}),
+    ...(o.nextOverrides != null ? { nextOverrides: list(o.nextOverrides, `${p}.nextOverrides`).map((v, i) => override(v, `${p}.nextOverrides[${i}]`)) } : {}),
+  };
+}
+
+const SLOTS = ['main', 'A1', 'A2', 'B'] as const;
+
+function dayOrder(x: unknown, path: string): Partial<Record<string, (typeof SLOTS)[number][]>> {
+  const o = obj(x, path);
+  const out: Partial<Record<string, (typeof SLOTS)[number][]>> = {};
+  for (const k of ['1', '2', '3', '4']) {
+    if (o[k] == null) continue;
+    out[k] = list(o[k], `${path}.${k}`).map((v) => {
+      if (typeof v !== 'string' || !(SLOTS as readonly string[]).includes(v)) fail(`${path}.${k}`, 'unknown slot');
+      return v as (typeof SLOTS)[number];
+    });
+  }
+  return out;
+}
+
+function override(x: unknown, path: string): AccessoryOverride {
+  const o = obj(x, path);
+  return {
+    exerciseId: str(o, 'exerciseId', path, 60),
+    afterSessionId: str(o, 'afterSessionId', path, 100),
+    kg: numOrNull(o, 'kg', path, 0, 1000),
+    reps: numOrNull(o, 'reps', path, 0, 600),
+    sets: numOrNull(o, 'sets', path, 0, 20),
+  };
+}
+
+function cardio(x: unknown, path: string): CardioLog {
+  const o = obj(x, path);
+  return {
+    kind: oneOf(o, 'kind', ['incline-walk'] as const, path),
+    planMin: num(o, 'planMin', path, 0, 600),
+    minutes: numOrNull(o, 'minutes', path, 0, 600),
+    inclinePct: numOrNull(o, 'inclinePct', path, 0, 100),
+    speed: numOrNull(o, 'speed', path, 0, 100),
+    speedUnit: oneOf(o, 'speedUnit', ['mph', 'kmh'] as const, path),
+    done: bool(o, 'done'),
+    skipped: bool(o, 'skipped'),
+  };
+}
+
+function weekdays(x: unknown, path: string): IsoWeekday[] {
+  return trainingDays(x, path);
+}
+
+function coachChange(x: unknown, path: string): CoachChange {
+  const o = obj(x, path);
+  const kind = oneOf(o, 'kind', ['tm', 'rest', 'swap', 'next', 'days'] as const, path);
+  switch (kind) {
+    case 'tm':
+      return { kind, lift: oneOf(o, 'lift', LIFTS, path), toKg: num(o, 'toKg', path, 0, 1000) };
+    case 'rest':
+      return { kind, extraSec: num(o, 'extraSec', path, 0, 600) };
+    case 'swap':
+      return { kind, day: int(o, 'day', [1, 2, 3, 4] as const, path), slot: oneOf(o, 'slot', ['A1', 'A2', 'B'] as const, path), exerciseId: str(o, 'exerciseId', path, 60) };
+    case 'next':
+      return { kind, exerciseId: str(o, 'exerciseId', path, 60), kg: numOrNull(o, 'kg', path, 0, 1000), reps: numOrNull(o, 'reps', path, 0, 600), sets: numOrNull(o, 'sets', path, 0, 20) };
+    case 'days':
+      return { kind, days: weekdays(o.days, `${path}.days`) };
+  }
+}
+
+function coach(x: unknown, path: string): CoachThread {
+  const o = obj(x, path);
+  return {
+    report: str(o, 'report', path, 4000),
+    proposals: list(o.proposals, `${path}.proposals`).map((v, i) => {
+      const q = `${path}.proposals[${i}]`;
+      const p = obj(v, q);
+      return { id: str(p, 'id', q, 100), change: coachChange(p.change, `${q}.change`), why: p.why == null ? '' : str(p, 'why', q, 1000), status: oneOf(p, 'status', ['open', 'applied', 'declined'] as const, q) };
+    }),
+    messages: list(o.messages, `${path}.messages`).map((v, i) => {
+      const q = `${path}.messages[${i}]`;
+      const m = obj(v, q);
+      return { from: oneOf(m, 'from', ['me', 'philip'] as const, q), text: str(m, 'text', q, 4000), at: num(m, 'at', q) };
+    }),
+    createdAt: num(o, 'createdAt', path),
+    updatedAt: num(o, 'updatedAt', path),
   };
 }
 
@@ -138,6 +224,21 @@ function reviewApplied(x: unknown, path: string): ReviewApplied {
       return { lift: oneOf(t, 'lift', LIFTS, q), fromKg: num(t, 'fromKg', q, 0, 1000), toKg: num(t, 'toKg', q, 0, 1000) };
     }),
     restBonusAddedSec: num(o, 'restBonusAddedSec', path, 0, 600),
+    ...(o.swaps != null
+      ? {
+          swaps: list(o.swaps, `${path}.swaps`).map((v, i) => {
+            const q = `${path}.swaps[${i}]`;
+            const w = obj(v, q);
+            return { slotKey: str(w, 'slotKey', q, 30), from: w.from == null ? null : str(w, 'from', q, 60), to: str(w, 'to', q, 60) };
+          }),
+        }
+      : {}),
+    ...(o.days != null
+      ? (() => {
+          const d = obj(o.days, `${path}.days`);
+          return { days: { from: d.from == null ? null : trainingDays(d.from, `${path}.days.from`), to: trainingDays(d.to, `${path}.days.to`) } };
+        })()
+      : {}),
   };
 }
 
@@ -243,6 +344,8 @@ function session(x: unknown, i: number): WorkoutSession {
     exercises: list(o.exercises, `${p}.exercises`).map((e, j) => exercise(e, `${p}.exercises[${j}]`)),
     ...(o.reviewed === true ? { reviewed: true } : {}),
     ...(o.reviewApplied != null ? { reviewApplied: reviewApplied(o.reviewApplied, `${p}.reviewApplied`) } : {}),
+    ...(o.cardio != null ? { cardio: cardio(o.cardio, `${p}.cardio`) } : {}),
+    ...(o.coach != null ? { coach: coach(o.coach, `${p}.coach`) } : {}),
   };
 }
 

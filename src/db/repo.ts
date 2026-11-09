@@ -1,6 +1,7 @@
 /** Data access functions. UI components call these instead of touching tables directly. */
 import { db, newId, defaultProfile, type PhilipDB } from './db';
 import type {
+  CoachThread,
   CycleRecord,
   FoodEntry,
   IsoWeekday,
@@ -18,7 +19,9 @@ import type {
   WorkoutSession,
   YMD,
 } from './types';
-import type { LiftId } from '../lib/training/program';
+import { blockForCycle, type LiftId } from '../lib/training/program';
+import type { SessionSlot } from '../lib/training/session';
+import { slotKey } from '../lib/training/exercises';
 import { adjustedTm, MAX_REST_BONUS_SEC } from '../lib/training/checkin';
 import { tmsForCycle } from '../lib/training/progress';
 import { roundMacros } from '../lib/nutrition';
@@ -386,8 +389,9 @@ export async function saveWorkoutSession(session: WorkoutSession, database: Phil
   if (existing) {
     // The frozen orders win: callers can only change the log, notes, swaps and status. A swap (new
     // exercise in the slot, chosen from Philip's approved list) brings that exercise's own orders.
-    const exercises = session.exercises.map((e, i) => {
-      const old = existing.exercises[i];
+    // Matched by slot, not position: the owner can reorder the day (Story 7).
+    const exercises = session.exercises.map((e) => {
+      const old = existing.exercises.find((o) => o.slot === e.slot);
       // A mid-workout change the owner OK'd (applyCheckin) is the one other way orders move.
       const keep = old && old.exerciseId === e.exerciseId && !e.originalPrescription;
       return { ...e, prescription: keep ? old.prescription : e.prescription };
@@ -445,6 +449,18 @@ export async function setTrainingDays(days: IsoWeekday[] | null, database: Phili
   await database.trainingProgram.put(next);
 }
 
+/** Story 7 (OBS-F52773): remembers the owner's exercise order for a program day. */
+export async function setDayOrder(day: number, order: SessionSlot[], database: PhilipDB = db): Promise<void> {
+  const program = await database.trainingProgram.get('me');
+  if (!program) return;
+  await database.trainingProgram.put({ ...program, dayOrder: { ...(program.dayOrder ?? {}), [String(day)]: order }, updatedAt: Date.now() });
+}
+
+/** Story 7 (OBS-3DB146): saves Philip's report and the chat on a session (nothing in the plan changes). */
+export async function saveCoachThread(sessionId: string, coach: CoachThread, database: PhilipDB = db): Promise<void> {
+  await database.workoutSessions.update(sessionId, { coach });
+}
+
 export type ReviewChange = { kind: 'tm'; lift: LiftId; factor: number } | { kind: 'rest'; extraSec: number };
 
 /**
@@ -476,9 +492,98 @@ export async function applyReview(sessionId: string, changes: readonly ReviewCha
         await database.cycles.update(cycle.index, { restBonusSec: after });
       }
     }
-    await database.workoutSessions.put({ ...session, reviewed: true, reviewApplied: applied });
+    await database.workoutSessions.put({ ...session, reviewed: true, reviewApplied: mergeApplied(session.reviewApplied, applied) });
     return applied;
   });
+}
+
+/** Adds what one apply changed to what the session's earlier applies changed (rules review + report). */
+function mergeApplied(a: ReviewApplied | undefined, b: ReviewApplied): ReviewApplied {
+  if (!a) return b;
+  const swaps = [...(a.swaps ?? [])];
+  for (const s of b.swaps ?? []) {
+    const i = swaps.findIndex((x) => x.slotKey === s.slotKey);
+    // Undo goes back to what was there before the first change.
+    if (i >= 0) swaps[i] = { ...s, from: swaps[i]?.from ?? null };
+    else swaps.push(s);
+  }
+  const days = b.days ? { from: a.days ? a.days.from : b.days.from, to: b.days.to } : a.days;
+  return {
+    tm: [...a.tm, ...b.tm],
+    restBonusAddedSec: a.restBonusAddedSec + b.restBonusAddedSec,
+    ...(swaps.length ? { swaps } : {}),
+    ...(days ? { days } : {}),
+  };
+}
+
+/**
+ * Story 7 (OBS-3DB146): applies the report proposals the owner OK'd, in one transaction, and records
+ * them in `reviewApplied` so deleting the log undoes them:
+ * - tm: appends an `adjust` TM row;
+ * - rest: raises the cycle's rest bonus (capped);
+ * - next: sets a next-time order for that accessory (inert once it's logged again);
+ * - swap: sets the slot's sticky choice;
+ * - days: sets the training weekdays.
+ * Proposals that aren't open are ignored. Returns the ids applied.
+ */
+export async function applyCoachProposals(sessionId: string, ids: readonly string[], database: PhilipDB = db): Promise<string[]> {
+  return database.transaction(
+    'rw',
+    [database.workoutSessions, database.tmHistory, database.cycles, database.trainingProgram, database.slotChoices],
+    async () => {
+      const session = await database.workoutSessions.get(sessionId);
+      const thread = session?.coach;
+      if (!session || !thread) return [];
+      const program = await database.trainingProgram.get('me');
+      const cycle = await database.cycles.get(session.cycle);
+      const tms = tmsForCycle(await database.tmHistory.toArray(), session.cycle);
+      const applied: ReviewApplied = { tm: [], restBonusAddedSec: 0 };
+      const done: string[] = [];
+      const now = Date.now();
+      let prog = program ? { ...program } : null;
+      for (const p of thread.proposals) {
+        if (p.status !== 'open' || !ids.includes(p.id)) continue;
+        const c = p.change;
+        if (c.kind === 'tm') {
+          const from = tms[c.lift];
+          if (from === null) continue;
+          await database.tmHistory.add({ lift: c.lift, tmKg: c.toKg, effectiveCycle: session.cycle, reason: 'adjust', createdAt: now });
+          tms[c.lift] = c.toKg;
+          applied.tm.push({ lift: c.lift, fromKg: from, toKg: c.toKg });
+        } else if (c.kind === 'rest') {
+          if (!cycle) continue;
+          const before = cycle.restBonusSec ?? 0;
+          const after = Math.min(MAX_REST_BONUS_SEC, before + c.extraSec);
+          cycle.restBonusSec = after;
+          applied.restBonusAddedSec += after - before;
+          await database.cycles.update(cycle.index, { restBonusSec: after });
+        } else if (c.kind === 'next') {
+          if (!prog) continue;
+          const rest = (prog.nextOverrides ?? []).filter((o) => o.exerciseId !== c.exerciseId);
+          prog = { ...prog, nextOverrides: [...rest, { exerciseId: c.exerciseId, afterSessionId: session.id, kg: c.kg, reps: c.reps, sets: c.sets }] };
+        } else if (c.kind === 'swap') {
+          const key = slotKey(c.day, c.slot, blockForCycle(session.cycle));
+          const before = (await database.slotChoices.get(key))?.exerciseId ?? null;
+          await database.slotChoices.put({ slotKey: key, exerciseId: c.exerciseId, chosenAt: now });
+          applied.swaps = [...(applied.swaps ?? []), { slotKey: key, from: before, to: c.exerciseId }];
+        } else {
+          if (!prog) continue;
+          applied.days = { from: prog.trainingDays ? [...prog.trainingDays] : null, to: [...c.days] };
+          prog = { ...prog, trainingDays: [...c.days] };
+        }
+        done.push(p.id);
+      }
+      if (prog) await database.trainingProgram.put({ ...prog, updatedAt: now });
+      const proposals = thread.proposals.map((p) => (done.includes(p.id) ? { ...p, status: 'applied' as const } : p));
+      await database.workoutSessions.put({
+        ...session,
+        reviewed: true,
+        reviewApplied: mergeApplied(session.reviewApplied, applied),
+        coach: { ...thread, proposals, updatedAt: now },
+      });
+      return done;
+    },
+  );
 }
 
 export class LockedSessionError extends Error {
@@ -497,7 +602,7 @@ export class LockedSessionError extends Error {
  * Throws LockedSessionError for a session from another cycle.
  */
 export async function deleteWorkoutSession(id: string, database: PhilipDB = db): Promise<void> {
-  await database.transaction('rw', [database.workoutSessions, database.tmHistory, database.cycles, database.trainingProgram], async () => {
+  await database.transaction('rw', [database.workoutSessions, database.tmHistory, database.cycles, database.trainingProgram, database.slotChoices], async () => {
     const session = await database.workoutSessions.get(id);
     if (!session) return;
     const program = await database.trainingProgram.get('me');
@@ -519,7 +624,24 @@ export async function deleteWorkoutSession(id: string, database: PhilipDB = db):
         const cycle = await database.cycles.get(session.cycle);
         if (cycle) await database.cycles.update(cycle.index, { restBonusSec: Math.max(0, (cycle.restBonusSec ?? 0) - applied.restBonusAddedSec) });
       }
+      // Story 7: a swap goes back to what it replaced, unless the owner changed that slot since.
+      for (const sw of applied.swaps ?? []) {
+        const now = await database.slotChoices.get(sw.slotKey);
+        if (now && now.exerciseId !== sw.to) continue;
+        if (sw.from === null) await database.slotChoices.delete(sw.slotKey);
+        else await database.slotChoices.put({ slotKey: sw.slotKey, exerciseId: sw.from, chosenAt: Date.now() });
+      }
     }
+    // Story 7: training days go back (unless changed since); next-time orders this log set go.
+    const days = applied?.days;
+    const overrides = (program.nextOverrides ?? []).filter((o) => o.afterSessionId !== id);
+    const next: TrainingProgram = { ...program, nextOverrides: overrides };
+    if (days && (program.trainingDays ?? []).join() === days.to.join()) {
+      if (days.from === null) delete next.trainingDays;
+      else next.trainingDays = days.from;
+    }
+    if (!next.nextOverrides?.length) delete next.nextOverrides;
+    if (JSON.stringify(next) !== JSON.stringify(program)) await database.trainingProgram.put({ ...next, updatedAt: Date.now() });
     await database.workoutSessions.delete(id);
   });
 }

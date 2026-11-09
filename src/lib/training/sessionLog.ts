@@ -7,6 +7,8 @@ import type { ActualSet, SessionExercise, WorkoutSession } from '../../db/types'
 import { EXERCISES, MAIN_EXERCISE, type ExerciseId, type ExerciseInfo } from './exercises';
 import { epley, EPLEY_MAX_REPS, isKeySet, LIFTS, type LiftId, type LoggedAccessorySet } from './program';
 import type { PlannedExercise, PlannedSession, Prescribed } from './session';
+import { applyOrder } from './order';
+import { plannedCardio } from './cardio';
 
 export const emptyActual = (p: Prescribed): ActualSet => ({
   order: p.order,
@@ -28,8 +30,15 @@ export function toSessionExercise(e: PlannedExercise): SessionExercise {
   };
 }
 
-/** A new in-progress session from Philip's plan for the day. */
-export function createSession(plan: PlannedSession, id: string, date: string, now: number): WorkoutSession {
+export interface CreateOptions {
+  /** The owner's remembered order for this day (Story 7). Main lift stays first. */
+  order?: readonly string[] | null;
+  /** Treadmill speed unit for the cardio log. */
+  speedUnit?: 'mph' | 'kmh';
+}
+
+/** A new in-progress session from Philip's plan for the day, with the cardio finisher (Story 7). */
+export function createSession(plan: PlannedSession, id: string, date: string, now: number, opts: CreateOptions = {}): WorkoutSession {
   return {
     id,
     date,
@@ -41,7 +50,8 @@ export function createSession(plan: PlannedSession, id: string, date: string, no
     estMinutes: plan.estMinutes,
     startedAt: now,
     finishedAt: null,
-    exercises: plan.exercises.map(toSessionExercise),
+    exercises: applyOrder(plan.exercises.map(toSessionExercise), opts.order),
+    cardio: plannedCardio(plan.phase, opts.speedUnit),
   };
 }
 
@@ -80,6 +90,18 @@ export function lastSetsFor(sessions: readonly WorkoutSession[], id: ExerciseId)
   for (const s of done) {
     const ex = s.exercises.find((e) => e.exerciseId === id);
     if (ex && ex.actual.some((a) => a.done)) return ex.actual.map((a) => ({ kg: a.kg, reps: a.reps, done: a.done }));
+  }
+  return null;
+}
+
+/** Id of the latest finished session where this exercise was logged (Story 7: next-time overrides key on it). */
+export function lastSessionIdFor(sessions: readonly WorkoutSession[], id: string): string | null {
+  const done = sessions
+    .filter((s) => s.status === 'done')
+    .sort((a, b) => (b.finishedAt ?? b.startedAt) - (a.finishedAt ?? a.startedAt));
+  for (const s of done) {
+    const ex = s.exercises.find((e) => e.exerciseId === id);
+    if (ex && ex.actual.some((a) => a.done)) return s.id;
   }
   return null;
 }

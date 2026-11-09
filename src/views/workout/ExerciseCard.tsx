@@ -48,14 +48,18 @@ export interface ExerciseCardProps {
   thinking?: boolean;
   onAccept?: () => void;
   onDecline?: () => void;
+  /** Story 7 (OBS-F52773): move this exercise up (-1) or down (+1); undefined = that way is blocked. */
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }
 
 /**
  * One exercise: PHILIP'S ORDERS (read-only, frozen on the session) above YOUR LIFT (the owner's own
  * numbers, empty until he types or taps "As ordered"). The two never overwrite each other.
  */
-export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, swapPreviewKg, onCheckin, proposal, thinking, onAccept, onDecline }: ExerciseCardProps) {
+export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, swapPreviewKg, onCheckin, proposal, thinking, onAccept, onDecline, onMoveUp, onMoveDown }: ExerciseCardProps) {
   const info = infoFor(ex.exerciseId);
+  const pair = !!info.pair;
   const [noteOpen, setNoteOpen] = useState(ex.note !== '');
   const [swapOpen, setSwapOpen] = useState(false);
   const [keep, setKeep] = useState(false);
@@ -89,6 +93,16 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
             exName(ex.exerciseId)
           )}
         </h2>
+        {(onMoveUp || onMoveDown) && (
+          <div className="ex-move" role="group" aria-label={t('session.orderHint')}>
+            <button type="button" className="btn btn-sm btn-ghost" disabled={!onMoveUp} aria-label={t('session.moveUpN', { name: exName(ex.exerciseId) })} onClick={onMoveUp}>
+              {t('session.moveUp')}
+            </button>
+            <button type="button" className="btn btn-sm btn-ghost" disabled={!onMoveDown} aria-label={t('session.moveDownN', { name: exName(ex.exerciseId) })} onClick={onMoveDown}>
+              {t('session.moveDown')}
+            </button>
+          </div>
+        )}
       </header>
       {ex.swappedFrom && <p className="small muted">{t('cal.swappedFrom', { name: exName(ex.swappedFrom) })}</p>}
 
@@ -96,7 +110,7 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
         <p className="ex-label">{t('session.orders')}</p>
         <p className="small ex-cue">{t(`cue.${ex.exerciseId}` as StringKey)}</p>
         {slot && <p className="small muted ex-why">{t(`why.D${day}-${slot}` as StringKey)}</p>}
-        {slot && summaryLine(ex, { kind: loadKindOf(ex.exerciseId) }, unit) && <p className="ex-summary num">{summaryLine(ex, { kind: loadKindOf(ex.exerciseId) }, unit)}</p>}
+        {slot && summaryLine(ex, { kind: loadKindOf(ex.exerciseId), pair }, unit) && <p className="ex-summary num">{summaryLine(ex, { kind: loadKindOf(ex.exerciseId), pair }, unit)}</p>}
         {ex.prescription.some((p) => p.estimate) && (
           <p className="small ex-estimate">
             <span className="pm-pill">{t('session.estimate')}</span> {t('session.estimateWhy')}
@@ -121,6 +135,7 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
                 barbell={!!info.barbell}
                 bodyweight={!!info.bodyweight || loadKindOf(ex.exerciseId) === 'band' || loadKindOf(ex.exerciseId) === 'timed'}
                 loadKind={loadKindOf(ex.exerciseId)}
+                pair={pair}
                 locked={stopped && !a.done && !a.pain}
                 onChange={(next, rest) => setActual(p.order, next, rest)}
                 onCheckin={(flag, note) => onCheckin(p.order, flag, note)}
@@ -172,7 +187,7 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
                   >
                     {exName(id)}
                     {id === menu.pick ? ` · ${t('session.philipsPick')}` : ''}
-                    {kg !== null ? ` · ${fmtIn(kg, unit)}` : ''}
+                    {kg !== null ? ` · ${pair ? t('session.pair', { w: fmtIn(kg, unit) }) : fmtIn(kg, unit)}` : ''}
                   </button>
                 );
               })}
@@ -210,9 +225,9 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
 type LoadKind = ReturnType<typeof startRule>['kind'];
 
 /** What goes before the ×: weight, assistance, Bodyweight, Band, or (nothing to anchor on) Your pick. */
-function loadText(p: Prescribed, kind: LoadKind, unit: PlateUnit, both = true): string | null {
+function loadText(p: Prescribed, kind: LoadKind, unit: PlateUnit, both = true, pair = false): string | null {
   const w = (kg: number) => (both ? fmtBoth(kg, unit) : fmtIn(kg, unit));
-  if (p.kg !== null) return p.assist ? t('session.assist', { w: w(p.kg) }) : w(p.kg);
+  if (p.kg !== null) return p.assist ? t('session.assist', { w: w(p.kg) }) : pair ? t('session.pair', { w: w(p.kg) }) : w(p.kg);
   if (kind === 'bodyweight') return t('session.bodyweight');
   if (kind === 'band') return t('session.band');
   if (kind === 'timed') return null;
@@ -225,20 +240,26 @@ function repsText(p: Prescribed): string {
   return p.timed ? t('session.seconds', { n: reps }) : `${reps}${p.kind === 'amrap' ? '+' : ''}`;
 }
 
-function orderText(p: Prescribed, unit: PlateUnit, kind: LoadKind): string {
+export function orderText(p: Prescribed, unit: PlateUnit, kind: LoadKind, pair = false): string {
   const side = p.perSide ? ` ${t('session.perSide')}` : '';
-  const load = loadText(p, kind, unit);
+  const load = loadText(p, kind, unit, true, pair);
   return `${load ? `${load} × ` : ''}${repsText(p)}${side}`;
 }
 
-/** Story 6 §6: "3 × 10 @ 25 kg (8–12)" — sets × target reps @ weight, the range in brackets. */
-function summaryLine(ex: SessionExercise, info: { kind: LoadKind }, unit: PlateUnit): string | null {
+/**
+ * Story 6 §6: "3 × 10 @ 25 kg (8–12)" — sets × target reps @ weight, the range in brackets.
+ * Story 7 (OBS-C94181): dumbbell pairs read per hand, "3 sets · 2 × 12.5 kg × 10 (8–12)".
+ */
+export function summaryLine(ex: SessionExercise, info: { kind: LoadKind; pair?: boolean }, unit: PlateUnit): string | null {
   const first = ex.prescription.find((p) => p.kind === 'accessory');
   if (!first) return null;
   const sets = ex.prescription.filter((p) => p.kind === 'accessory').length;
-  const load = loadText(first, info.kind, unit, false);
   const range = first.repMin !== first.repMax ? ` (${first.repMin}–${first.repMax})` : '';
   const side = first.perSide ? ` ${t('session.perSide')}` : '';
+  if (info.pair && first.kg !== null && !first.assist) {
+    return t('session.pairSummary', { sets, w: fmtIn(first.kg, unit), reps: repsText(first), side, range });
+  }
+  const load = loadText(first, info.kind, unit, false);
   return `${sets} × ${repsText(first)}${side}${load ? ` @ ${load}` : ''}${range}`;
 }
 
@@ -259,11 +280,13 @@ function SetRow({
   barbell,
   bodyweight,
   loadKind,
+  pair,
   locked,
   onChange,
   onCheckin,
 }: {
   loadKind: LoadKind;
+  pair: boolean;
   p: Prescribed;
   a: ActualSet;
   unit: PlateUnit;
@@ -301,7 +324,8 @@ function SetRow({
       <div className="set-order">
         <span className="set-n">{t('session.setN', { n })}</span>
         <span className="set-kind small">{t(KIND_KEY[p.kind])}</span>
-        <span className="set-target num">{orderText(p, unit, loadKind)}</span>
+        <span className="set-target num">{orderText(p, unit, loadKind, pair)}</span>
+        {pair && p.kg !== null && <span className="set-total small muted num">{t('session.pairTotal', { w: fmtIn(p.kg * 2, unit) })}</span>}
         <span className="set-meta small muted num">
           {p.kind === 'warmup'
             ? t('session.restOnly', { t: fmtRest(p.restSec) })
@@ -316,8 +340,13 @@ function SetRow({
         )}
       </div>
       <div className="set-log">
+        {pair && (
+          <span aria-hidden="true" className="set-pair num">
+            2 ×
+          </span>
+        )}
         <label className="set-field">
-          <span className="visually-hidden">{t('session.yourKg', { n, unit })}</span>
+          <span className="visually-hidden">{t(pair ? 'session.yourKgHand' : 'session.yourKg', { n, unit })}</span>
           <input
             className="input num"
             inputMode="decimal"

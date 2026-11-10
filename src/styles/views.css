@@ -478,3 +478,24 @@
 .targets-hist-title {
   padding: var(--space-4) var(--space-4) var(--space-2);
 }
+
+/* Story 9: Settings › Philip's memory */
+.memory-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.memory-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+.memory-note .btn {
+  flex: none;
+  white-space: nowrap;
+}

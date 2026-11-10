@@ -1,5 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type {
+  CoachChatMessage,
+  CoachNote,
   CycleRecord,
   FoodEntry,
   MetaRow,
@@ -27,6 +29,8 @@ export class PhilipDB extends Dexie {
   cycles!: EntityTable<CycleRecord, 'index'>;
   workoutSessions!: EntityTable<WorkoutSession, 'id'>;
   slotChoices!: EntityTable<SlotChoice, 'slotKey'>;
+  coachNotes!: EntityTable<CoachNote, 'id'>;
+  coachMessages!: EntityTable<CoachChatMessage, 'id'>;
 
   constructor(name = 'philip') {
     super(name);
@@ -69,6 +73,8 @@ export class PhilipDB extends Dexie {
             if (p.targetBodyFatPct === undefined) p.targetBodyFatPct = null;
           });
       });
+    // v5 (Story 9): Philip's memory — durable notes and the Ask Philip chat. Purely additive.
+    this.version(5).stores({ coachNotes: '++id, createdAt', coachMessages: '++id, at' });
   }
 }
 

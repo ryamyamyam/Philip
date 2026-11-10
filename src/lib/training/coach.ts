@@ -12,6 +12,7 @@ import { exerciseFor, menuSlot, type ExerciseId, type Slot } from './exercises';
 import { blockForCycle, DAY_LIFT, LIFTS, roundTo, type Day, type LiftId, type Phase } from './program';
 import { roundToStep, type PlateUnit } from './plates';
 import { MAX_REST_BONUS_SEC } from './checkin';
+import { parseRemember, REMEMBER_RULE } from '../coach/memory';
 
 /** Bounds for proposals (Philip's coaching defaults; a hypothesis, not evidence). */
 export const COACH_BOUNDS = {
@@ -91,21 +92,28 @@ const RULES = [
   '{"kind":"next","exerciseId":string,"kg":number|null,"reps":number|null,"sets":number|null,"why":string} the next time that accessory from today comes up: weight per hand for dumbbells (within 20% of today\'s order), target reps (inside its range), sets 2-5; null keeps Philip\'s rule;',
   '{"kind":"swap","day":1-4,"slot":"A1|A2|B","exerciseId":string,"why":string} only one of the approved options listed for that slot;',
   '{"kind":"days","days":[four distinct weekdays 1-7],"why":string} training weekdays.',
-  'Reply ONLY with JSON: {"message": string (plain words, max 600 chars), "changes": [ ... ]}.',
+  'Use the brief (history, notes, earlier chats) to compare today with past sessions and to keep promises you made; never invent numbers it does not have.',
+  REMEMBER_RULE,
+  'Reply ONLY with JSON: {"message": string (plain words, max 600 chars), "changes": [ ... ], "remember": [string]}.',
 ].join('\n');
 
 /** First report after a workout. */
-export function reportPrompt(c: CoachContext): string {
+export function reportPrompt(c: CoachContext, brief = ''): string {
   return [
     RULES,
-    'Write the observation report for the workout below: what went well, what did not, what you will change and why. 3 to 6 short sentences.',
+    'Write the observation report for the workout below: what went well, what did not compared with earlier sessions, what you will change and why. 3 to 6 short sentences.',
     '',
+    brief,
+    brief ? '' : null,
+    "Today's workout:",
     contextText(c),
-  ].join('\n');
+  ]
+    .filter((l) => l !== null)
+    .join('\n');
 }
 
 /** A chat turn under the report: the owner's comment, with the report and recent turns as history. */
-export function chatPrompt(c: CoachContext, thread: CoachThread, comment: string): string {
+export function chatPrompt(c: CoachContext, thread: CoachThread, comment: string, brief = ''): string {
   const history = thread.messages
     .slice(-COACH_BOUNDS.historyTurns)
     .map((m: CoachMessage) => `${m.from === 'me' ? 'Lifter' : 'Philip'}: ${m.text}`)
@@ -115,6 +123,8 @@ export function chatPrompt(c: CoachContext, thread: CoachThread, comment: string
     RULES,
     'You already wrote the report below. The lifter is replying to it. Answer them directly. Propose new or revised changes only if their comment calls for it.',
     '',
+    ...(brief ? [brief, ''] : []),
+    "Today's workout:",
     contextText(c),
     '',
     `Your report: ${thread.report}`,
@@ -127,6 +137,8 @@ export function chatPrompt(c: CoachContext, thread: CoachThread, comment: string
 export interface CoachTurn {
   message: string;
   changes: { change: CoachChange; why: string }[];
+  /** Story 9: short facts Philip wants kept (saved as notes by the caller). */
+  remember: string[];
 }
 
 type Obj = Record<string, unknown>;
@@ -216,7 +228,7 @@ export function parseCoachTurn(raw: unknown, c: CoachContext): CoachTurn | null 
     if (i >= 0) changes.splice(i, 1);
     changes.push({ change, why });
   }
-  return { message, changes };
+  return { message, changes, remember: parseRemember(raw) };
 }
 
 /** What a change targets, so a newer proposal replaces an older open one for the same thing. */

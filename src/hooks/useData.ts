@@ -87,3 +87,13 @@ export function useWorkoutSession(id: string | undefined): WorkoutSession | null
 export function useSlotChoices(): SlotChoice[] | undefined {
   return useLiveQuery(() => db.slotChoices.toArray(), []);
 }
+
+/** Story 9: Philip's notes, newest first. */
+export function useCoachNotes() {
+  return useLiveQuery(() => db.coachNotes.orderBy('createdAt').reverse().toArray(), []);
+}
+
+/** Story 9: the Ask Philip chat, oldest first. */
+export function useCoachMessages() {
+  return useLiveQuery(() => db.coachMessages.orderBy('at').toArray(), []);
+}

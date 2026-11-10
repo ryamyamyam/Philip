@@ -11,6 +11,7 @@ Base branch for new work: `main`.
 
 | ID | Feature | Role | Status | Branch | Depends on |
 |---|---|---|---|---|---|
+| T-026 | Story 9 Philip's memory: brief, notes, Ask Philip | Core + Feature + QA | Ready for owner review | `feat/T-026-philip-memory` | T-025 |
 | T-025 | Story 8 efficiency budgets + fixes | Core + QA | Ready for owner review | `feat/T-025-efficiency` | `c19a57d` |
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
@@ -25,6 +26,12 @@ Base branch for new work: `main`.
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-026 — Story 9: Philip's memory (D-031)
+- **Role:** Core + Feature + QA. **Spec:** `docs/stories/STORY_9_PHILIP_MEMORY.md`.
+- **Files:** new `src/lib/coach/{brief,memory}.ts`, `src/db/coachBrief.ts`, `src/db/story9.test.ts`, `src/views/{AskView,MemorySettings}.tsx`, `e2e/story9.spec.ts`; `src/db/{db,types,repo}.ts` (v5, notes/messages), `src/hooks/{useData,useRoute}.ts`, `src/App.tsx` (lazy `#/ask`), `src/views/{HomeView,SettingsView}.tsx`, `src/views/workout/{CoachReport,SessionView}.tsx`, `src/lib/training/{coach,checkin,trainingBackup}.ts`, `src/lib/backup.ts`, `src/i18n/en.ts`, `src/styles/views.css`, migration tests (verno 5), docs.
+- **Status:** Ready for owner review · **Branch:** `feat/T-026-philip-memory` on top of `feat/T-025-efficiency`.
+- **Log:** 2026-11-10 (cloud clone): tsc clean, 355/355 unit, build OK, `npm run size` 168.7/172 KB, Chromium e2e 101/101. WebKit and a live-key check pending on the Mac/iPhone.
 
 ### T-025 — Story 8: efficiency budgets and fixes (D-030)
 - **Role:** Core + QA. **Spec:** `docs/stories/STORY_8_EFFICIENCY.md`.

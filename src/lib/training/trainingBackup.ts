@@ -8,6 +8,8 @@ import type {
   AccessoryOverride,
   CardioLog,
   CoachChange,
+  CoachChatMessage,
+  CoachNote,
   CoachThread,
   IsoWeekday,
   ReviewApplied,
@@ -28,6 +30,9 @@ export interface TrainingBackup {
   cycles: CycleRecord[];
   sessions: WorkoutSession[];
   slotChoices: SlotChoice[];
+  /** Story 9: Philip's notes and the Ask Philip chat. Absent in older backups (restores as empty). */
+  coachNotes?: CoachNote[];
+  coachMessages?: CoachChatMessage[];
 }
 
 export const emptyTraining = (): TrainingBackup => ({ program: null, tmHistory: [], cycles: [], sessions: [], slotChoices: [] });
@@ -39,6 +44,8 @@ export async function exportTraining(database: PhilipDB): Promise<TrainingBackup
     cycles: await database.cycles.orderBy('index').toArray(),
     sessions: await database.workoutSessions.orderBy('date').toArray(),
     slotChoices: await database.slotChoices.toArray(),
+    coachNotes: await database.coachNotes.orderBy('createdAt').toArray(),
+    coachMessages: await database.coachMessages.orderBy('at').toArray(),
   };
 }
 
@@ -367,10 +374,26 @@ export function parseTraining(raw: unknown): TrainingBackup {
     cycles: list(o.cycles, 'cycles').map(cycle),
     sessions: sessions.filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true))),
     slotChoices: list(o.slotChoices, 'slotChoices').map(choice),
+    coachNotes: list(o.coachNotes, 'coachNotes').map(coachNote),
+    coachMessages: list(o.coachMessages, 'coachMessages').map(coachMessage),
   };
 }
 
-export const TRAINING_TABLES = ['trainingProgram', 'tmHistory', 'cycles', 'workoutSessions', 'slotChoices'] as const;
+function coachNote(x: unknown, i: number): CoachNote {
+  const p = `coachNotes[${i}]`;
+  const o = obj(x, p);
+  const source = o.source === 'ask' ? 'ask' : o.source === 'report' ? 'report' : fail(p, 'source');
+  return { text: str(o, 'text', p, 400), source, sessionId: o.sessionId == null ? null : str(o, 'sessionId', p), createdAt: num(o, 'createdAt', p, 0) };
+}
+
+function coachMessage(x: unknown, i: number): CoachChatMessage {
+  const p = `coachMessages[${i}]`;
+  const o = obj(x, p);
+  const from = o.from === 'me' ? 'me' : o.from === 'philip' ? 'philip' : fail(p, 'from');
+  return { from, text: str(o, 'text', p, 2000), at: num(o, 'at', p, 0) };
+}
+
+export const TRAINING_TABLES = ['trainingProgram', 'tmHistory', 'cycles', 'workoutSessions', 'slotChoices', 'coachNotes', 'coachMessages'] as const;
 
 /**
  * Restores the training block inside the caller's transaction.
@@ -393,6 +416,7 @@ export async function restoreTraining(database: PhilipDB, t: TrainingBackup, mod
     await database.cycles.bulkPut(t.cycles);
     await database.workoutSessions.bulkPut(t.sessions);
     await database.slotChoices.bulkPut(t.slotChoices);
+    await restoreMemory(database, t, mode);
     return t.sessions.length;
   }
   let added = 0;
@@ -406,5 +430,23 @@ export async function restoreTraining(database: PhilipDB, t: TrainingBackup, mod
   }
   await database.workoutSessions.bulkPut(writes);
   for (const c of t.slotChoices) if (!(await database.slotChoices.get(c.slotKey))) await database.slotChoices.put(c);
+  await restoreMemory(database, t, 'merge');
   return added;
+}
+
+/** Story 9: notes and the Ask chat. Replace clears them; merge adds notes and lines this device doesn't have. */
+async function restoreMemory(database: PhilipDB, t: TrainingBackup, mode: 'merge' | 'replace'): Promise<void> {
+  const notes = (t.coachNotes ?? []).map(({ id: _id, ...n }) => n);
+  const msgs = (t.coachMessages ?? []).map(({ id: _id, ...m }) => m);
+  if (mode === 'replace') {
+    await Promise.all([database.coachNotes.clear(), database.coachMessages.clear()]);
+    await database.coachNotes.bulkAdd(notes);
+    await database.coachMessages.bulkAdd(msgs);
+    return;
+  }
+  const haveNotes = new Set((await database.coachNotes.toArray()).map((n) => n.text.toLowerCase().trim()));
+  await database.coachNotes.bulkAdd(notes.filter((n) => !haveNotes.has(n.text.toLowerCase().trim())));
+  const key = (m: { from: string; at: number; text: string }) => `${m.from}|${m.at}|${m.text}`;
+  const haveMsgs = new Set((await database.coachMessages.toArray()).map(key));
+  await database.coachMessages.bulkAdd(msgs.filter((m) => !haveMsgs.has(key(m))));
 }

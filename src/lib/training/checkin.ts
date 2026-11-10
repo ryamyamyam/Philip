@@ -92,6 +92,8 @@ export interface CoachContext {
   note: string;
   remaining: string;
   phase: string;
+  /** Story 9: this exercise's earlier logs and Philip's notes (optional; older callers omit it). */
+  history?: string;
 }
 
 /** Prompt for Gemini: answer only with bounded JSON; never medical advice. */
@@ -104,6 +106,7 @@ export function checkinPrompt(c: CoachContext): string {
     `Exercise: ${c.exercise} (${c.slot}). Set ${c.setNumber}. Ordered: ${c.ordered}. Logged: ${c.logged}.`,
     `Flag: ${c.flag ?? 'none'}. Their words: "${c.note.slice(0, 400)}".`,
     `Sets still to do: ${c.remaining}. Phase: ${c.phase}.`,
+    ...(c.history ? [c.history] : []),
   ].join('\n');
 }
 

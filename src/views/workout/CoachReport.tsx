@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { applyCoachProposals, saveCoachThread } from '../../db/repo';
+import { addCoachNotes, applyCoachProposals, saveCoachThread } from '../../db/repo';
+import { loadBrief } from '../../db/coachBrief';
+import { todayYmd } from '../../lib/date';
 import { newId } from '../../db/db';
 import { useProfile } from '../../hooks/useData';
 import type { CoachChange, CoachProposal, CoachThread, CycleRecord, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
@@ -67,9 +69,12 @@ export function CoachReport({ session, program, cycle, tmHistory, choices, unit,
     setError(false);
     try {
       const c = ctx();
-      const turn = parseCoachTurn(await ask(reportPrompt(c)), c);
+      // Story 9: Philip reads the whole history (brief), not just today.
+      const brief = await loadBrief(todayYmd(), { excludeSessionId: session.id });
+      const turn = parseCoachTurn(await ask(reportPrompt(c, brief)), c);
       if (!turn) throw new Error('bad reply');
       await saveCoachThread(session.id, newThread(turn, Date.now(), newId));
+      if (turn.remember.length) await addCoachNotes(turn.remember, { source: 'report', sessionId: session.id });
     } catch {
       setError(true);
     } finally {
@@ -87,9 +92,11 @@ export function CoachReport({ session, program, cycle, tmHistory, choices, unit,
     setError(false);
     try {
       const c = ctx();
-      const turn = parseCoachTurn(await ask(chatPrompt(c, thread, text)), c);
+      const brief = await loadBrief(todayYmd(), { excludeSessionId: session.id });
+      const turn = parseCoachTurn(await ask(chatPrompt(c, thread, text, brief)), c);
       if (!turn) throw new Error('bad reply');
       await saveCoachThread(session.id, addPhilipTurn(withMine, turn, Date.now(), newId));
+      if (turn.remember.length) await addCoachNotes(turn.remember, { source: 'report', sessionId: session.id });
     } catch {
       setError(true);
     } finally {

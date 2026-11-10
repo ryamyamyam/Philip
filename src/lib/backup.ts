@@ -82,7 +82,7 @@ export class BackupError extends Error {
 /* ---------------- Export ---------------- */
 
 export async function createBackup(database: PhilipDB, opts: { includeApiKey?: boolean; now?: Date } = {}): Promise<BackupFile> {
-  return database.transaction('r', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.trainingProgram, database.tmHistory, database.cycles, database.workoutSessions, database.slotChoices], async () => {
+  return database.transaction('r', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.trainingProgram, database.tmHistory, database.cycles, database.workoutSessions, database.slotChoices, database.coachNotes, database.coachMessages], async () => {
     const profile = (await database.profile.get('me')) ?? null;
     return {
       format: BACKUP_FORMAT,
@@ -394,7 +394,7 @@ const planKey = (p: TargetPlan) =>
  */
 export async function restoreBackup(database: PhilipDB, backup: BackupFile, mode: RestoreMode): Promise<RestoreSummary> {
   const { data } = backup;
-  return database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.trainingProgram, database.tmHistory, database.cycles, database.workoutSessions, database.slotChoices], async () => {
+  return database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.trainingProgram, database.tmHistory, database.cycles, database.workoutSessions, database.slotChoices, database.coachNotes, database.coachMessages], async () => {
     if (mode === 'replace') {
       const localKey = (await database.profile.get('me'))?.geminiKey ?? null;
       await Promise.all([
@@ -495,7 +495,7 @@ export async function restoreBackup(database: PhilipDB, backup: BackupFile, mode
 
 /** Deletes every record. Used by "Delete all data". */
 export async function deleteAllData(database: PhilipDB): Promise<void> {
-  await database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.meta, database.trainingProgram, database.tmHistory, database.cycles, database.workoutSessions, database.slotChoices], async () => {
+  await database.transaction('rw', [database.profile, database.targetPlans, database.foodEntries, database.savedFoods, database.weightEntries, database.savedMeals, database.meta, database.trainingProgram, database.tmHistory, database.cycles, database.workoutSessions, database.slotChoices, database.coachNotes, database.coachMessages], async () => {
     await Promise.all([
       database.weightEntries.clear(),
       database.savedMeals.clear(),
@@ -509,6 +509,8 @@ export async function deleteAllData(database: PhilipDB): Promise<void> {
       database.cycles.clear(),
       database.workoutSessions.clear(),
       database.slotChoices.clear(),
+      database.coachNotes.clear(),
+      database.coachMessages.clear(),
     ]);
     await database.profile.put(defaultProfile());
   });

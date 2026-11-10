@@ -4,7 +4,8 @@ import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
-import { addTm, applyCheckin, applyReview, deleteWorkoutSession, META, saveWorkoutSession, setDayOrder, setSlotChoice, type ReviewChange } from '../../db/repo';
+import { addTm, allCoachNotes, applyCheckin, applyReview, deleteWorkoutSession, META, saveWorkoutSession, setDayOrder, setSlotChoice, type ReviewChange } from '../../db/repo';
+import { exerciseHistory } from '../../lib/coach/brief';
 import { useMeta, useProfile, useWeightEntries } from '../../hooks/useData';
 import { beep, cancelRestAlert, pushConfig, scheduleRestAlert, type StoredSubscription } from '../../services/restPush';
 import { newId } from '../../db/db';
@@ -487,6 +488,11 @@ function LiveSession({
             note,
             remaining: String(remainingWork(updated).length),
             phase: cycle.phase,
+            // Story 9: this exercise's history and Philip's notes, so the check-in isn't blind.
+            history: [
+              exerciseHistory(sessions, updated.exerciseId, session.id),
+              ...(await allCoachNotes()).slice(-10).map((n, k) => (k === 0 ? 'Your notes about the lifter: ' : '') + n.text),
+            ].join('\n'),
           }),
         });
         const reply = parseCoachReply(raw);

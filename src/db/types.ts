@@ -315,3 +315,26 @@ export interface SlotChoice {
   chosenAt: number;
 }
 
+
+/* ---------------- Philip's memory (Story 9, DB v5) ---------------- */
+
+/**
+ * A durable fact Philip keeps across workouts and chats ("Left knee complains on lunges").
+ * Written when Gemini returns `remember` in a reply; the owner sees and deletes them in Settings.
+ */
+export interface CoachNote {
+  id?: number;
+  text: string;
+  /** Where it came from: a workout report/chat, or Ask Philip. */
+  source: 'report' | 'ask';
+  sessionId: string | null;
+  createdAt: number;
+}
+
+/** One line of the Ask Philip chat (outside a workout). Workout chats stay on their session. */
+export interface CoachChatMessage {
+  id?: number;
+  from: 'me' | 'philip';
+  text: string;
+  at: number;
+}

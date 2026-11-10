@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
  * Routes (Story 5, T-011): Home is where the app opens; Meal log (`meals`, the former Today screen)
  * and Workout (`workout`, `workout/plan`) are entered from Home; `targets` is a sub-page of Settings.
  */
-export type Tab = 'home' | 'meals' | 'workout' | 'workoutPlan' | 'progress' | 'settings' | 'targets';
+export type Tab = 'home' | 'meals' | 'workout' | 'workoutPlan' | 'progress' | 'settings' | 'targets' | 'ask';
 /** Tabs shown in the tab bar: Home · Progress · Settings. */
 export const TABS: readonly Tab[] = ['home', 'progress', 'settings'];
 const PATHS: Readonly<Record<Tab, string>> = {
@@ -15,6 +15,7 @@ const PATHS: Readonly<Record<Tab, string>> = {
   progress: 'progress',
   settings: 'settings',
   targets: 'targets',
+  ask: 'ask',
 };
 const BY_PATH: Readonly<Record<string, Tab>> = Object.fromEntries(Object.entries(PATHS).map(([tab, path]) => [path, tab as Tab]));
 /** Which tab-bar button is highlighted for a route. */
@@ -26,6 +27,7 @@ export const TAB_FOR: Readonly<Record<Tab, Tab>> = {
   progress: 'progress',
   settings: 'settings',
   targets: 'settings',
+  ask: 'home',
 };
 
 /** Old routes: Today (Story 3) and History (pre round 2) are the Meal log now. */

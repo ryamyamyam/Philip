@@ -59,7 +59,7 @@ Old routes redirect with `history.replaceState`: `#/history` and `#/meals` → `
 ### Logging flow (Story 3, updated Nov 2026)
 Today → Choose photo (camera or library; D-022) → analyzing (PhotoSheet) → **Review** → Save to {meal}. **Enter yourself** reveals an inline panel on Today (`AddPanel` in `views/AddSheet.tsx`): an autofocused text box, saved meals, and “Type the numbers”. The Add food sheet (`AddSheet`, photo buttons + the same `AddPanel`) remains for Meals. The Log food button was removed (D-017). Every path ends in the Review sheet (meal picker, compact rows: name + grams, nutrition rescales with grams, “Edit nutrition” for direct macro edits, add/remove rows, optional “Also save as a meal”). Saving shows “N kcal logged to {meal}” with Undo. My Foods / recents / favorites and the Claude handoff button were removed from the log sheet (the handoff remains on photo-analysis errors); saved foods stay in the database and backups and still prefill typed text without a key.
 
-## Data model (IndexedDB `philip`, Dexie v4)
+## Data model (IndexedDB `philip`, Dexie v5)
 
 | Table | Key | Notes |
 |---|---|---|
@@ -75,8 +75,10 @@ Today → Choose photo (camera or library; D-022) → analyzing (PhotoSheet) →
 | `cycles` (v4) | `index` | snapshot at cycle start: `block`, `phase`, `tms`, `goal` (start/end weight, weekly rate %, BF line, source, target plan id) |
 | `workoutSessions` (v4) | `id`, indexes `date`, `[cycle+week+day]`, `status` | `exercises[]`: `prescription` (Philip's orders, frozen at creation; `saveWorkoutSession` never overwrites them) and `actual` (owner's log only) |
 | `slotChoices` (v4) | `slotKey` (`D2-A1-B`) | owner's sticky swap; only approved swaps are honoured |
+| `coachNotes` (v5, Story 9) | `++id`, index `createdAt` | `{text ≤140, source: report\|ask, sessionId, createdAt}`: durable facts Philip keeps (Gemini `remember`); deduped, newest 40 kept; survive log deletes; managed in Settings › Philip's memory |
+| `coachMessages` (v5, Story 9) | `++id`, index `at` | Ask Philip chat `{from: me\|philip, text, at}`, newest 200 kept. Workout chats stay on `workoutSessions.coach` |
 
-Migrations: v1 → v2 adds `weightEntries` and sets `profile.bodyFatPct = null`; v2 → v3 adds the empty `savedMeals` table (no record changes). Every record is kept (covered by `src/db/migration.test.ts`).
+Migrations: v1 → v2 adds `weightEntries` and sets `profile.bodyFatPct = null`; v2 → v3 adds the empty `savedMeals` table (no record changes); v3 → v4 adds the training tables; v4 → v5 adds the empty `coachNotes` and `coachMessages` tables (no record changes). Every record is kept (covered by `src/db/migration.test.ts`).
 
 Rules:
 - Entry dates are local `YYYY-MM-DD`; a meal at 11:55 PM stays on that day.
@@ -178,10 +180,17 @@ Pure modules, all tested: `program.ts` (blocks, waves, deload, RDL caps, TM prog
 - **Starting weights:** `lib/training/startLoad.ts` (`startRule`, `startingKg`, rounding down) feeds `session.ts#accessory` when an exercise has no log; `program.ts#nextTargetReps`. `sessionLog.ts#swapInSession` swaps one accessory until its first set is ticked.
 - **Rest alerts:** `services/restPush.ts` (config from `VITE_PUSH_URL`/`VITE_PUSH_VAPID_KEY`, subscribe, `scheduleRestAlert`/`cancelRestAlert` with a 3 s timeout, `beep`). The service worker handles `push` (type `rest`) and `notificationclick`. Server: `push-worker/` (Cloudflare Worker + Durable Object alarm; see its README).
 
+## Philip's memory (Story 9, D-031)
+
+- **Brief:** `lib/coach/brief.ts#buildBrief` (pure) turns the whole history into ≤ 6,000 characters (`BRIEF_BUDGET`), sections in priority order: notes → lifter (age/sex/height, targets, weight 7-day average + 4-week trend, body fat, food last 7 days) → program (cycle, phase, TMs now and in cycle 1, goal) → main lifts (best set per session, e1RM, last 5) → reported pain/notes (6 weeks) → recent workouts (6) → accessories (latest log each, 12) → earlier chats (12 lines). Lines that don't fit are cut from the end. `db/coachBrief.ts#loadBrief(today, {excludeSessionId, excludeAsk})` reads everything in one read transaction; Settings › Philip's memory › "Include body and food data" (`META.coachShareBody`, default on, device-only) drops the lifter's body and food lines.
+- **Where it goes:** the workout report and the chat under it (`reportPrompt`/`chatPrompt` take the brief, today's workout follows it), the mid-set check-in (`exerciseHistory` for that exercise + notes), and Ask Philip (`lib/coach/memory.ts#askPrompt`, `#/ask`, advice only; plan changes stay in the report where they're validated).
+- **Remember:** any coaching reply may carry `remember: string[]`; `parseRemember` keeps ≤ 2 clean lines (≤ 140 chars); `repo.addCoachNotes` dedupes and keeps the newest 40.
+- **Backup:** `training.coachNotes` / `training.coachMessages` (optional; `schemaVersion` stays 1). Delete all data clears them.
+
 ## Network
 
 Two destinations, both optional; the app works fully offline without them:
-- **Gemini** (`services/foodAnalysis/gemini.ts`), with the owner's key.
+- **Gemini** (`services/foodAnalysis/gemini.ts`), with the owner's key. Since Story 9 coaching prompts carry Philip's brief (training history, notes, recent chats, and body/food data unless switched off).
 - **Rest-alert Worker** (`services/restPush.ts` → `push-worker/`), only when Rest alerts are on: the push subscription, the rest end time and the next-set text. Apple/Google/Mozilla push services deliver the notification.
 
 ## Offline / PWA

@@ -146,7 +146,12 @@ export function HomeView() {
           <WorkoutCardBody state={card} tmHistory={tmHistory ?? []} cyclePhase={cycle?.phase ?? null} unit={unit} />
         </button>
 
-        <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose="cross-smug" framing="bust" scale={2} className="pm-dialog-portrait" />} className="home-dialog">
+        <DialogBar
+          speaker={t('coach.speaker')}
+          portrait={<GymCharacter pose="cross-smug" framing="bust" scale={2} className="pm-dialog-portrait" />}
+          className="home-dialog"
+          action={{ label: t('home.ask'), onClick: () => navigate('ask') }}
+        >
           {t(homeLine(card, rem))}
         </DialogBar>
       </div>

@@ -1,6 +1,8 @@
 /** Data access functions. UI components call these instead of touching tables directly. */
 import { db, newId, defaultProfile, type PhilipDB } from './db';
 import type {
+  CoachChatMessage,
+  CoachNote,
   CoachThread,
   CycleRecord,
   FoodEntry,
@@ -317,6 +319,8 @@ export const META = {
   restSound: 'restSound',
   /** Story 6: this device's push subscription for rest alerts (absent = alerts off). Not in backups. */
   restAlertSub: 'restAlertSub',
+  /** Story 9: body (weight, body fat, age) and food data go into Philip's brief (absent = yes). Not in backups. */
+  coachShareBody: 'coachShareBody',
 } as const;
 
 /* ---------------- Training (Story 5, T-012) ---------------- */
@@ -644,4 +648,68 @@ export async function deleteWorkoutSession(id: string, database: PhilipDB = db):
     if (JSON.stringify(next) !== JSON.stringify(program)) await database.trainingProgram.put({ ...next, updatedAt: Date.now() });
     await database.workoutSessions.delete(id);
   });
+}
+
+/* ---------------- Philip's memory (Story 9) ---------------- */
+
+export const MEMORY = {
+  /** Notes kept; the oldest go first when a new one would pass this. */
+  notesMax: 40,
+  noteChars: 140,
+  /** Ask Philip lines kept on the device. */
+  askMessagesMax: 200,
+} as const;
+
+const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** Adds notes Philip asked to remember. Skips blanks and repeats (case-insensitive); keeps the newest notesMax. */
+export async function addCoachNotes(
+  texts: readonly string[],
+  from: { source: CoachNote['source']; sessionId: string | null },
+  now = Date.now(),
+  database: PhilipDB = db,
+): Promise<number> {
+  return database.transaction('rw', database.coachNotes, async () => {
+    const existing = await database.coachNotes.toArray();
+    const seen = new Set(existing.map((n) => norm(n.text)));
+    const fresh: CoachNote[] = [];
+    for (const raw of texts) {
+      const text = raw.trim().slice(0, MEMORY.noteChars);
+      if (!text || seen.has(norm(text))) continue;
+      seen.add(norm(text));
+      fresh.push({ text, source: from.source, sessionId: from.sessionId, createdAt: now + fresh.length });
+    }
+    if (fresh.length) await database.coachNotes.bulkAdd(fresh);
+    const over = existing.length + fresh.length - MEMORY.notesMax;
+    if (over > 0) {
+      const oldest = await database.coachNotes.orderBy('createdAt').limit(over).primaryKeys();
+      await database.coachNotes.bulkDelete(oldest);
+    }
+    return fresh.length;
+  });
+}
+
+export function allCoachNotes(database: PhilipDB = db): Promise<CoachNote[]> {
+  return database.coachNotes.orderBy('createdAt').toArray();
+}
+
+export async function deleteCoachNote(id: number, database: PhilipDB = db): Promise<void> {
+  await database.coachNotes.delete(id);
+}
+
+export async function clearCoachNotes(database: PhilipDB = db): Promise<void> {
+  await database.coachNotes.clear();
+}
+
+/** Appends an Ask Philip line and trims the chat to askMessagesMax. */
+export async function addCoachMessage(m: Omit<CoachChatMessage, 'id'>, database: PhilipDB = db): Promise<void> {
+  await database.transaction('rw', database.coachMessages, async () => {
+    await database.coachMessages.add({ ...m });
+    const over = (await database.coachMessages.count()) - MEMORY.askMessagesMax;
+    if (over > 0) await database.coachMessages.bulkDelete(await database.coachMessages.orderBy('at').limit(over).primaryKeys());
+  });
+}
+
+export async function clearCoachMessages(database: PhilipDB = db): Promise<void> {
+  await database.coachMessages.clear();
 }

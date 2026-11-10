@@ -234,3 +234,15 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Alternatives:** a bundle-analyzer dependency (not needed: Rollup module info and zlib); splitting `en.ts` (biggest remaining item, deferred until the budget is tight); Lighthouse CI (needs Chrome + a dependency; CDP covers what we need).
 - **Consequences:** Raising a budget needs a line here. Results: initial JS 167.5 KB gzip (−6%), session idle 2.8–3.1 ms/s (−70%). New Settings line for space used (`navigator.storage.estimate`). No data model change, no new dependencies. Story 9 (Philip's memory) must stay inside these budgets and adds a Gemini prompt-size budget.
 - **Date:** 2026-11-10 · **By:** Ryan (owner) · **Status:** Implemented on `feat/T-025-efficiency`
+
+## D-031 — Story 9: Philip's memory (brief, notes, Ask Philip)
+- **Context:** Owner (2026-11-09): every conversation with Philip should use the whole history (sets, weights, exercises, earlier conversations) from a well-organised database. Gemini saw only today's session (report/chat) or one set (check-in). Spec: `docs/stories/STORY_9_PHILIP_MEMORY.md`.
+- **Decision:**
+  1. **A pure, budgeted brief** (`lib/coach/brief.ts`, ≤ 6,000 characters, sections in priority order) goes in front of every coaching prompt: report, report chat, Ask Philip; the mid-set check-in gets that exercise's last logs + notes. Never the raw database.
+  2. **Notes Philip keeps** (`coachNotes`, Dexie v5): replies may carry `remember` (≤ 2 lines, ≤ 140 chars); deduped, newest 40 kept, visible and deletable in Settings › Philip's memory. They are text facts only: nothing in the plan changes from a note.
+  3. **Ask Philip** (`#/ask`, from Home's dialog bar): a chat outside workouts (`coachMessages`, newest 200), advice only; plan changes stay in the validated report flow.
+  4. **Body and food sharing switch** (`META.coachShareBody`, default on, device-only). This reverses the D-029 note "no body stats to Gemini" for coaching prompts, at the owner's request for full-history coaching; the owner can turn it off.
+- **Reason:** owner request; free-tier friendly (one bounded prompt per question); keeps the "AI never changes the plan without Apply" rule.
+- **Alternatives:** sending all sessions as JSON (slow, large, leaks more); Gemini function calling to query the DB (more requests per answer on the free tier, more code); a separate vector store (needs a server); storing every chat in one new table (would have meant migrating Story 7 threads; the brief reads both places instead).
+- **Consequences:** Dexie v5 (additive). Backup gains optional `training.coachNotes` / `training.coachMessages`; `schemaVersion` stays 1. Initial JS 168.7 KB gzip (within D-030's 172). No new dependencies.
+- **Date:** 2026-11-10 · **By:** Ryan (owner) · **Status:** Implemented on `feat/T-026-philip-memory`

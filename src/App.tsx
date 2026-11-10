@@ -20,6 +20,7 @@ const ProgressView = lazy(() => import('./views/ProgressView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 const TargetsPage = lazy(() => import('./views/TargetsPage'));
 const WorkoutView = lazy(() => import('./views/WorkoutView'));
+const AskView = lazy(() => import('./views/AskView'));
 
 export function App() {
   const [tab, navigate] = useRoute();
@@ -120,6 +121,7 @@ export function App() {
               {tab === 'progress' && <ProgressView />}
               {tab === 'settings' && <SettingsView />}
               {tab === 'targets' && <TargetsPage />}
+              {tab === 'ask' && <AskView />}
             </Suspense>
           </main>
           <TabBar tab={tab} onTab={onTab} />

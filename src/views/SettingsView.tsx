@@ -21,6 +21,7 @@ import { todayYmd } from '../lib/date';
 import { planForDate } from '../lib/nutrition';
 import { useUI } from '../ui';
 import { TrainingSettings } from './TrainingSettings';
+import { MemorySettings } from './MemorySettings';
 import { formatMb, isStandalone, storageUsedBytes, type PersistState } from '../lib/pwa';
 import { AnalysisError } from '../services/foodAnalysis';
 import { openQaFeedback } from '../modules/qa-feedback';
@@ -36,6 +37,7 @@ export default function SettingsView() {
         <TargetsLink />
         <DataSection />
         <GeminiSection />
+        <MemorySettings />
         <UnitsSection />
         <TrainingSettings />
         <HelpSection />

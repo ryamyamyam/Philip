@@ -11,6 +11,7 @@ Base branch for new work: `main`.
 
 | ID | Feature | Role | Status | Branch | Depends on |
 |---|---|---|---|---|---|
+| T-025 | Story 8 efficiency budgets + fixes | Core + QA | Ready for owner review | `feat/T-025-efficiency` | `c19a57d` |
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
 | T-004 | Live Gemini key verification | Owner + QA | In progress — “What should I eat?” works (2026-11-03); photo/text/errors unchecked | — | — |
 | T-006 | SW `ignoreVary` + update-available prompt | Core | Proposed | `fix/T-006-sw-offline-update` | — |
@@ -24,6 +25,13 @@ Base branch for new work: `main`.
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-025 — Story 8: efficiency budgets and fixes (D-030)
+- **Role:** Core + QA. **Spec:** `docs/stories/STORY_8_EFFICIENCY.md`.
+- **Files:** new `scripts/size-budget.mjs`, `e2e/perf.spec.ts`, `src/lib/backupName.ts`, `src/lib/pwa.test.ts`, `docs/stories/STORY_8_EFFICIENCY.md`; `src/views/workout/SessionView.tsx` (clock), `src/views/photo/useTextFood.ts` (lazy Gemini), `src/lib/backup.ts` (re-export), `src/components/BackupReminder.tsx`, `src/lib/pwa.ts` (storage estimate), `src/views/SettingsView.tsx`, `src/i18n/en.ts` (`settings.storageUsed`), `package.json` (`size` script, no deps), `.github/workflows/deploy.yml`, docs (DECISIONS D-030, QA_STRATEGY, CLAUDE.md, this file).
+- **Results:** initial JS 178.2 → 167.5 KB gzip; session idle CPU 10.3 → ~3 ms/s at 4× slowdown; Home idle 0; no infinite animations idle.
+- **Status:** Ready for owner review · **Branch:** `feat/T-025-efficiency` on `main` @ `c19a57d`.
+- **Log:** 2026-11-10 Core (cloud clone): tsc clean, 341/341 unit, build OK, `npm run size` OK, Chromium e2e 99/99 (incl. 3 perf). WebKit pending on the Mac.
 
 ### T-023 — Story 6 QA and docs
 - **Role:** QA. **Spec:** `docs/stories/STORY_6_OPTIMIZATION.md` §11.

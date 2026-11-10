@@ -67,7 +67,7 @@ Severity:           blocker | major | minor | cosmetic
 A task may be marked **Completed** only when all of these hold (with evidence in the task entry):
 
 - [ ] Implementation matches the approved spec; acceptance criteria satisfied.
-- [ ] `npm test`, `npm run typecheck` and `npm run build` pass.
+- [ ] `npm test`, `npm run typecheck`, `npm run build` and `npm run size` (D-030 budgets) pass.
 - [ ] Relevant e2e specs pass on `chromium-mobile`; WebKit run on the Mac, or the gap is explicitly recorded.
 - [ ] Regression check of neighbouring flows done (full e2e suite for anything touching shared files).
 - [ ] No unauthorized files modified (`git diff --stat <base>...HEAD` matches the task's allowed files).

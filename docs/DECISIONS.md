@@ -222,3 +222,15 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Alternatives:** free reordering including the main lift; cardio inside the budget (would trim lifting); rules-only report (no chat); a Claude hand-off prompt instead of Gemini; storing overrides with a "consumed" flag.
 - **Consequences:** New optional fields only (`dayOrder`, `nextOverrides`, `cardio`, `coach`, `reviewApplied.swaps/days`); no Dexie bump; backup `schemaVersion` stays 1 and round-trips them. Deleting a log now also restores swaps (unless changed since) and training days, and drops its next-time orders. Gemini receives the workout log, TMs, phase, training days and the approved menus (no body stats). No new dependencies.
 - **Date:** 2026-11-09 · **By:** Ryan (owner) · **Status:** Implemented on `feat/T-024-gym-qa`
+
+## D-030 — Story 8: efficiency budgets
+- **Context:** Owner asked (2026-11-09) to check Philip is built efficiently: size on the phone, speed, battery, and other standard metrics. Nothing was measured before. Spec: `docs/stories/STORY_8_EFFICIENCY.md`.
+- **Decision:**
+  1. **Budgets that fail the build.** `scripts/size-budget.mjs` (`npm run size`, no dependencies, runs in `deploy.yml` after the build): initial JS ≤ 172 KB gzip, initial CSS ≤ 16 KB, largest lazy chunk ≤ 30 KB, precache ≤ 1,200 KB. `e2e/perf.spec.ts` (Chromium/CDP): cold FCP < 2.5 s at 4× CPU slowdown; idle CPU < 15 ms/s on Home and < 25 ms/s in a session with the rest timer; no infinite animations while idle.
+  2. **Clocks live in the smallest component and stop when hidden.** Per-second ticking only in `RestBar`; the session header ticks per minute; one-shot timers instead of polling for rest end and banner dismissal.
+  3. **Network-only code loads on use** (Gemini food analysis), and screens that need a big module only for one helper import the helper from a small file (`lib/backupName.ts`).
+  4. Offline-critical sheets stay in the first bundle until T-006.
+- **Reason:** Owner request; measured baseline: session idle 10.3 ms CPU per second (whole session re-rendered every second), first-screen JS 178 KB gzip with the Gemini service and backup code in it.
+- **Alternatives:** a bundle-analyzer dependency (not needed: Rollup module info and zlib); splitting `en.ts` (biggest remaining item, deferred until the budget is tight); Lighthouse CI (needs Chrome + a dependency; CDP covers what we need).
+- **Consequences:** Raising a budget needs a line here. Results: initial JS 167.5 KB gzip (−6%), session idle 2.8–3.1 ms/s (−70%). New Settings line for space used (`navigator.storage.estimate`). No data model change, no new dependencies. Story 9 (Philip's memory) must stay inside these budgets and adds a Gemini prompt-size budget.
+- **Date:** 2026-11-10 · **By:** Ryan (owner) · **Status:** Implemented on `feat/T-025-efficiency`

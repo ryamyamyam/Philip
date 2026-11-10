@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { db } from '../db/db';
 import { getMeta, META, setMeta } from '../db/repo';
 import { t } from '../i18n';
-import { backupFileName } from '../lib/backup';
+import { backupFileName } from '../lib/backupName';
 import { useUI } from '../ui';
 import { Icon } from './Icon';
 

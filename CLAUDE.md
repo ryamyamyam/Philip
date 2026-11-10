@@ -65,7 +65,7 @@ Story 4 (tour, D-024) and Story 5 (Home hub + workouts, D-025) are built on stac
 - `src/modules/qa-feedback/` is a portable module: it must not import from Philip code. Its strings live in `ui/strings.ts` (not `en.ts`) and its styles use `qa-` classes. Philip-specific wiring belongs in `src/qaFeedback.config.ts`.
 
 ## Commands
-`npm test` · `npm run typecheck` · `npm run build` · `npx playwright test --project=webkit-iphone` (or `chromium-mobile`). Details and Definition of Done: docs/QA_STRATEGY.md.
+`npm test` · `npm run typecheck` · `npm run build` · `npm run size` (bundle budgets, D-030; `e2e/perf.spec.ts` holds the CPU/animation budgets) · `npx playwright test --project=webkit-iphone` (or `chromium-mobile`). Details and Definition of Done: docs/QA_STRATEGY.md.
 
 ## QA & Feedback Capture
 Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, browser tests in `e2e/qa-feedback.spec.ts`). Data in the separate `qa-feedback` IndexedDB database, not in backups.

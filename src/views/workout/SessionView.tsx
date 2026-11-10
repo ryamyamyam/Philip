@@ -294,13 +294,70 @@ function Calibration({ lift, cycle, unit: defaultUnit }: { lift: LiftId; cycle: 
   );
 }
 
+/**
+ * Story 8 (battery): a clock that ticks every `ms`, only while the page is visible, and catches up
+ * at once when it becomes visible again. Keep it in the smallest component that shows the time,
+ * so a tick never re-renders the whole session.
+ */
 function useNow(ms: number): number {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), ms);
-    return () => window.clearInterval(id);
+    let id: number | undefined;
+    const tick = () => setNow(Date.now());
+    const start = () => {
+      window.clearInterval(id);
+      id = undefined;
+      if (document.visibilityState === 'hidden') return;
+      tick();
+      id = window.setInterval(tick, ms);
+    };
+    start();
+    document.addEventListener('visibilitychange', start);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', start);
+    };
   }, [ms]);
   return now;
+}
+
+/** Runs `fn` once at `at` (ms epoch), or right away if that's past; re-checked when the page shows again. */
+function useAt(at: number | null, fn: () => void): void {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    if (at === null) return;
+    let fired = false;
+    const fire = () => {
+      if (fired) return;
+      fired = true;
+      ref.current();
+    };
+    const id = window.setTimeout(fire, Math.max(0, at - Date.now()));
+    const onShow = () => {
+      if (document.visibilityState === 'visible' && Date.now() >= at) fire();
+    };
+    document.addEventListener('visibilitychange', onShow);
+    return () => {
+      window.clearTimeout(id);
+      document.removeEventListener('visibilitychange', onShow);
+    };
+  }, [at]);
+}
+
+/** The ticking rest countdown. Owns its 1 s clock so the session cards don't re-render each second. */
+function RestBar({ ends, dur, onSkip }: { ends: number; dur: number; onSkip: () => void }) {
+  const now = useNow(1000);
+  const left = Math.min(dur, Math.ceil((ends - now) / 1000));
+  if (left <= 0) return null;
+  return (
+    <div className="rest-bar" role="timer" aria-label={t('session.restLabel')}>
+      <span className="pm-display num">{t('session.restLeft', { t: fmtRest(left) })}</span>
+      <button type="button" className="btn btn-sm" onClick={onSkip}>
+        {t('session.restSkip')}
+      </button>
+    </div>
+  );
 }
 
 function LiveSession({
@@ -329,10 +386,10 @@ function LiveSession({
   const [pending, setPending] = useState<{ index: number; proposal: CheckinProposal } | null>(null);
   const [thinking, setThinking] = useState<number | null>(null);
   const [restEnds, setRestEnds] = useState<number | null>(null);
-  const now = useNow(1000);
+  // Story 8: the header only shows whole minutes, so the session itself ticks once a minute.
+  const now = useNow(60_000);
   const elapsedMin = Math.floor((now - session.startedAt) / 60000);
   const [restDur, setRestDur] = useState(0);
-  const restLeft = restEnds === null ? 0 : Math.min(restDur, Math.ceil((restEnds - now) / 1000));
   const lift = DAY_LIFT[session.day];
   const over = elapsedMin >= SESSION_BUDGET_MIN;
 
@@ -346,17 +403,15 @@ function LiveSession({
     if (alertPending.current && push && alertSub) void cancelRestAlert(push, alertSub);
     alertPending.current = false;
   };
-  useEffect(() => {
-    if (restEnds === null || restLeft > 0) return;
+  useAt(restEnds, () => {
+    if (restEnds === null) return;
     const shownAt = Date.now();
     setTimesUp({ endedAt: restEnds, shownAt });
     alertPending.current = false; // the Worker already sent (or will send) it
     if (!soundOff && document.visibilityState === 'visible' && shownAt - restEnds < 3000) beep();
     setRestEnds(null);
-  }, [restEnds, restLeft, soundOff]);
-  useEffect(() => {
-    if (timesUp && now - timesUp.shownAt >= 8000) setTimesUp(null);
-  }, [timesUp, now]);
+  });
+  useAt(timesUp ? timesUp.shownAt + 8000 : null, () => setTimesUp(null));
   // Leaving the session (finish, discard, back) cancels a pending alert.
   const cancelRef = useRef(cancelAlert);
   cancelRef.current = cancelAlert;
@@ -533,14 +588,7 @@ function LiveSession({
           onCancel={() => setDiscarding(false)}
         />
       )}
-      {restEnds !== null && restLeft > 0 && (
-        <div className="rest-bar" role="timer" aria-label={t('session.restLabel')}>
-          <span className="pm-display num">{t('session.restLeft', { t: fmtRest(restLeft) })}</span>
-          <button type="button" className="btn btn-sm" onClick={stopRest}>
-            {t('session.restSkip')}
-          </button>
-        </div>
-      )}
+      {restEnds !== null && <RestBar ends={restEnds} dur={restDur} onSkip={stopRest} />}
       {timesUp && (
         <div className="rest-bar is-up" role="alert">
           <span className="pm-display">

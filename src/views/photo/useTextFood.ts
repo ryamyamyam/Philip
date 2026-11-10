@@ -4,7 +4,7 @@ import { useRecentEntries, useSavedFoods } from '../../hooks/useData';
 import { t } from '../../i18n';
 import { localRows } from '../../lib/foodText';
 import { recentFoods, savedToQuick } from '../../lib/recents';
-import { AnalysisError, analyzeFoodText } from '../../services/foodAnalysis';
+import { AnalysisError } from '../../services/foodAnalysis/types';
 import { fromAnalysis, fromLocal, type ReviewItem } from './reviewModel';
 
 export interface TextFoodResult {
@@ -35,6 +35,8 @@ export function useTextFood(): (text: string) => Promise<TextFoodResult> {
     const profile = await getProfile();
     if (!profile.geminiKey) return local(t('add.textLocal'));
     try {
+      // Story 8: Gemini code loads only when it's used (it needs the network anyway).
+      const { analyzeFoodText } = await import('../../services/foodAnalysis');
       const r = await analyzeFoodText(text, { apiKey: profile.geminiKey, model: profile.geminiModel });
       if (r.items.length === 0) return local(t('add.textNothing'), r.model);
       return { items: fromAnalysis(r.items, { provider: 'gemini', model: r.model, analyzedAt: Date.now() }), notice: null, notes: r.notes, model: r.model };

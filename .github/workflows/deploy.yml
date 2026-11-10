@@ -30,6 +30,8 @@ jobs:
           # Rest alerts (Story 6 §8.2): public values, set as repository Variables (not Secrets).
           VITE_PUSH_URL: ${{ vars.VITE_PUSH_URL }}
           VITE_PUSH_VAPID_KEY: ${{ vars.VITE_PUSH_VAPID_KEY }}
+      # Story 8 (D-030): fail the deploy when the bundle grows past its budget.
+      - run: npm run size
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

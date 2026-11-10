@@ -36,6 +36,22 @@ export async function requestPersistentStorage(): Promise<PersistState> {
   }
 }
 
+/** Story 8: how much this origin stores on the device (app cache + IndexedDB), in bytes. Null when unknown. */
+export async function storageUsedBytes(): Promise<number | null> {
+  try {
+    const e = await navigator.storage?.estimate?.();
+    return typeof e?.usage === 'number' ? e.usage : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Bytes → "0.9 MB" (one decimal, never "0.0"). */
+export function formatMb(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return mb < 0.1 ? '< 0.1' : mb.toFixed(1);
+}
+
 export function isStandalone(): boolean {
   return (
     window.matchMedia?.('(display-mode: standalone)').matches ||

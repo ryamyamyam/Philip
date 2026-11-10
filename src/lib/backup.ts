@@ -101,10 +101,7 @@ export async function createBackup(database: PhilipDB, opts: { includeApiKey?: b
   });
 }
 
-export function backupFileName(now = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `philip-backup-${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}.json`;
-}
+export { backupFileName } from './backupName';
 
 /* ---------------- Validation ---------------- */
 

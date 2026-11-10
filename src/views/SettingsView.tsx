@@ -21,7 +21,7 @@ import { todayYmd } from '../lib/date';
 import { planForDate } from '../lib/nutrition';
 import { useUI } from '../ui';
 import { TrainingSettings } from './TrainingSettings';
-import { isStandalone, type PersistState } from '../lib/pwa';
+import { formatMb, isStandalone, storageUsedBytes, type PersistState } from '../lib/pwa';
 import { AnalysisError } from '../services/foodAnalysis';
 import { openQaFeedback } from '../modules/qa-feedback';
 import { DEFAULT_GEMINI_MODEL, listGeminiModels, normalizeModel, SUGGESTED_GEMINI_MODELS, testGeminiKey } from '../services/foodAnalysis/gemini';
@@ -75,6 +75,14 @@ function DataSection() {
   const toast = useToast();
   const lastBackup = useLastBackupAt();
   const persisted = useMeta<PersistState>(META.storagePersisted);
+  const [usedBytes, setUsedBytes] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void storageUsedBytes().then((b) => alive && setUsedBytes(b));
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [includeKey, setIncludeKey] = useState(false);
   const [pending, setPending] = useState<ParsedBackup | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +158,7 @@ function DataSection() {
             ? t('settings.storageNotPersisted')
             : t('settings.storageUnknown')}
       </p>
+      {usedBytes !== null && <p className="subtle num">{t('settings.storageUsed', { mb: formatMb(usedBytes) })}</p>}
       {!isStandalone() && <p className="subtle">{t('install.body')}</p>}
       <button type="button" className="btn btn-primary btn-block" onClick={() => void exportBackup()}>
         <Icon name="download" /> {t('settings.export')}

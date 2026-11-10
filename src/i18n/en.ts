@@ -409,6 +409,7 @@ export const en = {
   'settings.import': 'Restore from backup',
   'settings.lastBackup': 'Last backup: {date}',
   'settings.neverBackedUp': 'Never backed up',
+  'settings.storageUsed': 'Space used on this device: {mb} MB (app, data and QA screenshots)',
   'settings.storagePersisted': 'Persistent storage: granted',
   'settings.storageNotPersisted': 'Persistent storage: not granted. Add Philip to your Home Screen to make storage more durable.',
   'settings.storageUnknown': 'Persistent storage: unknown',

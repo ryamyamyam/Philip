@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import type { CardioLog } from '../../db/types';
+import type { CardioLog, Treadmill } from '../../db/types';
 import { t } from '../../i18n';
 import { parseDecimal } from '../../lib/numbers';
 import { canFinishCardio, clampField } from '../../lib/training/cardio';
+import { settingToMph } from '../../lib/training/treadmill';
 
 /**
  * The cardio finisher after the lifts (Story 7, OBS-93A8C0): an incline walk, outside the 45-minute
  * budget. Minutes are needed to tick it done; incline and speed are optional.
  */
-export function CardioCard({ cardio, cut, onChange }: { cardio: CardioLog; cut: boolean; onChange: (next: CardioLog) => void }) {
+export function CardioCard({ cardio, cut, treadmill, onChange }: { cardio: CardioLog; cut: boolean; treadmill?: Treadmill; onChange: (next: CardioLog) => void }) {
+  // Story 10 (OBS-E19B38): the speed is the machine's own number; Philip projects mph next to it.
+  const machine: Treadmill = treadmill ?? { name: '', scale: cardio.speedUnit, source: 'me' };
   const [min, setMin] = useState(cardio.minutes === null ? '' : String(cardio.minutes));
   const [incline, setIncline] = useState(cardio.inclinePct === null ? '' : String(cardio.inclinePct));
   const [speed, setSpeed] = useState(cardio.speed === null ? '' : String(cardio.speed));
@@ -18,13 +21,19 @@ export function CardioCard({ cardio, cut, onChange }: { cardio: CardioLog; cut: 
     setIncline(i);
     setSpeed(s);
     const mm = clampField('minutes', parse(m));
-    onChange({
+    const sp = clampField('speed', parse(s));
+    const mph = settingToMph(sp, machine);
+    const next: CardioLog = {
       ...cardio,
       minutes: mm === null ? null : Math.round(mm),
       inclinePct: clampField('inclinePct', parse(i)),
-      speed: clampField('speed', parse(s)),
+      speed: sp,
+      speedUnit: machine.scale,
       done: false,
-    });
+    };
+    if (mph !== null) next.speedMph = mph;
+    else delete next.speedMph;
+    onChange(next);
   };
   return (
     <section className={`card ex-card${cardio.skipped ? ' is-skipped' : ''}`} aria-labelledby="cardio-h">
@@ -53,9 +62,20 @@ export function CardioCard({ cardio, cut, onChange }: { cardio: CardioLog; cut: 
               <input className="input num" inputMode="decimal" value={incline} onChange={(e) => edit(min, e.target.value, speed)} />
             </label>
             <label className="field">
-              <span className="field-label">{t('cardio.speed', { unit: cardio.speedUnit === 'mph' ? 'mph' : 'km/h' })}</span>
+              <span className="field-label">
+                {machine.scale === 'level' ? t('cardio.speedLevel') : t('cardio.speed', { unit: machine.scale === 'mph' ? 'mph' : 'km/h' })}
+              </span>
               <input className="input num" inputMode="decimal" value={speed} onChange={(e) => edit(min, incline, e.target.value)} />
             </label>
+            {machine.scale !== 'mph' && (
+              <p className="small muted num cardio-mph" aria-live="polite">
+                {(() => {
+                  const mph = settingToMph(parse(speed), machine);
+                  if (mph !== null) return t(machine.scale === 'level' || machine.source === 'philip' ? 'cardio.mphEstimate' : 'cardio.mph', { mph });
+                  return machine.scale === 'level' && machine.maxLevel === undefined ? t('cardio.mphNeedsMachine') : null;
+                })()}
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -81,5 +101,6 @@ export function CardioCard({ cardio, cut, onChange }: { cardio: CardioLog; cut: 
 export function cardioValue(c: CardioLog): string {
   if (c.skipped) return t('cardio.skipped');
   if (!c.done || c.minutes === null) return t('cardio.notLogged');
-  return c.inclinePct !== null ? t('cardio.loggedIncline', { n: c.minutes, incline: c.inclinePct }) : t('cardio.logged', { n: c.minutes });
+  const base = c.inclinePct !== null ? t('cardio.loggedIncline', { n: c.minutes, incline: c.inclinePct }) : t('cardio.logged', { n: c.minutes });
+  return c.speedMph !== undefined ? `${base} · ${t('cardio.mphShort', { mph: c.speedMph })}` : base;
 }

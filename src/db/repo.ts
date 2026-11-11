@@ -609,45 +609,79 @@ export async function deleteWorkoutSession(id: string, database: PhilipDB = db):
   await database.transaction('rw', [database.workoutSessions, database.tmHistory, database.cycles, database.trainingProgram, database.slotChoices], async () => {
     const session = await database.workoutSessions.get(id);
     if (!session) return;
-    const program = await database.trainingProgram.get('me');
-    if (!program || session.cycle !== program.currentCycle) throw new LockedSessionError();
-    const applied = session.reviewApplied;
-    if (applied) {
-      const records = await database.tmHistory.toArray();
-      const now = Date.now();
-      for (const change of applied.tm) {
-        const effective = session.cycle;
-        const current = tmsForCycle(records, effective)[change.lift];
-        if (current === null) continue;
-        const tmKg = Math.round((current + change.fromKg - change.toKg) * 100) / 100;
-        const row = { lift: change.lift, tmKg, effectiveCycle: effective, reason: 'undo' as const, createdAt: now };
-        const newId = (await database.tmHistory.add(row)) as number;
-        records.push({ ...row, id: newId });
-      }
-      if (applied.restBonusAddedSec > 0) {
-        const cycle = await database.cycles.get(session.cycle);
-        if (cycle) await database.cycles.update(cycle.index, { restBonusSec: Math.max(0, (cycle.restBonusSec ?? 0) - applied.restBonusAddedSec) });
-      }
-      // Story 7: a swap goes back to what it replaced, unless the owner changed that slot since.
-      for (const sw of applied.swaps ?? []) {
-        const now = await database.slotChoices.get(sw.slotKey);
-        if (now && now.exerciseId !== sw.to) continue;
-        if (sw.from === null) await database.slotChoices.delete(sw.slotKey);
-        else await database.slotChoices.put({ slotKey: sw.slotKey, exerciseId: sw.from, chosenAt: Date.now() });
-      }
-    }
-    // Story 7: training days go back (unless changed since); next-time orders this log set go.
-    const days = applied?.days;
-    const overrides = (program.nextOverrides ?? []).filter((o) => o.afterSessionId !== id);
-    const next: TrainingProgram = { ...program, nextOverrides: overrides };
-    if (days && (program.trainingDays ?? []).join() === days.to.join()) {
-      if (days.from === null) delete next.trainingDays;
-      else next.trainingDays = days.from;
-    }
-    if (!next.nextOverrides?.length) delete next.nextOverrides;
-    if (JSON.stringify(next) !== JSON.stringify(program)) await database.trainingProgram.put({ ...next, updatedAt: Date.now() });
+    await undoSessionChanges(session, database);
     await database.workoutSessions.delete(id);
   });
+}
+
+/**
+ * Story 10 (OBS-7BAD75): reopen a finished log of the current cycle to fix it. Undoes what its review
+ * and report applied (exactly as delete does), clears the report so Philip reviews the fixed log, and
+ * marks it `editing`. Throws LockedSessionError for past cycles; refuses while another workout is open.
+ */
+export async function reopenWorkoutSession(id: string, database: PhilipDB = db): Promise<void> {
+  await database.transaction('rw', [database.workoutSessions, database.tmHistory, database.cycles, database.trainingProgram, database.slotChoices], async () => {
+    const session = await database.workoutSessions.get(id);
+    if (!session || session.status !== 'done') return;
+    const open = await database.workoutSessions.where('status').equals('in_progress').count();
+    if (open > 0) throw new OpenSessionError();
+    await undoSessionChanges(session, database);
+    const next: WorkoutSession = { ...session, status: 'in_progress', editing: true };
+    delete next.reviewed;
+    delete next.reviewApplied;
+    delete next.coach;
+    await database.workoutSessions.put(next);
+  });
+}
+
+/** Another workout is still open (one at a time). */
+export class OpenSessionError extends Error {
+  constructor() {
+    super('Another workout is open');
+    this.name = 'OpenSessionError';
+  }
+}
+
+/** Undo what a session's review/report applied; shared by delete and reopen. Runs inside their transaction. */
+async function undoSessionChanges(session: WorkoutSession, database: PhilipDB): Promise<void> {
+  const id = session.id;
+  const program = await database.trainingProgram.get('me');
+  if (!program || session.cycle !== program.currentCycle) throw new LockedSessionError();
+  const applied = session.reviewApplied;
+  if (applied) {
+    const records = await database.tmHistory.toArray();
+    const now = Date.now();
+    for (const change of applied.tm) {
+      const effective = session.cycle;
+      const current = tmsForCycle(records, effective)[change.lift];
+      if (current === null) continue;
+      const tmKg = Math.round((current + change.fromKg - change.toKg) * 100) / 100;
+      const row = { lift: change.lift, tmKg, effectiveCycle: effective, reason: 'undo' as const, createdAt: now };
+      const newId = (await database.tmHistory.add(row)) as number;
+      records.push({ ...row, id: newId });
+    }
+    if (applied.restBonusAddedSec > 0) {
+      const cycle = await database.cycles.get(session.cycle);
+      if (cycle) await database.cycles.update(cycle.index, { restBonusSec: Math.max(0, (cycle.restBonusSec ?? 0) - applied.restBonusAddedSec) });
+    }
+    // Story 7: a swap goes back to what it replaced, unless the owner changed that slot since.
+    for (const sw of applied.swaps ?? []) {
+      const now = await database.slotChoices.get(sw.slotKey);
+      if (now && now.exerciseId !== sw.to) continue;
+      if (sw.from === null) await database.slotChoices.delete(sw.slotKey);
+      else await database.slotChoices.put({ slotKey: sw.slotKey, exerciseId: sw.from, chosenAt: Date.now() });
+    }
+  }
+  // Story 7: training days go back (unless changed since); next-time orders this log set go.
+  const days = applied?.days;
+  const overrides = (program.nextOverrides ?? []).filter((o) => o.afterSessionId !== id);
+  const next: TrainingProgram = { ...program, nextOverrides: overrides };
+  if (days && (program.trainingDays ?? []).join() === days.to.join()) {
+    if (days.from === null) delete next.trainingDays;
+    else next.trainingDays = days.from;
+  }
+  if (!next.nextOverrides?.length) delete next.nextOverrides;
+  if (JSON.stringify(next) !== JSON.stringify(program)) await database.trainingProgram.put({ ...next, updatedAt: Date.now() });
 }
 
 /* ---------------- Philip's memory (Story 9) ---------------- */

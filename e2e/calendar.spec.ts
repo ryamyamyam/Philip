@@ -35,6 +35,7 @@ async function finishDay1(page: Page) {
   const squat = main(page).getByRole('region', { name: 'Back squat', exact: true });
   await squat.getByRole('listitem').nth(3).getByRole('button', { name: 'Set 4: as ordered' }).click();
   await main(page).getByRole('button', { name: 'Finish workout' }).click();
+  await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
   await main(page).getByRole('button', { name: 'Back to calendar' }).last().click();
 }
 
@@ -50,7 +51,7 @@ test.describe('Training calendar (Story 6, T-020)', () => {
     await expect(grid.getByRole('gridcell', { name: /November 3.*planned: Day 2, Bench press/ })).toContainText('BP');
     await expect(grid.getByRole('gridcell', { name: /November 4/ })).not.toContainText(/SQ|BP|RDL|OHP/);
     await expect(grid.getByRole('gridcell', { name: /November 27.*goal day: end of cycle 1/ })).toBeVisible();
-    await expect(main(page)).toContainText('Day 1. Back squat. No negotiating.');
+    await expect(main(page)).toContainText('Day 1. Back squat. I planned this one for you. Come see.');
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/t020-calendar-planned.png`, fullPage: true });
 
     // Goal day box: the cycle goal from the briefing, wording per phase, the honest footnote.

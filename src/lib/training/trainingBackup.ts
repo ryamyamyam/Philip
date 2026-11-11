@@ -19,6 +19,7 @@ import type {
   SlotChoice,
   TmRecord,
   TrainingProgram,
+  Treadmill,
   WorkoutSession,
 } from '../../db/types';
 import { isValidYmd } from '../date';
@@ -130,6 +131,20 @@ function program(x: unknown): TrainingProgram | null {
     ...(o.trainingDays != null ? { trainingDays: trainingDays(o.trainingDays, `${p}.trainingDays`) } : {}),
     ...(o.dayOrder != null ? { dayOrder: dayOrder(o.dayOrder, `${p}.dayOrder`) } : {}),
     ...(o.nextOverrides != null ? { nextOverrides: list(o.nextOverrides, `${p}.nextOverrides`).map((v, i) => override(v, `${p}.nextOverrides[${i}]`)) } : {}),
+    ...(o.treadmill != null ? { treadmill: treadmill(o.treadmill, `${p}.treadmill`) } : {}),
+  };
+}
+
+/** Story 10: the owner's treadmill (optional). */
+function treadmill(x: unknown, path: string): Treadmill {
+  const o = obj(x, path);
+  return {
+    name: typeof o.name === 'string' ? o.name.slice(0, 80) : '',
+    scale: oneOf(o, 'scale', ['mph', 'kmh', 'level'] as const, path),
+    ...(o.maxLevel != null ? { maxLevel: num(o, 'maxLevel', path, 2, 40) } : {}),
+    ...(o.minMph != null ? { minMph: num(o, 'minMph', path, 0, 2) } : {}),
+    ...(o.maxMph != null ? { maxMph: num(o, 'maxMph', path, 4, 15) } : {}),
+    source: oneOf(o, 'source', ['philip', 'me'] as const, path),
   };
 }
 
@@ -167,7 +182,8 @@ function cardio(x: unknown, path: string): CardioLog {
     minutes: numOrNull(o, 'minutes', path, 0, 600),
     inclinePct: numOrNull(o, 'inclinePct', path, 0, 100),
     speed: numOrNull(o, 'speed', path, 0, 100),
-    speedUnit: oneOf(o, 'speedUnit', ['mph', 'kmh'] as const, path),
+    speedUnit: oneOf(o, 'speedUnit', ['mph', 'kmh', 'level'] as const, path),
+    ...(o.speedMph != null ? { speedMph: num(o, 'speedMph', path, 0, 30) } : {}),
     done: bool(o, 'done'),
     skipped: bool(o, 'skipped'),
   };
@@ -353,6 +369,7 @@ function session(x: unknown, i: number): WorkoutSession {
     ...(o.reviewApplied != null ? { reviewApplied: reviewApplied(o.reviewApplied, `${p}.reviewApplied`) } : {}),
     ...(o.cardio != null ? { cardio: cardio(o.cardio, `${p}.cardio`) } : {}),
     ...(o.coach != null ? { coach: coach(o.coach, `${p}.coach`) } : {}),
+    ...(o.editing === true ? { editing: true } : {}),
   };
 }
 

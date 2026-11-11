@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ActualSet, SessionExercise } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
 import { parseDecimal } from '../../lib/numbers';
@@ -7,10 +7,11 @@ import { loadFor, type BarSetup, type PlateUnit } from '../../lib/training/plate
 import type { Block, Day } from '../../lib/training/program';
 import type { Prescribed } from '../../lib/training/session';
 import { canCopyOrder, canMarkDone, copyOrder, infoFor } from '../../lib/training/sessionLog';
-import { CHECKIN_FLAGS, type CheckinFlag, type TodayChange } from '../../lib/training/checkin';
+import { CHECKIN_FLAGS, type CheckinFlag, type CheckinOption } from '../../lib/training/checkin';
 import { fmtBoth, fmtIn, fmtRest, fromDisplay, inputValue } from './units';
 import { Icon } from '../../components/Icon';
 import { startRule } from '../../lib/training/startLoad';
+import { useLongPress } from './ReorderList';
 
 const loadKindOf = (id: string): LoadKind => {
   try {
@@ -42,22 +43,27 @@ export interface ExerciseCardProps {
   /** Philip's first-set weight for a swap option (estimate or last progression), for the swap list. */
   swapPreviewKg?: (to: ExerciseId) => number | null;
   /** Owner tells Philip how a set went (owner feedback, Nov 5). */
-  onCheckin: (order: number, flag: CheckinFlag | null, note: string) => void;
-  /** Philip's proposed change for the rest of today, waiting for OK. */
+  /** `ask` = the owner wants Philip (Gemini) to read the note too. */
+  onCheckin: (order: number, flag: CheckinFlag | null, note: string, ask: boolean) => void;
+  /** OBS-2C086C: a set was just ticked; the card hands the updated exercise for the miss check. */
+  onMissed?: (order: number, next: SessionExercise) => void;
+  /** Philip's options for the rest of today, waiting for the owner's pick (OBS-097D6D). */
   proposal?: CheckinProposal | null;
+  /** The set the options belong to (they show right under it). */
+  proposalOrder?: number | null;
   thinking?: boolean;
-  onAccept?: () => void;
+  onAccept?: (picked: readonly CheckinOption[]) => void;
   onDecline?: () => void;
-  /** Story 7 (OBS-F52773): move this exercise up (-1) or down (+1); undefined = that way is blocked. */
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  /** Story 10 (OBS-DD5F16): long-press the title bar to reorder (undefined = this card can't start it). */
+  onReorder?: () => void;
 }
 
 /**
  * One exercise: PHILIP'S ORDERS (read-only, frozen on the session) above YOUR LIFT (the owner's own
  * numbers, empty until he types or taps "As ordered"). The two never overwrite each other.
  */
-export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, swapPreviewKg, onCheckin, proposal, thinking, onAccept, onDecline, onMoveUp, onMoveDown }: ExerciseCardProps) {
+export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, swapPreviewKg, onCheckin, onMissed, proposal, proposalOrder, thinking, onAccept, onDecline, onReorder }: ExerciseCardProps) {
+  const longPress = useLongPress(onReorder);
   const info = infoFor(ex.exerciseId);
   const pair = !!info.pair;
   const [noteOpen, setNoteOpen] = useState(ex.note !== '');
@@ -70,9 +76,14 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
   const titleId = `ex-${ex.slot}`;
 
   const setActual = (order: number, next: ActualSet, restAfter?: number) => {
-    onChange({ ...ex, actual: ex.actual.map((a) => (a.order === order ? next : a)) });
+    const was = ex.actual.find((a) => a.order === order);
+    const updated = { ...ex, actual: ex.actual.map((a) => (a.order === order ? next : a)) };
+    onChange(updated);
     if (restAfter) onRest(restAfter);
+    if (next.done && !was?.done) onMissed?.(order, updated);
   };
+  const options = proposal ? <ProposalCard key={proposal.message + proposal.options.map((o) => o.id).join()} proposal={proposal} ex={ex} unit={unit} pair={pair} onAccept={onAccept} onDecline={onDecline} /> : null;
+  const optionsAtSet = proposal && proposalOrder !== null && proposalOrder !== undefined && ex.prescription.some((p) => p.order === proposalOrder) && !ex.skipped;
   const hurts = () => {
     const target = ex.actual.find((a) => !a.done) ?? ex.actual[ex.actual.length - 1];
     if (!target) return;
@@ -81,7 +92,7 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
 
   return (
     <section className={`card ex-card${ex.skipped ? ' is-skipped' : ''}`} aria-labelledby={titleId}>
-      <header className="ex-head">
+      <header className={`ex-head${onReorder ? ' can-reorder' : ''}`} {...longPress.handlers} title={onReorder ? t('reorder.press') : undefined}>
         <span className="pm-pill ex-slot">{t(SLOT_KEY[ex.slot])}</span>
         <h2 id={titleId} className="ex-name">
           {menu && !ex.skipped ? (
@@ -93,16 +104,6 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
             exName(ex.exerciseId)
           )}
         </h2>
-        {(onMoveUp || onMoveDown) && (
-          <div className="ex-move" role="group" aria-label={t('session.orderHint')}>
-            <button type="button" className="btn btn-sm btn-ghost" disabled={!onMoveUp} aria-label={t('session.moveUpN', { name: exName(ex.exerciseId) })} onClick={onMoveUp}>
-              {t('session.moveUp')}
-            </button>
-            <button type="button" className="btn btn-sm btn-ghost" disabled={!onMoveDown} aria-label={t('session.moveDownN', { name: exName(ex.exerciseId) })} onClick={onMoveDown}>
-              {t('session.moveDown')}
-            </button>
-          </div>
-        )}
       </header>
       {ex.swappedFrom && <p className="small muted">{t('cal.swappedFrom', { name: exName(ex.swappedFrom) })}</p>}
 
@@ -138,7 +139,8 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
                 pair={pair}
                 locked={stopped && !a.done && !a.pain}
                 onChange={(next, rest) => setActual(p.order, next, rest)}
-                onCheckin={(flag, note) => onCheckin(p.order, flag, note)}
+                onCheckin={(flag, note, ask) => onCheckin(p.order, flag, note, ask)}
+                after={optionsAtSet && proposalOrder === p.order ? options : null}
               />
             );
           })}
@@ -150,7 +152,7 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
           {t('checkin.thinking')}
         </p>
       )}
-      {proposal && <ProposalCard proposal={proposal} unit={unit} onAccept={onAccept} onDecline={onDecline} />}
+      {!optionsAtSet && options}
 
       {stopped && (
         <p className="ex-pain" role="alert">
@@ -284,7 +286,9 @@ function SetRow({
   locked,
   onChange,
   onCheckin,
+  after,
 }: {
+  after?: ReactNode;
   loadKind: LoadKind;
   pair: boolean;
   p: Prescribed;
@@ -295,7 +299,7 @@ function SetRow({
   bodyweight: boolean;
   locked: boolean;
   onChange: (next: ActualSet, restSec?: number) => void;
-  onCheckin: (flag: CheckinFlag | null, note: string) => void;
+  onCheckin: (flag: CheckinFlag | null, note: string, ask: boolean) => void;
 }) {
   const [talk, setTalk] = useState(false);
   const [kg, setKg] = useState(inputValue(a.kg, unit));
@@ -407,12 +411,13 @@ function SetRow({
           n={n}
           initialFlag={a.flag ?? null}
           initialNote={a.note ?? ''}
-          onSend={(flag, note) => {
+          onSend={(flag, note, ask) => {
             setTalk(false);
-            onCheckin(flag, note);
+            onCheckin(flag, note, ask);
           }}
         />
       )}
+      {after}
     </li>
   );
 }
@@ -424,7 +429,10 @@ const FLAG_KEY: Record<CheckinFlag, StringKey> = {
   pain: 'checkin.flag.pain',
 };
 
-/** Tell Philip how this set went: one tap on a flag, an optional note, Send. */
+/**
+ * Tell Philip how this set went. OBS-097D6D: one tap on a flag answers at once with Philip's options
+ * (no Send needed). A typed note can go to Philip (Gemini) with "Ask Philip".
+ */
 function CheckinPanel({
   n,
   initialFlag,
@@ -434,7 +442,7 @@ function CheckinPanel({
   n: number;
   initialFlag: CheckinFlag | null;
   initialNote: string;
-  onSend: (flag: CheckinFlag | null, note: string) => void;
+  onSend: (flag: CheckinFlag | null, note: string, ask: boolean) => void;
 }) {
   const [flag, setFlag] = useState<CheckinFlag | null>(initialFlag);
   const [note, setNote] = useState(initialNote);
@@ -442,7 +450,17 @@ function CheckinPanel({
     <div className="checkin" role="group" aria-label={t('checkin.title', { n })}>
       <div className="checkin-flags" role="radiogroup" aria-label={t('checkin.how')}>
         {CHECKIN_FLAGS.map((f) => (
-          <button key={f} type="button" role="radio" aria-checked={flag === f} className="btn btn-sm btn-secondary" onClick={() => setFlag(flag === f ? null : f)}>
+          <button
+            key={f}
+            type="button"
+            role="radio"
+            aria-checked={flag === f}
+            className="btn btn-sm btn-secondary"
+            onClick={() => {
+              setFlag(f);
+              onSend(f, note.trim(), false);
+            }}
+          >
             {t(FLAG_KEY[f])}
           </button>
         ))}
@@ -451,7 +469,7 @@ function CheckinPanel({
         <span className="field-label">{t('checkin.noteLabel')}</span>
         <textarea className="input" rows={2} value={note} maxLength={400} onChange={(e) => setNote(e.target.value)} />
       </label>
-      <button type="button" className="btn btn-sm btn-primary" disabled={!flag && !note.trim()} onClick={() => onSend(flag, note.trim())}>
+      <button type="button" className="btn btn-sm btn-primary" disabled={!note.trim()} onClick={() => onSend(flag, note.trim(), true)}>
         {t('checkin.send')}
       </button>
     </div>
@@ -459,54 +477,97 @@ function CheckinPanel({
 }
 
 export interface CheckinProposal {
-  change: TodayChange;
   message: string;
+  options: (CheckinOption & { previewKg?: number })[];
   source: 'rules' | 'gemini';
 }
 
+/** One option in words. Loads show the new weight; dumbbell pairs per hand. */
+function optionText(o: CheckinOption & { previewKg?: number }, unit: PlateUnit, pair: boolean): string {
+  const c = o.change;
+  const w = (kg: number) => (pair ? t('session.pair', { w: fmtIn(kg, unit) }) : fmtIn(kg, unit));
+  if (o.id === 'ai') {
+    const parts: string[] = [];
+    if (c.loadFactor !== 1) parts.push(o.previewKg !== undefined ? t(c.loadFactor < 1 ? 'checkin.opt.drop' : 'checkin.opt.up', { w: w(o.previewKg) }) : t(c.loadFactor < 1 ? 'checkin.change.lighter' : 'checkin.change.heavier', { pct: Math.round(Math.abs(1 - c.loadFactor) * 100) }));
+    if (c.restExtraSec > 0) parts.push(t('checkin.change.rest', { s: c.restExtraSec }));
+    if (c.dropSets > 0) parts.push(t('checkin.change.drop', { n: c.dropSets }));
+    return t('checkin.opt.ai', { what: parts.join(', ') });
+  }
+  if (o.scope === 'session') return t('checkin.opt.later', { s: c.restExtraSec });
+  if (c.loadFactor !== 1) {
+    if (o.previewKg !== undefined) return t(c.loadFactor < 1 ? 'checkin.opt.drop' : 'checkin.opt.up', { w: w(o.previewKg) });
+    return t(c.loadFactor < 1 ? 'checkin.change.lighter' : 'checkin.change.heavier', { pct: Math.round(Math.abs(1 - c.loadFactor) * 100) });
+  }
+  if (c.targetReps !== undefined) return t(o.id === 'repsDown' ? 'checkin.opt.repsDown' : 'checkin.opt.repsUp', { n: c.targetReps });
+  if (c.dropSets > 0) return t('checkin.opt.oneLess');
+  if (c.restExtraSec < 0) return t('checkin.opt.restLess', { s: -c.restExtraSec });
+  return t('checkin.opt.rest', { s: c.restExtraSec });
+}
+
+/**
+ * Philip's options (OBS-097D6D): his pick is ticked; the owner can tick others (one per kind) and
+ * Apply. Nothing changes until Apply. Done sets never change.
+ */
 function ProposalCard({
   proposal,
+  unit,
+  pair,
   onAccept,
   onDecline,
 }: {
   proposal: CheckinProposal;
+  ex: SessionExercise;
   unit: PlateUnit;
-  onAccept?: () => void;
+  pair: boolean;
+  onAccept?: (picked: readonly CheckinOption[]) => void;
   onDecline?: () => void;
 }) {
-  const c = proposal.change;
-  const lines: string[] = [];
-  if (c.loadFactor !== 1) lines.push(t(c.loadFactor < 1 ? 'checkin.change.lighter' : 'checkin.change.heavier', { pct: Math.round(Math.abs(1 - c.loadFactor) * 100) }));
-  if (c.restExtraSec > 0) lines.push(t('checkin.change.rest', { s: c.restExtraSec }));
-  if (c.dropSets > 0) lines.push(t('checkin.change.drop', { n: c.dropSets }));
+  const [picked, setPicked] = useState<string[]>(() => (proposal.options[0] ? [proposal.options[0].id] : []));
+  const toggle = (o: CheckinOption) =>
+    setPicked((cur) => {
+      if (cur.includes(o.id)) return cur.filter((id) => id !== o.id);
+      const groupOf = (id: string) => proposal.options.find((x) => x.id === id)?.group;
+      // One pick per kind; Philip's own read of the note replaces the rule picks and the other way round.
+      return [...cur.filter((id) => groupOf(id) !== o.group && (o.group === 'ai' ? false : groupOf(id) !== 'ai')), o.id];
+    });
+  const chosen = proposal.options.filter((o) => picked.includes(o.id));
   return (
     <div className="checkin-proposal" role="status">
       <p className="pm-dialog-text">
         <span className="checkin-speaker">{t('coach.speaker')}</span> {proposal.message}
       </p>
-      {lines.length > 0 && (
-        <ul className="small">
-          {lines.map((l) => (
-            <li key={l}>{l}</li>
-          ))}
-        </ul>
-      )}
-      <div className="ex-actions">
-        {lines.length > 0 ? (
-          <>
-            <button type="button" className="btn btn-sm btn-primary" onClick={onAccept}>
-              {t('checkin.accept')}
+      {proposal.options.length > 0 ? (
+        <>
+          <p className="small muted">{t('checkin.pick')}</p>
+          <div className="checkin-options" role="group" aria-label={t('checkin.optionsLabel')}>
+            {proposal.options.map((o, i) => (
+              <button key={o.id} type="button" role="checkbox" aria-checked={picked.includes(o.id)} className="btn btn-sm btn-secondary checkin-option" onClick={() => toggle(o)}>
+                <span className="checkin-tick" aria-hidden="true">
+                  {picked.includes(o.id) ? '✓' : ''}
+                </span>
+                <span>
+                  {optionText(o, unit, pair)}
+                  {i === 0 ? <span className="small muted"> · {t('session.philipsPick')}</span> : null}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="ex-actions">
+            <button type="button" className="btn btn-sm btn-primary" disabled={chosen.length === 0} onClick={() => onAccept?.(chosen)}>
+              {t('checkin.apply')}
             </button>
             <button type="button" className="btn btn-sm btn-ghost" onClick={onDecline}>
               {t('checkin.decline')}
             </button>
-          </>
-        ) : (
+          </div>
+        </>
+      ) : (
+        <div className="ex-actions">
           <button type="button" className="btn btn-sm btn-secondary" onClick={onDecline}>
             {t('checkin.ok')}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

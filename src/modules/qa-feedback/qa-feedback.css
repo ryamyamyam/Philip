@@ -160,7 +160,7 @@
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
   padding: 16px 16px calc(var(--qa-safe-bottom) + 24px);
 }
 .qa-body > * {

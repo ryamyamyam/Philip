@@ -65,6 +65,7 @@ test('the report reads the history and keeps a note; Ask Philip answers from it;
   const squat = main(page).getByRole('region', { name: 'Back squat', exact: true });
   await squat.getByRole('listitem').nth(3).getByRole('button', { name: 'Set 4: as ordered' }).click();
   await main(page).getByRole('button', { name: 'Finish workout' }).click();
+  await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
 
   const report = main(page).getByRole('region', { name: 'Philip’s report' });
   await expect(report).toContainText('Squat moved.');

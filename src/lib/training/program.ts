@@ -191,21 +191,54 @@ export interface LoggedAccessorySet {
 }
 
 /**
+ * Load cut per missing rep when a set falls well short of the range (OBS-2C086C). Coaching default
+ * (a hypothesis): rep-max tables put neighbouring rep maxes roughly 2–3% of 1RM apart in the 5–12
+ * range, so a set that fell N reps short needs about N × 2.5% less load to land in the range.
+ */
+export const LOAD_PCT_PER_MISSED_REP = 0.025;
+/** A drop never cuts more than this in one step (matches the report's 20% bound). */
+export const MAX_LOAD_DROP_PCT = 0.2;
+/** Falling this many reps (or more) below the bottom of the range lowers the weight; less only chases reps. */
+export const DROP_AT_REPS_SHORT = 2;
+
+/**
  * Double progression: when every prescribed set reached the top of the range, add the smallest
  * increment; otherwise keep the weight and chase reps. No history → null (Philip asks for a weight
  * that leaves 2 reps at the top of the range).
+ *
+ * OBS-2C086C: when `repMin` is given and a set fell 2+ reps below it (or the lifter couldn't finish
+ * the sets), holding the weight only repeats the failure. The weight drops by about 2.5% per missing
+ * rep (plus one more step for unfinished sets), at least one increment, at most 20%.
  */
 export function nextAccessoryKg(
   last: readonly LoggedAccessorySet[] | null,
   prescribedSets: number,
   repMax: number,
   incrementKg: number,
-): { kg: number | null; change: 'first' | 'add' | 'hold' } {
+  repMin?: number,
+): { kg: number | null; change: 'first' | 'add' | 'hold' | 'drop' } {
   const logged = (last ?? []).filter((s) => s.done && s.kg !== null && s.reps !== null);
   if (logged.length === 0) return { kg: null, change: 'first' };
   const kg = Math.max(...logged.map((s) => s.kg ?? 0));
   const allTop = logged.length >= prescribedSets && logged.every((s) => (s.reps ?? 0) >= repMax);
-  return allTop ? { kg: kg + incrementKg, change: 'add' } : { kg, change: 'hold' };
+  if (allTop) return { kg: kg + incrementKg, change: 'add' };
+  const drop = loadDropPct(logged, prescribedSets, repMin);
+  if (drop > 0 && kg > 0) {
+    const lower = Math.max(0, Math.min(kg - incrementKg, kg * (1 - drop)));
+    return { kg: Math.round(lower * 100) / 100, change: 'drop' };
+  }
+  return { kg, change: 'hold' };
+}
+
+/** Share of load to take off after a big miss; 0 = keep the weight. Pure, shared with the in-session check. */
+export function loadDropPct(logged: readonly LoggedAccessorySet[], prescribedSets: number, repMin: number | undefined): number {
+  if (repMin === undefined) return 0;
+  const reps = logged.filter((s) => s.done && s.reps !== null).map((s) => s.reps ?? 0);
+  if (reps.length === 0) return 0;
+  const short = repMin - Math.min(...reps);
+  if (short < DROP_AT_REPS_SHORT) return 0;
+  const unfinished = reps.length < prescribedSets ? 1 : 0;
+  return Math.min(MAX_LOAD_DROP_PCT, (short + unfinished) * LOAD_PCT_PER_MISSED_REP);
 }
 
 /**
@@ -217,9 +250,9 @@ export function nextTargetReps(
   last: readonly LoggedAccessorySet[] | null,
   repMin: number,
   repMax: number,
-  change: 'first' | 'add' | 'hold',
+  change: 'first' | 'add' | 'hold' | 'drop',
 ): number {
-  if (change === 'add') return repMin;
+  if (change === 'add' || change === 'drop') return repMin;
   const reps = (last ?? []).filter((s) => s.done && s.reps !== null).map((s) => s.reps ?? 0);
   if (reps.length === 0) return Math.floor((repMin + repMax) / 2);
   return Math.min(repMax, Math.max(repMin, Math.min(...reps) + 1));

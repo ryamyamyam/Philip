@@ -246,3 +246,15 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Alternatives:** sending all sessions as JSON (slow, large, leaks more); Gemini function calling to query the DB (more requests per answer on the free tier, more code); a separate vector store (needs a server); storing every chat in one new table (would have meant migrating Story 7 threads; the brief reads both places instead).
 - **Consequences:** Dexie v5 (additive). Backup gains optional `training.coachNotes` / `training.coachMessages`; `schemaVersion` stays 1. Initial JS 168.7 KB gzip (within D-030's 172). No new dependencies.
 - **Date:** 2026-11-10 · **By:** Ryan (owner) · **Status:** Implemented on `feat/T-026-philip-memory`
+
+## D-032 — Story 10: QA batch 2026-11-11 (check-in options, realistic miss rule, read-back + edit log, drag reorder, treadmill mph, voice)
+- **Context:** Eight gym/app observations from the owner (spec: `docs/stories/STORY_10_GYM_QA_2.md`).
+- **Decision:**
+  1. A check-in flag tap shows Philip's options at once; nothing changes until Apply. Rule options are pure (`checkinOptions`).
+  2. A set 2+ reps under the range bottom lowers the load ~2.5% per missing rep (≥ 1 increment, ≤ 20%) — next session and mid-session. Coaching default from rep-max tables (neighbouring rep maxes are roughly 2–3% of 1RM apart); a hypothesis, tune in `program.ts`.
+  3. Finish shows a read-back first. A done log of the current cycle can be reopened (`editing`), which undoes its applied review/report changes and clears the report, like delete does.
+  4. Reorder by long-press/drag in a reorder mode with Save; Story 7's per-card Up/Down move into that mode.
+  5. Treadmill speed is logged in the machine's own scale; Philip projects mph (km/h exact, levels linear and labelled an estimate).
+  6. Voice: supersedes D-020's "bossy" tone — dominant but charming and persuasive, never scolds; no sexual content (unchanged guardrail). Error, safety, delete and backup copy stay plain.
+- **Consequences:** optional fields only, no Dexie bump, `schemaVersion` 1. Initial JS 170.9 KB gzip (D-030 budget 172). No new dependencies.
+- **Date:** 2026-11-11 · **By:** Ryan (owner) · **Status:** Implemented on `feat/T-027-qa-batch`

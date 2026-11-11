@@ -69,6 +69,8 @@ test.describe('Workout (Story 5, T-013)', () => {
     await noHorizontalScroll(page);
 
     await main(page).getByRole('button', { name: 'Finish workout' }).click();
+
+    await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
     await expect(main(page)).toContainText('Workout done');
     await expect(main(page)).toContainText('Back squat e1RM');
     await main(page).getByRole('button', { name: 'Back to Home' }).last().click();
@@ -85,6 +87,7 @@ test.describe('Workout (Story 5, T-013)', () => {
     await squat.getByRole('button', { name: 'Hurts' }).click();
     await expect(squat.getByRole('alert')).toContainText('Stop this exercise');
     await main(page).getByRole('button', { name: 'Finish workout' }).click();
+    await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
     await main(page).getByRole('button', { name: 'Back to Home' }).last().click();
     // One workout a day (Story 6): come back tomorrow.
     await page.clock.setSystemTime(new Date(Date.now() + 86_400_000));
@@ -156,6 +159,7 @@ test.describe('Workout T-014: briefing, plan, strength, settings', () => {
     await plus.getByRole('textbox').nth(1).fill('7');
     await plus.getByRole('button', { name: 'Set 6: mark done' }).click();
     await main(page).getByRole('button', { name: 'Finish workout' }).click();
+    await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
 
     await tab(page, 'Progress').click();
     await page.getByRole('tab', { name: 'Strength' }).click();
@@ -238,15 +242,17 @@ test.describe('Check-in and calendar (T-017)', () => {
     const firstWork = squat.getByRole('listitem').nth(3);
     await firstWork.getByRole('button', { name: 'Set 4: as ordered' }).click();
     await firstWork.getByRole('button', { name: 'Tell Philip' }).click();
+    // OBS-097D6D: one tap on the flag brings Philip's options at once (no Send).
     await firstWork.getByRole('radio', { name: 'Too heavy' }).click();
-    await firstWork.getByRole('button', { name: 'Send' }).click();
-    await expect(squat).toContainText('10% lighter on the sets left');
-    await squat.getByRole('button', { name: 'OK, change it' }).click();
+    await expect(squat.getByRole('checkbox', { name: /Drop to .* for the sets left/ }).first()).toHaveAttribute('aria-checked', 'true');
+    await squat.getByRole('button', { name: 'Apply' }).click();
     // 85% of TM 135 → 115.3 kg; 10% lighter → about 104 kg on the + set.
     await expect(squat).not.toContainText('Per side: 45 + 45 + 10 + 5 lb');
     await noHorizontalScroll(page);
 
     await main(page).getByRole('button', { name: 'Finish workout' }).click();
+
+    await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
     await expect(main(page)).toContainText('Philip’s review');
     await expect(main(page)).toContainText('Back squat: training max');
     await main(page).getByRole('button', { name: 'OK, apply' }).click();
@@ -260,6 +266,7 @@ test.describe('Check-in and calendar (T-017)', () => {
     const firstWork = main(page).getByRole('region', { name: 'Back squat', exact: true }).getByRole('listitem').nth(3);
     await firstWork.getByRole('button', { name: 'Set 4: as ordered' }).click();
     await main(page).getByRole('button', { name: 'Finish workout' }).click();
+    await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
     await main(page).getByRole('button', { name: 'Back to Home' }).last().click();
     await openWorkout(page);
     const grid = main(page).getByRole('grid');

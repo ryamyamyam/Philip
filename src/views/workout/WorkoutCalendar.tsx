@@ -5,7 +5,7 @@ import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { PixelStamp } from '../../components/PixelStamp';
 import { useToast } from '../../components/Toast';
-import { deleteWorkoutSession, LockedSessionError } from '../../db/repo';
+import { deleteWorkoutSession, LockedSessionError, OpenSessionError, reopenWorkoutSession } from '../../db/repo';
 import type { CycleRecord, Profile, TmRecord, TrainingProgram, WeightEntry, WorkoutSession, YMD } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
 import { addDays, todayYmd } from '../../lib/date';
@@ -64,6 +64,8 @@ export interface WorkoutCalendarProps {
   /** Owner's sticky swaps by slot key (Philip's report validates swaps against them). */
   choices?: Readonly<Record<string, string>>;
   onOpenToday: () => void;
+  /** Story 10 (OBS-7BAD75): a finished log was reopened to fix it; open the session screen. */
+  onEdit?: () => void;
 }
 
 /**
@@ -72,7 +74,7 @@ export interface WorkoutCalendarProps {
  * planned day is the goal day with a flower stamp, and the box under it is Philip's notice for the
  * selected day (done, resume, start, planned, goal, or past logs with Delete log).
  */
-export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, profile, weights, justFinished, choices, onOpenToday }: WorkoutCalendarProps) {
+export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, profile, weights, justFinished, choices, onOpenToday, onEdit }: WorkoutCalendarProps) {
   const today = todayYmd();
   const [selected, setSelected] = useState(today);
   const [month, setMonth] = useState(monthStart(today));
@@ -174,6 +176,7 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
         weights={weights}
         choices={choices ?? {}}
         onOpenToday={onOpenToday}
+        onEdit={onEdit}
       />
     </div>
   );
@@ -199,7 +202,9 @@ function DayBox({
   weights,
   choices,
   onOpenToday,
+  onEdit,
 }: {
+  onEdit?: () => void;
   choices: Readonly<Record<string, string>>;
   date: YMD;
   today: YMD;
@@ -216,6 +221,25 @@ function DayBox({
 }) {
   const toast = useToast();
   const [confirm, setConfirm] = useState<WorkoutSession | null>(null);
+  const [editing, setEditing] = useState<WorkoutSession | null>(null);
+  const anyOpen = state.kind === 'resume';
+  const doEdit = async () => {
+    const s = editing;
+    setEditing(null);
+    if (!s) return;
+    try {
+      await reopenWorkoutSession(s.id);
+      onEdit?.();
+    } catch (e) {
+      toast(t(e instanceof LockedSessionError ? 'cal.locked' : e instanceof OpenSessionError ? 'cal.editOpen' : 'error.generic'));
+    }
+  };
+  const editButton = (s: WorkoutSession) =>
+    s.status === 'done' && !anyOpen ? (
+      <button type="button" className="btn btn-secondary" onClick={() => setEditing(s)}>
+        {t('cal.edit')}
+      </button>
+    ) : null;
   const unit = program.weightUnit;
   const isToday = date === today;
   const done = sessions.find((s) => s.status === 'done');
@@ -268,6 +292,7 @@ function DayBox({
               {t('home.workout.briefing')}
             </button>
           )}
+          {editButton(s)}
           <button type="button" className="btn btn-secondary" onClick={() => askDelete(s)}>
             {t('cal.delete')}
           </button>
@@ -369,15 +394,32 @@ function DayBox({
               {locked ? (
                 <p className="small muted">{t('cal.lockedLine')}</p>
               ) : (
-                <button type="button" className="btn btn-sm btn-secondary" onClick={() => askDelete(s)}>
-                  {t('cal.delete')}
-                </button>
+                <div className="ex-actions">
+                  {editButton(s)}
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => askDelete(s)}>
+                    {t('cal.delete')}
+                  </button>
+                </div>
               )}
             </div>
           );
         })}
         {empty && <p className="small muted">{date < today ? t('cal.rest') : nextPlanned ? t('cal.restDay') : t('cal.future')}</p>}
       </div>
+      {editing && (
+        <ConfirmDialog
+          title={t('cal.editTitle')}
+          body={
+            <>
+              <p>{t('cal.editWhat', { day: editing.day, lift: liftName(DAY_LIFT[editing.day]), date: fmtDate(editing.date, 'weekday') })}</p>
+              <p>{t('cal.editUndo')}</p>
+            </>
+          }
+          confirmLabel={t('cal.editConfirm')}
+          onConfirm={() => void doEdit()}
+          onCancel={() => setEditing(null)}
+        />
+      )}
       {confirm && (
         <ConfirmDialog
           title={t('cal.deleteTitle')}

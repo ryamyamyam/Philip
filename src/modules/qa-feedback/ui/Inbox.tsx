@@ -54,6 +54,7 @@ export function Inbox() {
 
   const toggle = (id: string) => setSelection(selected.has(id) ? selection.filter((x) => x !== id) : [...selection, id]);
   const addAll = (list: Observation[]) => setSelection([...new Set([...selection, ...list.map((o) => o.id)])]);
+  const allSelected = !!results && results.length > 0 && results.every((o) => selected.has(o.id));
 
   // OBS-97D767: archive (or unarchive) by hand — including items already turned into a prompt.
   const archiveSelected = async () => {
@@ -160,21 +161,20 @@ export function Inbox() {
           {results ? `${results.length} shown${selection.length ? ` · ${selection.length} selected` : ''}` : 'Loading…'}
         </span>
         <span className="qa-spacer" />
+        {/* OBS-9F203A: one toggle — Select all (every match of the current filters) / Unselect all. */}
         {results && results.length > 0 && (
-          <>
-            <button type="button" className="qa-btn qa-btn-small" onClick={() => addAll(visible)}>
-              Select visible
-            </button>
-            {results.length > visible.length && (
-              <button type="button" className="qa-btn qa-btn-small" onClick={() => addAll(results)}>
-                Select all {results.length}
-              </button>
-            )}
-          </>
+          <button
+            type="button"
+            className="qa-btn qa-btn-small"
+            aria-pressed={allSelected}
+            onClick={() => (allSelected ? setSelection([]) : addAll(results))}
+          >
+            {allSelected ? 'Unselect all' : results.length > visible.length ? `Select all ${results.length}` : 'Select all'}
+          </button>
         )}
-        {selection.length > 0 && (
+        {!allSelected && selection.length > 0 && (
           <button type="button" className="qa-btn qa-btn-small" onClick={() => setSelection([])}>
-            Clear selection
+            Unselect all
           </button>
         )}
         {selectedHere > 0 &&

@@ -53,3 +53,28 @@ export function moveExercise<T extends { slot: SessionSlot }>(exercises: readonl
   next[index + dir] = a;
   return next;
 }
+
+/**
+ * Story 10 (OBS-DD5F16): drag-to-reorder. Moves the item at `from` to `to` in one step (the main
+ * lift stays first: it can't be dragged, and nothing can be dropped above it). Out-of-range or
+ * disallowed moves return a copy unchanged.
+ */
+export function moveTo<T extends { slot: SessionSlot }>(exercises: readonly T[], from: number, to: number): T[] {
+  const next = [...exercises];
+  const item = next[from];
+  if (!item || item.slot === 'main' || to < 0 || to >= next.length) return next;
+  const floor = next[0]?.slot === 'main' ? 1 : 0;
+  const target = Math.max(floor, to);
+  next.splice(from, 1);
+  next.splice(target, 0, item);
+  return next;
+}
+
+/** Where a dragged row lands: the number of other rows whose vertical midpoint is above the finger. */
+export function dropIndex(midpoints: readonly number[], y: number, from: number): number {
+  let above = 0;
+  midpoints.forEach((m, k) => {
+    if (k !== from && m < y) above++;
+  });
+  return above;
+}

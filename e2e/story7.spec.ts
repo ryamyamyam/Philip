@@ -57,10 +57,12 @@ test('OBS-F52773: move A2 above A1; the order is remembered for the day and can 
   await setUpAndOpenDay1(page);
   await main(page).getByRole('button', { name: 'Start workout' }).click();
   await expect(card(page, 1)).toContainText('Bulgarian split squat');
-  // Main lift can't move; A1 can't go above it.
+  // Story 10 (OBS-DD5F16): reorder mode. Main lift can't move; A1 can't go above it.
+  await main(page).getByRole('button', { name: 'Change the order (or long-press a title)' }).click();
   await expect(main(page).getByRole('button', { name: 'Move Back squat up' })).toHaveCount(0);
   await expect(main(page).getByRole('button', { name: 'Move Bulgarian split squat up' })).toBeDisabled();
   await main(page).getByRole('button', { name: 'Move Lying leg curl up' }).click();
+  await main(page).getByRole('button', { name: 'Save order' }).click();
   await expect(card(page, 0)).toContainText('Back squat');
   await expect(card(page, 1)).toContainText('Lying leg curl');
   await expect(card(page, 2)).toContainText('Bulgarian split squat');
@@ -78,7 +80,9 @@ test('OBS-F52773: move A2 above A1; the order is remembered for the day and can 
   await main(page).getByRole('button', { name: 'Start workout' }).click();
   await expect(card(page, 1)).toContainText('Lying leg curl');
   // Changed again: back to A1 first.
+  await main(page).getByRole('button', { name: 'Change the order (or long-press a title)' }).click();
   await main(page).getByRole('button', { name: 'Move Lying leg curl down' }).click();
+  await main(page).getByRole('button', { name: 'Save order' }).click();
   await expect(card(page, 1)).toContainText('Bulgarian split squat');
   await noHorizontalScroll(page);
 });
@@ -100,6 +104,7 @@ test('OBS-93A8C0: incline walk after the lifts, outside the 45; logged on the su
   await expect(cardio.getByRole('button', { name: 'Undo done' })).toBeVisible();
   if (SHOTS) await cardio.screenshot({ path: `${SHOTS}/obs-93a8c0-cardio.png` });
   await main(page).getByRole('button', { name: 'Finish workout' }).click();
+  await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
   await expect(main(page)).toContainText(/Cardio\s*18 min at 12%/);
   const report = main(page).getByRole('region', { name: 'Philip’s report' });
   await expect(report).toContainText('need a Gemini key');
@@ -132,6 +137,7 @@ test('OBS-3DB146: after Finish, Philip writes a report with proposals; apply one
   const bss = main(page).getByRole('region', { name: /Bulgarian split squat/ });
   await bss.getByRole('button', { name: 'Set 1: as ordered' }).click();
   await main(page).getByRole('button', { name: 'Finish workout' }).click();
+  await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
 
   const report = main(page).getByRole('region', { name: 'Philip’s report' });
   await expect(report).toContainText('Squat moved clean.');

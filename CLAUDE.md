@@ -60,7 +60,7 @@ Story 4 (tour, D-024) and Story 5 (Home hub + workouts, D-025) are built on stac
 - No `any`. Don't suppress TS errors. Keep components small; no UI libraries.
 - Touch targets ≥ 44px, labels wrap (no fixed text heights), tabular numerals for numbers.
 - **UI follows [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) (D-022):** tokens only (`src/styles/tokens.css`), reuse the components in `src/components/` (Meter, ActionButton, CategoryChip, StatPanel/StatRow, NamePlate, DialogBar, ControlDeck, StatusStrip, CornerButton, DotIndicator, AmbientScene, pixel `Icon`), pixel font everywhere at ≥15px, one slate button face, `pm-` classes in `src/styles/components.css`. Read it before any UI change.
-- Copy uses Philip's voice (dominant, campy, bossy gay coach; short — D-020), but error, data-loss, delete/replace, safety and backup text stays plain. Never comment on body, weight or appearance; no sexual content.
+- Copy uses Philip's voice (dominant, campy gay coach who is charming and persuasive and never scolds; short — D-020, D-032), but error, data-loss, delete/replace, safety and backup text stays plain. Never comment on body, weight or appearance; no sexual content.
 - **Guardrail (owner, D-023): no emoji in copy.** Sentences in text boxes, dialog bars, toasts, banners and buttons are words only; `src/i18n/en.test.ts` fails on any emoji in `en.ts`. Decorative meal/macro emoji exist only in markup chips and are `aria-hidden`.
 - `src/modules/qa-feedback/` is a portable module: it must not import from Philip code. Its strings live in `ui/strings.ts` (not `en.ts`) and its styles use `qa-` classes. Philip-specific wiring belongs in `src/qaFeedback.config.ts`.
 

@@ -205,8 +205,8 @@ test('UX-3: card words and colors follow the phase (cut: left/over; bulk: to go/
 test('UX-3: no target → one call to action that opens Settings › Targets', async ({ page }) => {
   await fresh(page);
   const card = page.getByRole('region', { name: 'What’s left today' });
-  await expect(card.getByText('No target? Cute.')).toBeVisible();
-  await card.getByRole('button', { name: 'Set targets. Now.' }).click();
+  await expect(card.getByText('No target yet. Give me one and I’ll make every bite count.')).toBeVisible();
+  await card.getByRole('button', { name: 'Set my targets' }).click();
   await expect(tab(page, 'Settings')).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { name: 'Daily nutrition targets', level: 1 })).toBeVisible();
 });

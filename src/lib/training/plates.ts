@@ -99,6 +99,11 @@ export function roundToStep(kg: number, unit: PlateUnit): number {
   return Math.round(toUnit(kg, 'lb') / 5) * 5 * KG_PER_LB;
 }
 
+/** The smallest dumbbell/machine step in kg (2.5 kg, or 5 lb). */
+export function incrementKg(unit: PlateUnit): number {
+  return unit === 'kg' ? 2.5 : 5 * KG_PER_LB;
+}
+
 /** Both units for display: kg to 0.1, lb to whole pounds. */
 export function dualUnits(kg: number): { kg: number; lb: number } {
   return { kg: Math.round(kg * 10) / 10, lb: Math.round(toUnit(kg, 'lb')) };

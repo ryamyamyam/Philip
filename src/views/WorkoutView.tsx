@@ -33,6 +33,8 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
   // Story 6 §2: the cycle briefing can open on a day whose workout is already done (no training today).
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [justFinished, setJustFinished] = useState(false);
+  // Story 10 (OBS-7BAD75): a reopened log opens once the live query shows it as the open workout.
+  const [editRequested, setEditRequested] = useState(false);
   const program = useTrainingProgram();
   const sessions = useWorkoutSessions();
   const cycles = useCycles();
@@ -61,7 +63,7 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
     if (!program || state.kind === 'setup') body = <SetupView />;
     else if (state.kind === 'briefing' || state.kind === 'cycleDone' || !cycle || (briefingOpen && state.kind === 'doneToday' && state.cycleDone)) {
       body = <StartCycleView profile={profile} weights={weights} cycles={cycles} sessions={sessions} tmHistory={tmHistory} />;
-    } else if (!inSession) {
+    } else if (!inSession && !(editRequested && state.kind === 'resume')) {
       body = (
         <WorkoutCalendar
           sessions={sessions}
@@ -73,6 +75,7 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
           weights={weights}
           choices={choiceMap}
           justFinished={justFinished}
+          onEdit={() => setEditRequested(true)}
           onOpenToday={() => {
             setJustFinished(false);
             if (state.kind === 'doneToday') setBriefingOpen(true);
@@ -92,6 +95,7 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
           onBack={(finished) => {
             setJustFinished(finished);
             setInSession(false);
+            setEditRequested(false);
           }}
         />
       );
@@ -105,8 +109,10 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
           <CornerButton
             side="left"
             icon="chevronLeft"
-            label={t(plan ? 'workout.backWorkout' : inSession || briefingOpen ? 'workout.backCalendar' : 'workout.backHome')}
-            onClick={() => (plan ? navigate('workout') : inSession || briefingOpen ? (setInSession(false), setBriefingOpen(false)) : navigate('home'))}
+            label={t(plan ? 'workout.backWorkout' : inSession || briefingOpen || editRequested ? 'workout.backCalendar' : 'workout.backHome')}
+            onClick={() =>
+              plan ? navigate('workout') : inSession || briefingOpen || editRequested ? (setInSession(false), setBriefingOpen(false), setEditRequested(false)) : navigate('home')
+            }
           />
         }
         center={

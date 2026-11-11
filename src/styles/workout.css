@@ -301,6 +301,30 @@
   margin: var(--space-1) 0 var(--space-2);
   padding-left: var(--space-4);
 }
+.checkin-proposal .muted {
+  color: inherit;
+  opacity: 0.8;
+}
+/* OBS-097D6D: Philip's options, one per line, tick on the left. */
+.checkin-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+.checkin-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+  min-height: 44px;
+}
+.checkin-tick {
+  flex: 0 0 1.25em;
+  text-align: center;
+}
 .checkin-speaker {
   color: var(--color-dialog-speaker);
   font-family: var(--font-display);
@@ -580,4 +604,83 @@
 }
 .report-who {
   font-family: var(--font-display);
+}
+
+/* Story 10 (OBS-7BAD75): the read-back before a workout is completed. */
+.finish-check {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.finish-check li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--border-hair) solid var(--color-border);
+}
+.finish-check li:last-child {
+  border-bottom: none;
+}
+
+/* Story 10 (OBS-DD5F16): long-press a title bar → reorder mode. */
+.ex-head.can-reorder {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.reorder-open {
+  align-self: flex-start;
+}
+.reorder-list {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.reorder-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: var(--border-hair) solid var(--color-border-strong);
+  box-shadow: var(--shadow-hard);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.reorder-row.is-floating {
+  /* Lifted off the page, like icons in iPhone's edit mode, but still: buttons stay easy to hit. */
+  cursor: grab;
+  box-shadow: var(--shadow-hard-lg);
+  translate: 0 -2px;
+}
+.reorder-row.is-lifted {
+  position: relative;
+  z-index: 2;
+  cursor: grabbing;
+  box-shadow: var(--shadow-hard-lg), var(--shadow-2);
+  scale: 1.03;
+}
+.reorder-row.is-fixed {
+  background: var(--color-surface-2);
+  box-shadow: none;
+  touch-action: auto;
+}
+.reorder-name {
+  flex: 1 1 8rem;
+}
+.reorder-steps {
+  display: flex;
+  gap: var(--space-1);
 }

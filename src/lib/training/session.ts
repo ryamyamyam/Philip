@@ -4,7 +4,7 @@
  */
 import { exerciseFor, exerciseInfo, MAIN_EXERCISE, menuSlot, type ExerciseId, type Slot } from './exercises';
 import { startingKg, startRule } from './startLoad';
-import { DEFAULT_BAR_SETUP, KG_PER_LB, loadFor, roundToStep, type BarSetup, type PlateUnit } from './plates';
+import { DEFAULT_BAR_SETUP, incrementKg, loadFor, roundToStep, type BarSetup, type PlateUnit } from './plates';
 import {
   accessoryRules,
   blockForCycle,
@@ -145,10 +145,6 @@ export const estimateMinutes = (exercises: readonly PlannedExercise[]): number =
 const MAIN_REST_FLOOR = 150;
 const ACC_REST_FLOOR = 60;
 
-function incrementKg(unit: PlateUnit): number {
-  return unit === 'kg' ? 2.5 : 5 * KG_PER_LB;
-}
-
 function mainExercise(input: SessionInput, block: Block, lift: LiftId, bar: BarSetup): PlannedExercise {
   const tm = input.tms[lift];
   const sets = [...warmupSets(block, input.week), ...workSets(block, input.week, lift)];
@@ -182,7 +178,7 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
     if (input.phase === 'gain' && slot !== 'B') sets += 1;
   }
   const last = input.lastSets?.(id) ?? null;
-  const next = nextAccessoryKg(last, rules.sets, m.repMax, incrementKg(unit));
+  const next = nextAccessoryKg(last, rules.sets, m.repMax, incrementKg(unit), info.timed || startRule(id).kind === 'assist' ? undefined : m.repMin);
   let kg = next.kg === null ? null : input.week === DELOAD_WEEK ? next.kg : roundToStep(next.kg, unit);
   // Story 6 §6: no log for this exercise yet → Philip's starting estimate instead of "Your pick".
   let estimate = false;

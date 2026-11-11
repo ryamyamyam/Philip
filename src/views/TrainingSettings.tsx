@@ -17,6 +17,7 @@ import { KG_PLATES, LB_PLATES, type PlateUnit } from '../lib/training/plates';
 import { blockForCycle, epley, LIFTS, tmFromOneRm, type Block, type Day, type LiftId } from '../lib/training/program';
 import { useUI } from '../ui';
 import { UnitSwitch } from './workout/SetupView';
+import { TreadmillSettings } from './TreadmillSettings';
 import { fmtIn, fromDisplay } from './workout/units';
 
 const LIFT_KEY: Record<LiftId, StringKey> = { squat: 'exercise.squat', bench: 'exercise.bench', rdl: 'exercise.rdl', ohp: 'exercise.ohp' };
@@ -42,6 +43,7 @@ export function TrainingSettings() {
           <RestSettings />
           <Retest program={program} />
           <BarSettings program={program} />
+          <TreadmillSettings program={program} />
           <Menu program={program} choices={Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>} />
           <Danger program={program} sessions={sessions} />
         </>

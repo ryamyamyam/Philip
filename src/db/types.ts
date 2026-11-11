@@ -157,8 +157,22 @@ export interface TrainingProgram {
   dayOrder?: Partial<Record<string, SessionSlot[]>>;
   /** Story 7 (OBS-3DB146): one-off accessory orders Philip's report set for the next time an exercise comes up. */
   nextOverrides?: AccessoryOverride[];
+  /** Story 10 (OBS-E19B38): the owner's treadmill and what its speed number means. Absent = the owner's unit. */
+  treadmill?: Treadmill;
   createdAt: number;
   updatedAt: number;
+}
+
+/** The owner's treadmill (Story 10). `level` dials map linearly from minMph (level 1) to maxMph (maxLevel). */
+export interface Treadmill {
+  /** Brand and model as the owner typed it ('' = not named). */
+  name: string;
+  scale: 'mph' | 'kmh' | 'level';
+  maxLevel?: number;
+  minMph?: number;
+  maxMph?: number;
+  /** Philip estimated it (Gemini), or the owner set it. */
+  source: 'philip' | 'me';
 }
 
 /** Append-only TM history. The TM for a cycle is the latest row with effectiveCycle ≤ that cycle. */
@@ -245,6 +259,11 @@ export interface WorkoutSession {
   cardio?: CardioLog;
   /** Story 7 (OBS-3DB146): Philip's observation report, his proposals and the chat under it. */
   coach?: CoachThread;
+  /**
+   * Story 10 (OBS-7BAD75): a finished log reopened to fix it. While set, the session screen has no
+   * timer, and saving keeps the original `finishedAt`. Absent on every other session.
+   */
+  editing?: boolean;
 }
 
 /** Cardio after the lifts (Story 7). Planned minutes come from the phase; the rest is the owner's log. */
@@ -253,8 +272,12 @@ export interface CardioLog {
   planMin: number;
   minutes: number | null;
   inclinePct: number | null;
+  /** The number set on the machine (Story 10: in the machine's own scale). */
   speed: number | null;
-  speedUnit: 'mph' | 'kmh';
+  /** What `speed` means: mph, km/h, or a level on the owner's treadmill (Story 10, OBS-E19B38). */
+  speedUnit: 'mph' | 'kmh' | 'level';
+  /** Story 10: Philip's projected mph for `speed` when it was logged (an estimate for levels). Absent before Story 10. */
+  speedMph?: number;
   done: boolean;
   skipped: boolean;
 }

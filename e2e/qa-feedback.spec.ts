@@ -165,7 +165,12 @@ test('batch select → template prompt → edit protection → copy and .txt exp
   await capture(page, 'Export should include notes', { feature: 'Settings', type: 'Feature request' });
 
   await panel.getByRole('button', { name: /^Inbox/ }).click();
-  await panel.getByRole('button', { name: 'Select visible' }).click();
+  await panel.getByRole('button', { name: 'Select all' }).click();
+  await expect(panel.getByText('3 shown · 3 selected')).toBeVisible();
+  // OBS-9F203A: the same button now unselects everything, and selects again.
+  await panel.getByRole('button', { name: 'Unselect all' }).click();
+  await expect(panel.getByText('3 shown', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Select all' }).click();
   await expect(panel.getByText('3 shown · 3 selected')).toBeVisible();
   await panel.getByRole('button', { name: 'Build prompt from 3 selected' }).click();
   await expect(panel.getByText('3 observations in 2 groups')).toBeVisible();
@@ -293,7 +298,7 @@ test('AI analysis (detail screen) and AI prompt help are optional and failures n
 
   // Prompt: AI failure falls back to template; AI success never drops an observation.
   await panel.getByRole('button', { name: /^Inbox/ }).click();
-  await panel.getByRole('button', { name: 'Select visible' }).click();
+  await panel.getByRole('button', { name: 'Select all' }).click();
   await panel.getByRole('button', { name: /Build prompt/ }).click();
   await panel.getByRole('button', { name: 'Improve with AI' }).click();
   await expect(panel.getByRole('alert')).toContainText('The template prompt still works');

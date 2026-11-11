@@ -34,7 +34,7 @@ export interface CreateOptions {
   /** The owner's remembered order for this day (Story 7). Main lift stays first. */
   order?: readonly string[] | null;
   /** Treadmill speed unit for the cardio log. */
-  speedUnit?: 'mph' | 'kmh';
+  speedUnit?: 'mph' | 'kmh' | 'level';
 }
 
 /** A new in-progress session from Philip's plan for the day, with the cardio finisher (Story 7). */

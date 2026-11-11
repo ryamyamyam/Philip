@@ -9,8 +9,8 @@
  */
 import type { CoachChange, CoachMessage, CoachThread, IsoWeekday, WorkoutSession } from '../../db/types';
 import { exerciseFor, menuSlot, type ExerciseId, type Slot } from './exercises';
-import { blockForCycle, DAY_LIFT, LIFTS, roundTo, type Day, type LiftId, type Phase } from './program';
-import { roundToStep, type PlateUnit } from './plates';
+import { blockForCycle, DAY_LIFT, LIFTS, loadDropPct, roundTo, type Day, type LiftId, type Phase } from './program';
+import { incrementKg as stepOf, roundToStep, type PlateUnit } from './plates';
 import { MAX_REST_BONUS_SEC } from './checkin';
 import { parseRemember, REMEMBER_RULE } from '../coach/memory';
 
@@ -68,7 +68,7 @@ export function contextText(c: CoachContext): string {
   }
   if (s.cardio) {
     const cd = s.cardio;
-    lines.push(`Cardio: incline walk, planned ${cd.planMin} min; ${cd.skipped ? 'skipped' : cd.done ? `did ${cd.minutes ?? '?'} min${cd.inclinePct !== null ? ` at ${cd.inclinePct}% incline` : ''}${cd.speed !== null ? `, ${cd.speed} ${cd.speedUnit}` : ''}` : 'not logged'}.`);
+    lines.push(`Cardio: incline walk, planned ${cd.planMin} min; ${cd.skipped ? 'skipped' : cd.done ? `did ${cd.minutes ?? '?'} min${cd.inclinePct !== null ? ` at ${cd.inclinePct}% incline` : ''}${cd.speed !== null ? `, speed setting ${cd.speed} (${cd.speedUnit})${cd.speedMph !== undefined ? ` ≈ ${cd.speedMph} mph` : ''}` : ''}` : 'not logged'}.`);
   }
   if (s.startedAt && s.finishedAt) lines.push(`Time taken: ${Math.round((s.finishedAt - s.startedAt) / 60000)} min (budget 45 min for lifting).`);
   lines.push('Approved swaps per accessory slot for the rest of this block (slot: current | options):');
@@ -83,9 +83,10 @@ export function contextText(c: CoachContext): string {
 }
 
 const RULES = [
-  'You are Philip, the lifter\'s personal strength coach: confident, dry, a little sassy, short sentences. Evidence-based. Never insult body, weight or appearance. No emoji.',
+  'You are Philip, the lifter\'s personal strength coach: dominant and in charge, but charming and persuasive. Sharp, witty, short sentences. You never scold or shame; when effort dips you make the next set sound irresistible and make the lifter want to earn it. Evidence-based. Never comment on body, weight or appearance. No sexual content. No emoji.',
   'Never diagnose. If anything suggests pain, injury, dizziness or chest symptoms, tell them to stop that exercise and see a professional, and propose no load increase for it.',
   'Only propose changes the data supports, the fewest that matter (0 to 4). Prefer keeping the plan when it is working.',
+  'Realistic fixes for misses: if a set fell 2 or more reps below the bottom of its range, or the lifter could not finish the sets, lower that exercise\'s next weight (about 2.5% per missing rep, at least one increment, at most 20%) and set reps to the bottom of the range. Lowering only the rep target keeps the same weight and repeats the failure; never propose that for a big miss.',
   'Allowed changes (JSON objects in "changes"):',
   '{"kind":"tm","lift":"squat|bench|rdl|ohp","toKg":number,"why":string} training max for the rest of this cycle, within 10% of the current one;',
   '{"kind":"rest","extraSec":15|30|45|60,"why":string} extra rest on every work set for the rest of the cycle;',
@@ -181,7 +182,15 @@ export function validateChange(raw: unknown, c: CoachContext): CoachChange | nul
         kg = Math.max(0, roundToStep(Math.min(hi, Math.max(lo, k)), c.unit));
         if (kg === first.kg) kg = null;
       }
-      const r = finite(raw.reps);
+      let r = finite(raw.reps);
+      // OBS-2C086C: after a big miss, a proposal that only trims reps at the same weight repeats the
+      // failure. Philip's rule load (about 2.5% per missing rep) replaces it, at the bottom of the range.
+      const drop = first.timed || first.assist ? 0 : loadDropPct(ex.actual, ex.prescription.filter((p) => p.kind === 'accessory').length, first.repMin);
+      if (drop > 0 && first.kg !== null && first.kg > 0 && (kg === null || kg >= first.kg)) {
+        const step = roundToStep(first.kg * (1 - drop), c.unit);
+        kg = step < first.kg ? step : Math.max(0, roundToStep(first.kg - stepOf(c.unit), c.unit));
+        r = first.repMin;
+      }
       const reps = r === null ? null : Math.round(Math.min(first.repMax, Math.max(first.repMin, r)));
       const st = finite(raw.sets);
       const [smin, smax] = COACH_BOUNDS.sets;

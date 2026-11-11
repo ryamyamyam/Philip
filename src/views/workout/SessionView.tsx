@@ -9,7 +9,8 @@ import { exerciseHistory } from '../../lib/coach/brief';
 import { useMeta, useProfile, useWeightEntries } from '../../hooks/useData';
 import { beep, cancelRestAlert, pushConfig, scheduleRestAlert, type StoredSubscription } from '../../services/restPush';
 import { newId } from '../../db/db';
-import type { CycleRecord, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
+import type { CycleRecord, SessionExercise, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
+import { incrementKg } from '../../lib/training/plates';
 import { t, type StringKey } from '../../i18n';
 import { todayYmd } from '../../lib/date';
 import { parseDecimal } from '../../lib/numbers';
@@ -17,8 +18,10 @@ import { exerciseFor, menuSlot, slotKey, type ExerciseId, type Slot } from '../.
 import { DAY_LIFT, DELOAD_WEEK, epley, tmFromOneRm, type LiftId } from '../../lib/training/program';
 import { nextSessionRef, tmsForCycle } from '../../lib/training/progress';
 import { buildSession, liftOutlook, SESSION_BUDGET_MIN, type PlannedSession } from '../../lib/training/session';
-import { createSession, lastSessionIdFor, lastSetsFor, summarize, swapInSession, type SessionSummary } from '../../lib/training/sessionLog';
-import { applyOrder, canMove, moveExercise, orderOf } from '../../lib/training/order';
+import { createSession, infoFor, lastSessionIdFor, lastSetsFor, summarize, swapInSession, type SessionSummary } from '../../lib/training/sessionLog';
+import { fmtDate } from '../../lib/format';
+import { applyOrder, orderOf } from '../../lib/training/order';
+import { ReorderList } from './ReorderList';
 import { plannedCardio } from '../../lib/training/cardio';
 import { CardioCard, cardioValue } from './CardioCard';
 import { CoachReport } from './CoachReport';
@@ -32,7 +35,12 @@ import {
   parseCoachReply,
   remainingWork,
   reviewSession,
-  ruleChange,
+  addLaterRest,
+  checkinOptions,
+  isNoChange,
+  mergeOptions,
+  repsShort,
+  type CheckinOption,
   type CheckinFlag,
   type ReviewItem,
 } from '../../lib/training/checkin';
@@ -116,7 +124,7 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
   if (!ref) return <p>{t('session.cycleDone')}</p>;
   if (missing) return <Calibration lift={missing} cycle={cycle.index} unit={program.weightUnit} />;
   if (!plan) return null;
-  const opts = { order: program.dayOrder?.[String(plan.day)] ?? null, speedUnit: program.weightUnit === 'lb' ? ('mph' as const) : ('kmh' as const) };
+  const opts = { order: program.dayOrder?.[String(plan.day)] ?? null, speedUnit: program.treadmill?.scale ?? (program.weightUnit === 'lb' ? ('mph' as const) : ('kmh' as const)) };
   const start = () => void saveWorkoutSession(createSession(plan, newId(), todayYmd(), Date.now(), opts));
   const skipDay = () => {
     const s = createSession(plan, newId(), todayYmd(), Date.now(), opts);
@@ -384,7 +392,7 @@ function LiveSession({
   const [unit, setUnit] = useState(program.weightUnit);
   const profile = useProfile();
   const bodyWeightKg = useBodyWeightKg();
-  const [pending, setPending] = useState<{ index: number; proposal: CheckinProposal } | null>(null);
+  const [pending, setPending] = useState<{ index: number; order: number; proposal: CheckinProposal } | null>(null);
   const [thinking, setThinking] = useState<number | null>(null);
   const [restEnds, setRestEnds] = useState<number | null>(null);
   // Story 8: the header only shows whole minutes, so the session itself ticks once a minute.
@@ -392,7 +400,7 @@ function LiveSession({
   const elapsedMin = Math.floor((now - session.startedAt) / 60000);
   const [restDur, setRestDur] = useState(0);
   const lift = DAY_LIFT[session.day];
-  const over = elapsedMin >= SESSION_BUDGET_MIN;
+  const over = !session.editing && elapsedMin >= SESSION_BUDGET_MIN;
 
   // Story 6 §8: rest end → "Time's up" banner (8 s), a beep, and a push alert scheduled at rest start.
   const soundOff = useMeta<boolean>(META.restSound) === false;
@@ -458,83 +466,145 @@ function LiveSession({
     if (keep) void setSlotChoice(slotKey(session.day, slot, session.block), to);
     save(next);
   };
-  // Owner tells Philip how a set went (Nov 5): save it, then propose a change for the rest of today.
-  const checkin = async (index: number, order: number, flag: CheckinFlag | null, note: string) => {
+  // Owner tells Philip how a set went (Nov 5). OBS-097D6D: a flag tap answers at once with Philip's
+  // options (rules, no network); a typed note can also go to Gemini, whose read is added as one more option.
+  const unitStep = incrementKg(program.weightUnit);
+  const laterCount = (index: number) => session.exercises.filter((e, i) => i > index && !e.skipped && remainingWork(e).length > 0).length;
+  const offer = (index: number, order: number, ex: SessionExercise, flag: CheckinFlag, message: string) => {
+    const options = usefulOptions(checkinOptions(flag, ex, order, laterCount(index), unitStep).map((o) => withPreview(o, ex)), ex);
+    setPending(options.length ? { index, order, proposal: { message, options, source: 'rules' } } : null);
+  };
+  const withPreview = (o: CheckinOption, ex: SessionExercise): CheckinOption & { previewKg?: number } => {
+    if (o.change.loadFactor === 1) return o;
+    const after = applyTodayChange(ex, o.change, program.bar, program.weightUnit);
+    const kg = remainingWork(after)[0]?.kg;
+    return kg !== null && kg !== undefined ? { ...o, previewKg: kg } : o;
+  };
+  // A load option that rounds back to today's weight (or to another option's weight) isn't a choice.
+  const usefulOptions = (opts: (CheckinOption & { previewKg?: number })[], ex: SessionExercise) => {
+    const now = remainingWork(ex)[0]?.kg ?? null;
+    const seen = new Set<number>();
+    return opts.filter((o) => {
+      if (o.previewKg === undefined || o.id === 'ai') return true;
+      if (o.previewKg === now || seen.has(o.previewKg)) return false;
+      seen.add(o.previewKg);
+      return true;
+    });
+  };
+  const checkin = async (index: number, order: number, flag: CheckinFlag | null, note: string, ask: boolean) => {
     const ex = session.exercises[index];
     if (!ex) return;
     const logged = ex.actual.map((a) => (a.order === order ? { ...a, flag: flag ?? undefined, note: note || undefined, pain: a.pain || flag === 'pain' } : a));
     const updated = { ...ex, actual: logged };
     save({ ...session, exercises: session.exercises.map((e, i) => (i === index ? updated : e)) });
-    if (flag === 'pain') return; // Hurts: the exercise stops with plain text, no proposal.
-    const rules = (): CheckinProposal | null =>
-      flag ? { change: ruleChange(flag, updated), message: t(`checkin.rule.${flag}${updated.slot === 'main' ? 'Main' : ''}` as StringKey), source: 'rules' } : null;
-    let proposal = rules();
-    if (note && profile?.geminiKey) {
-      setThinking(index);
-      try {
-        const { coachCheckinWithGemini, DEFAULT_GEMINI_MODEL, normalizeModel } = await import('../../services/foodAnalysis/gemini');
-        const p = updated.prescription.find((x) => x.order === order);
-        const a = logged.find((x) => x.order === order);
-        const raw = await coachCheckinWithGemini({
-          apiKey: profile.geminiKey,
-          model: normalizeModel(profile.geminiModel ?? DEFAULT_GEMINI_MODEL),
-          text: checkinPrompt({
-            exercise: t(`exercise.${updated.exerciseId}` as StringKey),
-            slot: updated.slot,
-            setNumber: order + 1,
-            ordered: p ? `${p.kg ?? '?'} kg x ${p.repMax}` : '?',
-            logged: a ? `${a.kg ?? '?'} kg x ${a.reps ?? '?'}` : 'nothing yet',
-            flag,
-            note,
-            remaining: String(remainingWork(updated).length),
-            phase: cycle.phase,
-            // Story 9: this exercise's history and Philip's notes, so the check-in isn't blind.
-            history: [
-              exerciseHistory(sessions, updated.exerciseId, session.id),
-              ...(await allCoachNotes()).slice(-10).map((n, k) => (k === 0 ? 'Your notes about the lifter: ' : '') + n.text),
-            ].join('\n'),
-          }),
-        });
-        const reply = parseCoachReply(raw);
-        if (reply?.stop) {
-          save({ ...session, exercises: session.exercises.map((e, i) => (i === index ? { ...updated, actual: logged.map((x) => (x.order === order ? { ...x, pain: true } : x)) } : e)) });
-          proposal = null;
-        } else if (reply) {
-          proposal = { change: reply.change, message: reply.message || t('checkin.geminiFallbackLine'), source: 'gemini' };
-        }
-      } catch {
-        // No connection or a bad reply: Philip's rules still answer.
-      } finally {
-        setThinking(null);
-      }
+    if (flag === 'pain') {
+      setPending(null);
+      return; // Hurts: the exercise stops with plain text, no proposal.
     }
-    setPending(proposal ? { index, proposal } : null);
+    if (flag) offer(index, order, updated, flag, t(`checkin.rule.${flag}${updated.slot === 'main' ? 'Main' : ''}` as StringKey));
+    if (!(ask && note && profile?.geminiKey)) return;
+    setThinking(index);
+    try {
+      const { coachCheckinWithGemini, DEFAULT_GEMINI_MODEL, normalizeModel } = await import('../../services/foodAnalysis/gemini');
+      const p = updated.prescription.find((x) => x.order === order);
+      const a = logged.find((x) => x.order === order);
+      const raw = await coachCheckinWithGemini({
+        apiKey: profile.geminiKey,
+        model: normalizeModel(profile.geminiModel ?? DEFAULT_GEMINI_MODEL),
+        text: checkinPrompt({
+          exercise: t(`exercise.${updated.exerciseId}` as StringKey),
+          slot: updated.slot,
+          setNumber: order + 1,
+          ordered: p ? `${p.kg ?? '?'} kg x ${p.targetReps ?? p.repMax}` : '?',
+          logged: a ? `${a.kg ?? '?'} kg x ${a.reps ?? '?'}` : 'nothing yet',
+          flag,
+          note,
+          remaining: String(remainingWork(updated).length),
+          phase: cycle.phase,
+          // Story 9: this exercise's history and Philip's notes, so the check-in isn't blind.
+          history: [
+            exerciseHistory(sessions, updated.exerciseId, session.id),
+            ...(await allCoachNotes()).slice(-10).map((n, k) => (k === 0 ? 'Your notes about the lifter: ' : '') + n.text),
+          ].join('\n'),
+        }),
+      });
+      const reply = parseCoachReply(raw);
+      if (reply?.stop) {
+        save({ ...session, exercises: session.exercises.map((e, i) => (i === index ? { ...updated, actual: logged.map((x) => (x.order === order ? { ...x, pain: true } : x)) } : e)) });
+        setPending(null);
+      } else if (reply) {
+        const rules = flag ? checkinOptions(flag, updated, order, laterCount(index), unitStep) : [];
+        const ai: CheckinOption = { id: 'ai', group: 'ai', scope: 'exercise', change: reply.change };
+        const options = usefulOptions((isNoChange(reply.change) ? rules : [ai, ...rules]).map((o) => withPreview(o, updated)), updated);
+        setPending(options.length || reply.message ? { index, order, proposal: { message: reply.message || t('checkin.geminiFallbackLine'), options, source: 'gemini' } } : null);
+      }
+    } catch {
+      // No connection or a bad reply: Philip's rule options (if any) stay up.
+    } finally {
+      setThinking(null);
+    }
   };
-  const accept = () => {
+  // OBS-2C086C: a set logged 2+ reps under the order gets Philip's fixes straight away, unasked.
+  const missed = (index: number, order: number, ex: SessionExercise) => {
+    const short = repsShort(ex, order);
+    if (short < 2 || remainingWork(ex).length === 0) return;
+    offer(index, order, ex, 'heavy', t('checkin.miss', { n: short }));
+  };
+  const accept = (picked: readonly CheckinOption[]) => {
     if (!pending) return;
     const ex = session.exercises[pending.index];
     if (!ex) return;
-    const next = applyTodayChange(ex, pending.proposal.change, program.bar, program.weightUnit);
-    void applyCheckin({ ...session, exercises: session.exercises.map((e, i) => (i === pending.index ? next : e)) });
+    const { exercise, laterRestSec } = mergeOptions(picked);
+    const next = isNoChange(exercise) ? ex : applyTodayChange(ex, exercise, program.bar, program.weightUnit);
+    const exercises = addLaterRest(
+      session.exercises.map((e, i) => (i === pending.index ? next : e)),
+      pending.index,
+      laterRestSec,
+      program.bar,
+      program.weightUnit,
+    );
+    void applyCheckin({ ...session, exercises });
     setPending(null);
   };
 
-  // Story 7 (OBS-F52773): move an accessory; the new order is remembered for this day.
-  const move = (index: number, dir: -1 | 1) => {
-    const exercises = moveExercise(session.exercises, index, dir);
+  // Story 7 (OBS-F52773) / Story 10 (OBS-DD5F16): long-press a title bar, drag, Save. The new order is
+  // remembered for this day.
+  const [reordering, setReordering] = useState(false);
+  const saveOrder = (exercises: SessionExercise[]) => {
+    setReordering(false);
     setPending(null);
     save({ ...session, exercises });
     void setDayOrder(session.day, orderOf(exercises));
   };
+  const canReorder = session.exercises.filter((e) => e.slot !== 'main').length > 1;
   // Older in-progress sessions have no cardio yet: show the plan, store it on first edit.
-  const cardio = session.cardio ?? plannedCardio(cycle.phase, program.weightUnit === 'lb' ? 'mph' : 'kmh');
+  const cardio = session.cardio ?? plannedCardio(cycle.phase, program.treadmill?.scale ?? (program.weightUnit === 'lb' ? 'mph' : 'kmh'));
 
   const finish = () => {
     cancelAlert();
-    const done: WorkoutSession = { ...session, status: 'done', finishedAt: Date.now() };
+    // Story 10 (OBS-7BAD75): a reopened log keeps its original finish time.
+    const finishedAt = session.editing && session.finishedAt ? session.finishedAt : Date.now();
+    const done: WorkoutSession = { ...session, status: 'done', finishedAt };
+    delete done.editing;
     save(done);
-    onFinished({ s: summarize(done, sessions, Date.now()), lift, session: done });
+    onFinished({ s: summarize(done, sessions, finishedAt), lift, session: done });
   };
+  // OBS-7BAD75: Finish first shows what was logged; "Yes" completes, "No" goes back to editing.
+  const [checking, setChecking] = useState(false);
+  if (checking) {
+    return (
+      <FinishCheck
+        session={session}
+        unit={unit}
+        cardio={session.cardio ?? null}
+        onYes={finish}
+        onNo={() => {
+          setChecking(false);
+          window.scrollTo({ top: 0 });
+        }}
+      />
+    );
+  }
 
   return (
     <div className="stack session">
@@ -543,7 +613,7 @@ function LiveSession({
           <h2 className="pm-display">{t('home.workout.dayTitle', { day: session.day, lift: t(LIFT_KEY[lift]) })}</h2>
           <p className="small num">
             {t('home.workout.blockLine', { block: session.block, week: session.week })} ·{' '}
-            {t('session.elapsed', { n: elapsedMin, est: session.estMinutes })}
+            {session.editing ? t('session.editingLine', { date: fmtDate(session.date, 'weekday') }) : t('session.elapsed', { n: elapsedMin, est: session.estMinutes })}
           </p>
         </div>
         <UnitSwitch value={unit} onChange={setUnit} label={t('session.unitFirst')} />
@@ -553,7 +623,13 @@ function LiveSession({
           {t('session.overTime')}
         </DialogBar>
       )}
-      {session.exercises.map((ex, i) => (
+      {canReorder && !reordering && (
+        <button type="button" className="btn btn-sm btn-ghost reorder-open" onClick={() => setReordering(true)}>
+          {t('reorder.tip')}
+        </button>
+      )}
+      {reordering && <ReorderList exercises={session.exercises} onSave={saveOrder} onCancel={() => setReordering(false)} />}
+      {!reordering && session.exercises.map((ex, i) => (
         <ExerciseCard
           key={`${ex.slot}-${ex.exerciseId}`}
           ex={ex}
@@ -565,22 +641,25 @@ function LiveSession({
           onRest={startRest}
           onSwap={(to, keep) => swap(i, to, keep)}
           swapPreviewKg={(to) => swapPreview(i, to)}
-          onCheckin={(order, flag, note) => void checkin(i, order, flag, note)}
+          onCheckin={(order, flag, note, ask) => void checkin(i, order, flag, note, ask)}
+          onMissed={(order, next) => missed(i, order, next)}
           proposal={pending?.index === i ? pending.proposal : null}
+          proposalOrder={pending?.index === i ? pending.order : null}
           thinking={thinking === i}
           onAccept={accept}
           onDecline={() => setPending(null)}
-          onMoveUp={canMove(session.exercises, i, -1) ? () => move(i, -1) : undefined}
-          onMoveDown={canMove(session.exercises, i, 1) ? () => move(i, 1) : undefined}
+          onReorder={canReorder ? () => setReordering(true) : undefined}
         />
       ))}
-      <CardioCard cardio={cardio} cut={cycle.phase === 'lose'} onChange={(next) => save({ ...session, cardio: next })} />
-      <button type="button" className="btn btn-primary btn-block" onClick={finish}>
-        {t('session.finish')}
+      <CardioCard cardio={cardio} cut={cycle.phase === 'lose'} treadmill={program.treadmill} onChange={(next) => save({ ...session, cardio: next })} />
+      <button type="button" className="btn btn-primary btn-block" onClick={() => setChecking(true)}>
+        {t(session.editing ? 'session.finishEdit' : 'session.finish')}
       </button>
-      <button type="button" className="btn btn-ghost btn-block" onClick={() => setDiscarding(true)}>
-        {t('session.discard')}
-      </button>
+      {!session.editing && (
+        <button type="button" className="btn btn-ghost btn-block" onClick={() => setDiscarding(true)}>
+          {t('session.discard')}
+        </button>
+      )}
       {discarding && (
         <ConfirmDialog
           title={t('session.discardTitle')}
@@ -611,6 +690,73 @@ function LiveSession({
       )}
     </div>
   );
+}
+
+/**
+ * Story 10 (OBS-7BAD75): before a workout is completed, Philip reads back what was logged. "Yes" goes
+ * to the summary; "No" goes back to the session to fix numbers. Nothing is saved by this screen.
+ */
+function FinishCheck({
+  session,
+  unit,
+  cardio,
+  onYes,
+  onNo,
+}: {
+  session: WorkoutSession;
+  unit: 'kg' | 'lb';
+  cardio: WorkoutSession['cardio'] | null;
+  onYes: () => void;
+  onNo: () => void;
+}) {
+  const rows = finishRows(session, unit);
+  return (
+    <div className="stack session">
+      <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose="phone" framing="bust" scale={2} className="pm-dialog-portrait" />}>
+        {t('finishCheck.line')}
+      </DialogBar>
+      <section className="card stack-sm" aria-labelledby="finish-check-h">
+        <h2 id="finish-check-h">{t('finishCheck.title')}</h2>
+        <ul className="finish-check">
+          {rows.map((r) => (
+            <li key={r.key}>
+              <strong>{r.name}</strong>
+              <span className="num">{r.text}</span>
+            </li>
+          ))}
+          {cardio && !cardio.skipped && cardio.done && (
+            <li>
+              <strong>{t('cardio.summary')}</strong>
+              <span className="num">{cardioValue(cardio)}</span>
+            </li>
+          )}
+        </ul>
+      </section>
+      <button type="button" className="btn btn-primary btn-block" onClick={onYes}>
+        {t('finishCheck.yes')}
+      </button>
+      <button type="button" className="btn btn-secondary btn-block" onClick={onNo}>
+        {t('finishCheck.no')}
+      </button>
+    </div>
+  );
+}
+
+/** One line per exercise: the done work sets ("2 × 12.5 kg × 10" for dumbbell pairs), or Skipped / Nothing logged. */
+export function finishRows(session: WorkoutSession, unit: 'kg' | 'lb'): { key: string; name: string; text: string }[] {
+  return session.exercises.map((e) => {
+    const name = t(`exercise.${e.exerciseId}` as StringKey);
+    const key = `${e.slot}-${e.exerciseId}`;
+    if (e.skipped) return { key, name, text: t('session.skipped') };
+    const pair = !!infoFor(e.exerciseId).pair;
+    const sets = e.actual
+      .filter((a) => a.done && e.prescription.find((p) => p.order === a.order)?.kind !== 'warmup')
+      .map((a) => {
+        const w = a.kg === null ? null : pair ? t('session.pair', { w: fmtIn(a.kg, unit) }) : fmtIn(a.kg, unit);
+        return `${w ? `${w} × ` : ''}${a.reps ?? '?'}`;
+      });
+    return { key, name, text: sets.length ? t('finishCheck.sets', { n: sets.length, list: sets.join(', ') }) : t('finishCheck.none') };
+  });
 }
 
 function Summary({

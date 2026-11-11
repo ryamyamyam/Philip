@@ -11,6 +11,7 @@ Base branch for new work: `main`.
 
 | ID | Feature | Role | Status | Branch | Depends on |
 |---|---|---|---|---|---|
+| T-027 | Story 10 QA batch (8 observations, D-032) | Core + Feature + QA | Ready for owner review | `feat/T-027-qa-batch` | `main` @ `36b730b` |
 | T-026 | Story 9 Philip's memory: brief, notes, Ask Philip | Core + Feature + QA | Ready for owner review | `feat/T-026-philip-memory` | T-025 |
 | T-025 | Story 8 efficiency budgets + fixes | Core + QA | Ready for owner review | `feat/T-025-efficiency` | `c19a57d` |
 | T-003 | Real-iPhone verification checklist | Owner + QA | Proposed | — | — |
@@ -26,6 +27,11 @@ Base branch for new work: `main`.
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-027 — Story 10: QA batch 2026-11-11 (D-032)
+- **Spec:** `docs/stories/STORY_10_GYM_QA_2.md`.
+- **Files:** new `src/lib/training/treadmill.ts`, `src/views/TreadmillSettings.tsx`, `src/views/workout/ReorderList.tsx`, `src/lib/training/story10.test.ts`, `src/db/story10.test.ts`, `e2e/story10.spec.ts`; `src/lib/training/{checkin,program,session,coach,order,plates,sessionLog,trainingBackup}.ts`, `src/lib/coach/memory.ts`, `src/db/{types,repo}.ts`, `src/views/{WorkoutView,TrainingSettings}.tsx`, `src/views/workout/{SessionView,ExerciseCard,CardioCard,WorkoutCalendar}.tsx`, `src/modules/qa-feedback/{ui/Inbox.tsx,qa-feedback.css}`, `src/styles/{global,workout}.css`, `src/i18n/en.ts`, e2e updates, docs.
+- **Log:** 2026-11-11 (cloud clone): tsc clean, 375/375 unit, build, size 170.9/172 KB, Chromium e2e 106/106. WebKit + iPhone pending.
 
 ### T-026 — Story 9: Philip's memory (D-031)
 - **Role:** Core + Feature + QA. **Spec:** `docs/stories/STORY_9_PHILIP_MEMORY.md`.

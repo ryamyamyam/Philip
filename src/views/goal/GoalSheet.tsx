@@ -16,6 +16,8 @@ import { parseDecimal } from '../../lib/numbers';
 import { planForDate } from '../../lib/nutrition';
 import { clampDeadline, suggestDeadline, weeksUntil } from '../../lib/goal/deadline';
 import { GOAL_RULES } from '../../lib/goal/goalCheck';
+import { carbDays } from '../../lib/goal/carbDays';
+import { macrosFor } from '../../lib/goal/proposal';
 import { GOAL_WEEKS, ownGoal, philipNextGoal, recommendNextPhase, repeatGoal, type PrevGoal } from '../../lib/goal/nextGoal';
 import { CARDIO_MINUTES } from '../../lib/training/cardio';
 import { RATE_PCT, rollingWeight, startingWeight, type GoalIssue } from '../../lib/training/cycleGoal';
@@ -438,6 +440,10 @@ export default function GoalSheet({ manual = false }: { manual?: boolean }) {
               {proposal.kcal !== null && (
                 <Row id="kcal" off={off} setOff={setOff} label={tg('goal.row.kcal')} from={plan ? tg('goal.kcal', { n: plan.calories }) : '–'} to={tg('goal.kcal', { n: proposal.kcal })} why={proposal.why.kcal} />
               )}
+              {proposal.kcal !== null && program?.carbDays !== false && (() => {
+                const split = carbDays(macrosFor(proposal.kcal, proposal.proteinG ?? plan?.proteinG ?? 0, open.choice.startWeightKg, profile.heightCm), trainingDaysOrDefault(proposal.days ?? program?.trainingDays), profile.sex);
+                return split ? <p className="small muted num">{tg('goal.carbSplit', { train: split.train.calories, rest: split.rest.calories })}</p> : null;
+              })()}
               {proposal.proteinG !== null && (
                 <Row id="proteinG" off={off} setOff={setOff} label={tg('goal.row.protein')} from={plan ? tg('goal.g', { n: plan.proteinG }) : '–'} to={tg('goal.g', { n: proposal.proteinG })} why={proposal.why.proteinG} />
               )}

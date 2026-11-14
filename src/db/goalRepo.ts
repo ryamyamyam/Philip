@@ -19,6 +19,8 @@ import type { CycleRecord, GoalPlanItems, GoalPlanUndo, PlanChange, TargetPlan, 
 import { planForDate } from '../lib/nutrition';
 import { goalWeeks } from '../lib/goal/deadline';
 import { macrosFor } from '../lib/goal/proposal';
+import { overridesFor } from '../lib/goal/carbDays';
+import { trainingDaysOrDefault } from '../lib/training/schedule';
 import { blockForCycle } from '../lib/training/program';
 import { slotKey } from '../lib/training/exercises';
 import { nextCycleIndex } from '../lib/training/progress';
@@ -92,13 +94,15 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
           method: 'calculated',
           inputsSnapshot: {
             source: 'goalPlan',
+            carbDays: program.carbDays !== false,
             planChangeId: id,
             goal: c.phase,
             weightKg: c.startWeightKg,
             targetWeightKg: c.phase === 'maintain' ? null : c.endWeightKg,
             weeklyRateKg: Math.round((Math.abs(c.endWeightKg - c.startWeightKg) / weeks) * 100) / 100,
           },
-          weekdayOverrides: null,
+          // Story 12 update: training days +carbs, rest days −carbs (same week), on the days in force after Apply.
+          weekdayOverrides: overridesFor(m, trainingDaysOrDefault(items.days ?? program.trainingDays), profile.sex, program.carbDays !== false),
           createdAt: now,
         })) as number;
       }

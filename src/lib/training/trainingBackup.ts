@@ -135,6 +135,7 @@ function program(x: unknown): TrainingProgram | null {
     updatedAt: num(o, 'updatedAt', p),
     ...(o.trainingDays != null ? { trainingDays: trainingDays(o.trainingDays, `${p}.trainingDays`) } : {}),
     ...(o.availability != null ? { availability: availability(o.availability, `${p}.availability`) } : {}),
+    ...(typeof o.carbDays === 'boolean' ? { carbDays: o.carbDays } : {}),
     ...(o.dayOrder != null ? { dayOrder: dayOrder(o.dayOrder, `${p}.dayOrder`) } : {}),
     ...(o.nextOverrides != null ? { nextOverrides: list(o.nextOverrides, `${p}.nextOverrides`).map((v, i) => override(v, `${p}.nextOverrides[${i}]`)) } : {}),
     ...(o.treadmill != null ? { treadmill: treadmill(o.treadmill, `${p}.treadmill`) } : {}),

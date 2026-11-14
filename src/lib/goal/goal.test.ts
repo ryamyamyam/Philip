@@ -175,7 +175,7 @@ describe('proposal (§5)', () => {
     expect(ranges.kcal!.min).toBeLessThanOrEqual(calc.calories);
     expect(ranges.kcal!.max).toBeGreaterThanOrEqual(calc.calories);
     expect(ranges.kcal!.max - ranges.kcal!.min).toBeLessThanOrEqual(800);
-    expect(ranges.proteinG).toMatchObject({ min: 120, max: 165 });
+    expect(ranges.proteinG).toMatchObject({ min: 120, max: 150 }); // bulk 1.6–2.0 g/kg (Story 12 update)
     expect(ranges.cardioMin).toMatchObject({ min: 15, max: 25 });
   });
 

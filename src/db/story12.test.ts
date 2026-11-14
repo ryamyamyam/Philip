@@ -252,7 +252,7 @@ describe('your time', () => {
     expect(cardioFor('gain', 45, 15)).toBe(15);
     expect(cardioFor('lose', 30, 25)).toBe(30);
     expect(cardioFor('lose', 45, 25)).toBe(40);
-    expect(clampWish({ daysPerWeek: 9, strengthMin: 52, cardioMin: 3 })).toEqual({ daysPerWeek: 5, strengthMin: 50, cardioMin: 10 });
+    expect(clampWish({ daysPerWeek: 9, strengthMin: 52, cardioMin: 3 })).toEqual({ carbDays: true, daysPerWeek: 5, strengthMin: 50, cardioMin: 10 });
   });
 
   const cur = { days: [1, 2, 4, 5] as const, strengthMin: 60, cardioPlanned: 25, phase: 'lose' as const, plan: { calories: 2200, proteinG: 172, fatG: 61, carbsG: 240 }, weightKg: 78, heightCm: 184 };
@@ -277,7 +277,7 @@ describe('your time', () => {
   it('Confirm writes days, minutes, cardio and a plan in one go; Undo puts them back', async () => {
     const db = await setup();
     const plan = planAvailability({ daysPerWeek: 3, strengthMin: 45, cardioMin: 10 }, { days: [1, 2, 4, 5], strengthMin: 60, cardioPlanned: 15, phase: 'gain', plan: null, weightKg: 73, heightCm: 184 }, () => null);
-    const undo = await applyAvailability({ ...plan, nutrition: { calories: 2750, proteinG: 140, fatG: 80, carbsG: 340 } }, '2026-11-13', 'gain', db);
+    const undo = await applyAvailability({ ...plan, writePlan: true, food: { calories: 2750, proteinG: 140, fatG: 80, carbsG: 340 }, carb: null }, '2026-11-13', 'gain', db);
     expect(await db.trainingProgram.get('me')).toMatchObject({ trainingDays: plan.days, availability: { strengthMin: 45, cardioMin: 10 } });
     expect((await db.cycles.get(1))?.cardioMin).toBe(10);
     const p = planForDate(await db.targetPlans.toArray(), '2026-11-13');
@@ -324,5 +324,68 @@ describe('backup', () => {
     expect((await db3.trainingProgram.get('me'))?.availability).toBeUndefined();
     expect((await db3.cycles.get(2))?.goal.deadline).toBeUndefined();
     expect(() => parseBackup(JSON.stringify({ ...old, data: { ...old.data, training: { ...old.data.training, planChanges: [{ ...old.data.training.planChanges[0], event: 'nope' }] } } }))).toThrow();
+  });
+});
+
+describe('macros by phase and carb days (Story 12 update)', () => {
+  it('protein bands: a cut starts higher; bulk and maintain top out at 2.0 g/kg', async () => {
+    const { PROTEIN_PER_KG } = await import('../lib/goal/carbDays');
+    expect(PROTEIN_PER_KG).toEqual({ lose: [1.8, 2.2], maintain: [1.6, 2.0], gain: [1.6, 2.0] });
+    const window = goalWindow({ start: '2026-11-02', today: '2026-11-12', startKg: 75, weights: [], food: [], targetOn: () => null, sessions: [], cycle: 1 });
+    const r = (phase: 'lose' | 'gain') => leverRanges({ choice: { ...fresh, phase, startWeightKg: 75 }, calc: null, window, sex: 'male', heightCm: 184, block: 'A', trainingDays: [1, 2, 4, 5], choices: {} });
+    expect(r('lose').proteinG).toMatchObject({ min: 135, max: 165 });
+    expect(r('gain').proteinG).toMatchObject({ min: 120, max: 150 });
+  });
+
+  it('training days +carbs, rest days −carbs: same week of calories, protein and fat', async () => {
+    const { carbDays } = await import('../lib/goal/carbDays');
+    const base = { calories: 2800, proteinG: 150, fatG: 78, carbsG: 370 };
+    const s = carbDays(base, [1, 2, 4, 5], 'male')!;
+    expect(s.train).toEqual({ calories: 3080, proteinG: 150, fatG: 78, carbsG: 440 });
+    expect(s.rest).toEqual({ calories: 2428, proteinG: 150, fatG: 78, carbsG: 277 });
+    const week = Object.values(s.overrides).reduce((a, m) => a + m!.calories, 0);
+    expect(Math.abs(week - base.calories * 7)).toBeLessThanOrEqual(8);
+    expect(s.overrides[1]).toEqual(s.train); // Monday (date weekday 1)
+    expect(s.overrides[0]).toEqual(s.rest); // Sunday
+    expect(Object.keys(s.overrides)).toHaveLength(7);
+  });
+
+  it('rest days keep half their carbs and the calorie floor; no split without rest days or carbs', async () => {
+    const { carbDays } = await import('../lib/goal/carbDays');
+    const lean = { calories: 1700, proteinG: 160, fatG: 47, carbsG: 160 };
+    const five = carbDays(lean, [1, 2, 3, 4, 5], 'male')!;
+    expect(five.rest.carbsG).toBeGreaterThanOrEqual(80);
+    expect(five.rest.calories).toBeGreaterThanOrEqual(1500);
+    expect(carbDays(lean, [1, 2, 3, 4, 5, 6, 7], 'male')).toBeNull();
+    expect(carbDays({ ...lean, carbsG: 0 }, [1, 3, 5], 'male')).toBeNull();
+  });
+
+  it('a goal plan is written with carb days on his training days (off when he turned them off)', async () => {
+    const db = await setup();
+    const id = await addPlanChange(manual(), db);
+    await applyGoalPlan(id, all, '2026-11-12', null, db);
+    const p = planForDate(await db.targetPlans.toArray(), '2026-11-12')!;
+    expect(p.calories).toBe(2900);
+    expect(p.inputsSnapshot?.carbDays).toBe(true);
+    // Days after Apply are 1, 2, 4, 6: Saturday (6) is a training day, Wednesday (3) is not.
+    expect(p.weekdayOverrides?.[6]?.calories).toBeGreaterThan(2900);
+    expect(p.weekdayOverrides?.[3]?.calories).toBeLessThan(2900);
+
+    const db2 = await setup();
+    await db2.trainingProgram.update('me', { carbDays: false });
+    const id2 = await addPlanChange(manual(), db2);
+    await applyGoalPlan(id2, all, '2026-11-12', null, db2);
+    expect(planForDate(await db2.targetPlans.toArray(), '2026-11-12')?.weekdayOverrides).toBeNull();
+  });
+
+  it('your time: switching carb days or moving days with them on writes a re-split plan', () => {
+    const cur = { days: [1, 2, 4, 5] as const, strengthMin: 60, cardioPlanned: 15, phase: 'gain' as const, plan: { calories: 2800, proteinG: 150, fatG: 78, carbsG: 370 }, weightKg: 75, heightCm: 184, carbDays: false, sex: 'male' as const };
+    const on = planAvailability({ daysPerWeek: 4, strengthMin: 60, cardioMin: 15, carbDays: true }, cur, () => null);
+    expect(on).toMatchObject({ changed: true, writePlan: true, carbDaysOn: true, food: cur.plan });
+    expect(on.carb?.train.carbsG).toBe(440);
+    const moved = planAvailability({ daysPerWeek: 3, strengthMin: 60, cardioMin: 15, carbDays: true }, { ...cur, carbDays: true }, () => null);
+    expect(moved.writePlan).toBe(true);
+    expect(Object.values(moved.carb!.overrides).filter((m) => m!.carbsG > 370)).toHaveLength(3);
+    expect(planAvailability({ daysPerWeek: 4, strengthMin: 60, cardioMin: 15, carbDays: true }, { ...cur, carbDays: true }, () => null).changed).toBe(false);
   });
 });

@@ -22,6 +22,7 @@ import { exerciseFor, menuSlot, type ExerciseId } from '../training/exercises';
 import type { Block, Day } from '../training/program';
 import { parseRemember, REMEMBER_RULE } from '../coach/memory';
 import type { GoalWindow } from './window';
+import { PROTEIN_PER_KG } from './carbDays';
 import { windowText } from './window';
 
 export const PROPOSAL_RULES = {
@@ -31,7 +32,8 @@ export const PROPOSAL_RULES = {
   kcalMarginUnreliable: 100,
   /** Widest the range may get either side of the formula. */
   kcalMaxSpread: 400,
-  proteinPerKg: [1.6, 2.2] as const,
+  /** Story 12 update: by phase (lib/goal/carbDays.ts › PROTEIN_PER_KG). */
+  proteinPerKg: PROTEIN_PER_KG,
   cardioMin: { gain: [15, 25], maintain: [15, 30], lose: [20, 40] } as const,
   messageMax: 700,
   whyMax: 200,
@@ -103,11 +105,11 @@ export function leverRanges(i: RangeInput): LeverRanges {
     kcal = { min: lo, max: Math.max(lo, hi), def: formula };
   }
   const ref = i.heightCm ? referenceWeightKg(c.startWeightKg, i.heightCm) : c.startWeightKg;
-  const [pMin, pMax] = PROPOSAL_RULES.proteinPerKg;
+  const [pMin, pMax] = PROPOSAL_RULES.proteinPerKg[c.phase];
   const proteinG: Range = {
     min: Math.round(ref * pMin),
     max: Math.round(ref * pMax),
-    def: calc ? Math.min(Math.round(ref * pMax), Math.max(Math.round(ref * pMin), calc.proteinG)) : Math.round(ref * 1.8),
+    def: calc ? Math.min(Math.round(ref * pMax), Math.max(Math.round(ref * pMin), calc.proteinG)) : Math.round(ref * ((pMin + pMax) / 2)),
   };
   const [cMin0, cMax0] = PROPOSAL_RULES.cardioMin[c.phase];
   // Story 12: his time is a ceiling; the phase's range never pushes him past it.
@@ -189,11 +191,13 @@ export function proposalPrompt(p: PromptInput): string {
     '',
     'Levers and allowed ranges (the app caps anything outside them):',
     r.kcal ? `- kcal: ${r.kcal.min}-${r.kcal.max} a day (formula ${r.kcal.def}).` : '- kcal: not available (body stats missing); return null.',
-    r.proteinG ? `- proteinG: ${r.proteinG.min}-${r.proteinG.max} g a day (1.6-2.2 g/kg; formula ${r.proteinG.def}).` : '- proteinG: not available; return null.',
+    r.proteinG ? `- proteinG: ${r.proteinG.min}-${r.proteinG.max} g a day (${PROPOSAL_RULES.proteinPerKg[c.phase].join('-')} g/kg for this phase; formula ${r.proteinG.def}).` : '- proteinG: not available; return null.',
     `- cardioMin: ${r.cardioMin.min}-${r.cardioMin.max} minutes of incline walk after each session (default ${r.cardioMin.def}; outside the ${r.strengthMin ?? 60}-minute lifting budget, and he will not walk more than ${r.cardioCap ?? r.cardioMin.max}).`,
     `- days: exactly ${dayCount} training weekdays, 1 = Monday ... 7 = Sunday (now ${r.trainingDays.join(', ')}). Null to keep.`,
     '- swaps: optional, at most 3, each one of the options for that slot below. Use them to aim training at his goals and his notes (e.g. a weak spot). Empty list to keep.',
     menuText(r, p.name),
+    '',
+    'Food: fat stays on the safety floor and carbs fill the rest. The app splits the day by training: more carbs on training days, fewer on rest days, same weekly calories and protein. Give kcal as the daily average.',
     '',
     REMEMBER_RULE,
     '',

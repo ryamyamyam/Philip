@@ -123,7 +123,7 @@ test('keep this goal: Philip tunes the levers, the cycle stays; then "See Philip
 
   await s.getByRole('button', { name: 'Ask Philip for the plan' }).click();
   await expect(s).toContainText('You are on pace.');
-  await expect(s).toContainText('150 g');
+  await expect(s).toContainText('146 g'); // bulk protein tops out at 2.0 g/kg (Story 12 update): 150 is capped
   expect(prompts).toHaveLength(1);
   expect(prompts[0]).toContain('asked for a fresh look mid-cycle');
   expect(prompts[0]).toContain('keeps the current goal');
@@ -174,16 +174,21 @@ test('your time: days a week and minutes re-plan on Confirm; the version line', 
   await fresh(page, { at: 'home' });
   await startCycleOne(page);
   await tab(page, 'Settings').click();
-  await expect(main(page)).toContainText('Version 0.12.1');
+  await expect(main(page)).toContainText('Version 0.12.2');
   const time = main(page).getByRole('group', { name: 'Your time' });
   await expect(time.getByRole('radio', { name: '4' })).toHaveAttribute('aria-checked', 'true');
-  await expect(time.getByLabel('Lifting, minutes a session')).toHaveValue('60');
+  await expect(time.getByLabel('Lifting, min/session')).toHaveValue('60');
   await time.getByRole('radio', { name: '3' }).click();
-  await time.getByLabel('Lifting, minutes a session').selectOption('45');
+  await time.getByLabel('Lifting, min/session').selectOption('45');
   await expect(time).toContainText('Training days: Mon Tue Thu Fri →');
   await expect(time).toContainText('about 5.3 weeks at 3 days a week');
   await expect(time).toContainText('Lifting: up to 45 min a session (was 60)');
-  await expect(time).toContainText('Food stays as it is.');
+  // Carb days follow the new weekdays: training days up, rest days down.
+  await expect(time).toContainText('Training days ');
+  await expect(time).toContainText('rest days ');
+  // Both boxes sit on one line.
+  const boxes = await Promise.all(['Lifting, min/session', 'Cardio, min/session max'].map((l) => time.getByLabel(l).boundingBox()));
+  expect(Math.abs((boxes[0]?.y ?? 0) - (boxes[1]?.y ?? 99))).toBeLessThan(2);
   await shot(page, '6-your-time');
   await time.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Your time is saved.' })).toBeVisible();

@@ -1,7 +1,7 @@
 # Story 12: Re-plan with Philip, goal dates, your time
 
 > Owner: Ryan. Task **T-029**, decision **D-035**. Branch `feat/T-029-replan` on `main` @ `4a0a042`.
-> As built 2026-11-13. App version **0.12.1**. Items 6–10 were added by the owner during the build.
+> As built 2026-11-13. App version **0.12.1**; **0.12.2** adds §6b (macros by phase, carb days) and the one-line Your time inputs. Items 6–10 were added by the owner during the build.
 
 ## 1. Owner ask (2026-11-13)
 
@@ -49,6 +49,22 @@
 - **Day slide**: changing the day on the Meal log (‹ ›, swipe, date picker) slides the new day in from the side it comes from (`hooks/useDaySlide.ts`); off under reduced motion.
 - **Copy to today**: a third swipe action on a food (Copy to today · Move · Delete). A dialog asks which meal (the original meal preselected); Undo on the toast. The swipe area is now 216 px.
 
+## 6b. Macros by phase and carb days (0.12.2, owner 2026-11-13)
+
+Owner: cut and bulk should have different P/F/C ratios, and training days should get more carbs than rest days. `lib/goal/carbDays.ts`.
+
+| Phase | Protein (g/kg of reference weight) | Fat | Carbs |
+|---|---|---|---|
+| Cut | 1.8–2.2 | the app's floor: 25% of kcal, at least 0.5 g/kg | the rest (lowest) |
+| Maintain | 1.6–2.0 | floor | the rest |
+| Bulk | 1.6–2.0 | floor | the rest (highest) |
+
+- **Evidence.** Helms, Aragon & Fitschen 2014 (contest prep): 2.3–3.1 g/kg of lean mass protein, 15–30% of kcal from fat, the rest carbs. Iraki et al. 2019 (off-season): 1.6–2.2 g/kg protein, a 0.25–0.5%/week gain. So the cut starts higher on protein, and the energy a bulk adds goes to carbs. The app's fat floor (25% / 0.5 g/kg, `SAFETY`) is above the reviews' 15% lower end; lowering it is a safety-rule change and needs the owner's approval, so it stays.
+- **Carb days** (on by default, switch in Your time): training days get +10% of the day's calories as carbs; rest days give the same grams back, never below half their carbs or the calorie floor. The week's calories, protein and fat are unchanged. Evidence: "fuel for the work required" (Impey et al. 2018) is mostly endurance research; with calories and protein matched, carb cycling hasn't beaten steady intake for body composition. It's here for training quality and ease, and the UI says so.
+- **Where it applies:** every plan Philip writes (goal plans, the cycle briefing, Your time) is stored as the steady macros plus `weekdayOverrides` on his training days (`inputsSnapshot.carbDays`). The weigh-in "Update my targets" keeps the split when the plan it replaces had it. Changing training days with carb days on re-splits the plan. Philip's prompt says kcal is the daily average; the review shows the training-day and rest-day calories.
+- **Your time:** labels shortened ("Lifting, min/session", "Cardio, min/session max") and the two boxes share one line.
+- Tests: unit `story12.test.ts` (bands, split maths, floors, goal plan, Your time); e2e checks the boxes line up. Protein expectations in `story11.spec.ts`/`story12.spec.ts` now reflect the 2.0 g/kg bulk cap (Philip's 150 g is capped at 146–149 g).
+
 ## 7. Data
 
 No Dexie bump, no new tables, backup `schemaVersion` 1. New optional fields only; the backup parser accepts `'manual'`, `weeks`, `deadline` and `availability`, and older backups restore unchanged.
@@ -66,4 +82,4 @@ No Dexie bump, no new tables, backup `schemaVersion` 1. New optional fields only
 9. Goal date: suggestion, clamp, pace, calculator rate, continuation (unit); picker (e2e).
 10. Your time: weekdays, cardio rule, nutrition rule, Confirm/Undo (unit); Settings flow (e2e).
 11. 60 minutes; Copy to today; day slide; version line (unit + e2e).
-12. tsc, unit 452/452, build, size 175.7/176 KB, Chromium e2e 119/119. WebKit pending on the Mac.
+12. 0.12.2: tsc, unit 457/457, build, size 175.7/176 KB, Chromium e2e 119/119. WebKit pending on the Mac.

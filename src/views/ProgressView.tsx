@@ -12,7 +12,10 @@ import { GymCharacter } from '../components/GymCharacter';
 import { setAskDraft } from '../lib/coach/askDraft';
 import { refreshPlan, reviewWeighIn } from '../lib/weighIn';
 import type { Profile, TargetPlan, WeightEntry } from '../db/types';
-import { useProfile, useTargetPlans, useWeightEntries } from '../hooks/useData';
+import { useProfile, useTargetPlans, useTrainingProgram, useWeightEntries } from '../hooks/useData';
+import { overridesFor } from '../lib/goal/carbDays';
+import { planForDate } from '../lib/nutrition';
+import { trainingDaysOrDefault } from '../lib/training/schedule';
 import { t, type StringKey } from '../i18n';
 import { addDays, isValidYmd, todayYmd } from '../lib/date';
 import { fmtDate, fmtNum } from '../lib/format';
@@ -271,6 +274,7 @@ function WeighInTake({
   const { navigate } = useUI();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const program = useTrainingProgram();
   const review = useMemo(() => reviewWeighIn(plans, profile, entries, today), [plans, profile, entries, today]);
   const r = review.refresh;
   const fmtW = (kg: number) => fmtNum(toUnit(kg), 1);
@@ -283,7 +287,9 @@ function WeighInTake({
   const apply = async () => {
     if (!r) return;
     setBusy(true);
-    await addTargetPlan(refreshPlan(r, today));
+    // Story 12 update: a plan with carb days keeps them, re-split on the new numbers.
+    const carry = planForDate(plans, today)?.inputsSnapshot?.carbDays === true && program?.carbDays !== false;
+    await addTargetPlan(refreshPlan(r, today, carry ? overridesFor(r.to, trainingDaysOrDefault(program?.trainingDays), r.inputs.sex, true) : null));
     toast(t('weighIn.applied'));
     onDone();
   };

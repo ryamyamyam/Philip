@@ -173,6 +173,8 @@ export interface TrainingProgram {
   trainingDays?: IsoWeekday[];
   /** Story 12: what the owner can give each session (minutes). Absent = 60 min of lifting, the phase's cardio. */
   availability?: TrainingAvailability;
+  /** Story 12 update: more carbs on training days, fewer on rest days, same week (absent = on). */
+  carbDays?: boolean;
   /** Story 7 (OBS-F52773): the owner's exercise order per program day ('1'–'4'); main lift always first. */
   dayOrder?: Partial<Record<string, SessionSlot[]>>;
   /** Story 7 (OBS-3DB146): one-off accessory orders Philip's report set for the next time an exercise comes up. */

@@ -86,7 +86,7 @@ test('goal reached pops up; "Same again" is preselected; Philip plans; Apply sta
 
   await expect(s).toContainText('Goal hit two weeks early.');
   await expect(s).toContainText('Protein');
-  await expect(s).toContainText('150 g');
+  await expect(s).toContainText('149 g'); // bulk protein tops out at 2.0 g/kg (Story 12 update): 150 is capped
   expect(prompts.at(-1)).toContain("reached this cycle's goal");
   expect(prompts.at(-1)).toContain('New goal: bulk');
   expect(prompts.at(-1)).toContain("--- Philip's brief");

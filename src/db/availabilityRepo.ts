@@ -13,6 +13,7 @@ import { planForDate } from '../lib/nutrition';
 export interface AvailabilityUndo {
   trainingDays: IsoWeekday[] | null;
   availability: TrainingAvailability | null;
+  carbDays: boolean | null;
   cycle: { index: number; cardioMin: number | null } | null;
   targetPlanBefore: Omit<TargetPlan, 'id' | 'createdAt'> | null;
   addedPlan: boolean;
@@ -30,6 +31,7 @@ export async function applyAvailability(plan: AvailabilityPlan, today: YMD, phas
     const undo: AvailabilityUndo = {
       trainingDays: program.trainingDays ? [...program.trainingDays] : null,
       availability: program.availability ? { ...program.availability } : null,
+      carbDays: program.carbDays ?? null,
       cycle: null,
       targetPlanBefore: before ? (({ id: _i, createdAt: _c, ...rest }) => rest)(before) : null,
       addedPlan: false,
@@ -38,6 +40,7 @@ export async function applyAvailability(plan: AvailabilityPlan, today: YMD, phas
       ...program,
       trainingDays: [...plan.days],
       availability: { strengthMin: plan.strengthMin, cardioMin: plan.cardioCap },
+      carbDays: plan.carbDaysOn,
       updatedAt: now,
     });
     const cycle = program.currentCycle > 0 ? await database.cycles.get(program.currentCycle) : undefined;
@@ -45,13 +48,13 @@ export async function applyAvailability(plan: AvailabilityPlan, today: YMD, phas
       undo.cycle = { index: cycle.index, cardioMin: cycle.cardioMin ?? null };
       await database.cycles.put({ ...cycle, cardioMin: plan.cardioPlanned });
     }
-    if (plan.nutrition) {
+    if (plan.writePlan && plan.food) {
       await database.targetPlans.add({
         effectiveFrom: today,
-        ...plan.nutrition,
+        ...plan.food,
         method: 'calculated',
-        inputsSnapshot: { source: 'availability', goal: phase, trainingDays: plan.days.length },
-        weekdayOverrides: null,
+        inputsSnapshot: { source: 'availability', goal: phase, trainingDays: plan.days.length, carbDays: plan.carbDaysOn },
+        weekdayOverrides: plan.carb?.overrides ?? null,
         createdAt: now,
       });
       undo.addedPlan = true;
@@ -65,8 +68,14 @@ export async function undoAvailability(u: AvailabilityUndo, today: YMD, database
     const program = await database.trainingProgram.get('me');
     const now = Date.now();
     if (program) {
-      const { trainingDays: _d, availability: _a, ...rest } = program;
-      await database.trainingProgram.put({ ...rest, ...(u.trainingDays ? { trainingDays: u.trainingDays } : {}), ...(u.availability ? { availability: u.availability } : {}), updatedAt: now });
+      const { trainingDays: _d, availability: _a, carbDays: _c, ...rest } = program;
+      await database.trainingProgram.put({
+        ...rest,
+        ...(u.trainingDays ? { trainingDays: u.trainingDays } : {}),
+        ...(u.availability ? { availability: u.availability } : {}),
+        ...(u.carbDays !== null ? { carbDays: u.carbDays } : {}),
+        updatedAt: now,
+      });
     }
     if (u.cycle) {
       const c = await database.cycles.get(u.cycle.index);

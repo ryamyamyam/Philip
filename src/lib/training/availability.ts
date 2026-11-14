@@ -10,7 +10,8 @@
  *   inside the 1.6–2.2 g/kg band, and nothing else moves. Calories are not credited for extra minutes
  *   (the calculator's activity level covers training; no evidence in the app to do better).
  */
-import type { IsoWeekday } from '../../db/types';
+import type { IsoWeekday, Sex } from '../../db/types';
+import { carbDays, type CarbDays } from '../goal/carbDays';
 import { macrosFor, PROPOSAL_RULES } from '../goal/proposal';
 import { referenceWeightKg, type CalcResult } from '../targets';
 import { bestDays, closeTriples, MAX_TRAINING_DAYS, MIN_TRAINING_DAYS } from './schedule';
@@ -26,6 +27,8 @@ export interface AvailabilityWish {
   daysPerWeek: number;
   strengthMin: number;
   cardioMin: number;
+  /** Story 12 update: more carbs on training days, fewer on rest days (same week). Default on. */
+  carbDays?: boolean;
 }
 
 export interface Macros4 {
@@ -45,6 +48,9 @@ export interface AvailabilityCurrent {
   plan: Macros4 | null;
   weightKg: number | null;
   heightCm: number | null;
+  /** Carb days are on now. */
+  carbDays?: boolean;
+  sex?: Sex | null;
 }
 
 export interface AvailabilityPlan {
@@ -61,6 +67,13 @@ export interface AvailabilityPlan {
   cardioCap: number;
   nutrition: Macros4 | null;
   nutritionChanged: boolean;
+  carbDaysOn: boolean;
+  /** The split that will be written (training / rest days), when carb days are on and there is a plan. */
+  carb: CarbDays | null;
+  /** A new target plan will be written: food moved, the carb-day switch moved, or the days moved with carb days on. */
+  writePlan: boolean;
+  /** The steady macros the new plan carries (weekday overrides come from `carb`). */
+  food: Macros4 | null;
   /** Anything to apply at all. */
   changed: boolean;
 }
@@ -69,6 +82,7 @@ const snap = (n: number, r: { min: number; max: number; step: number }) => Math.
 
 export function clampWish(w: AvailabilityWish): AvailabilityWish {
   return {
+    carbDays: w.carbDays !== false,
     daysPerWeek: Math.min(AVAILABILITY_RULES.days.max, Math.max(AVAILABILITY_RULES.days.min, Math.round(w.daysPerWeek))),
     strengthMin: snap(w.strengthMin, AVAILABILITY_RULES.strengthMin),
     cardioMin: snap(w.cardioMin, AVAILABILITY_RULES.cardioMin),
@@ -102,9 +116,10 @@ export function planAvailability(wish: AvailabilityWish, cur: AvailabilityCurren
   if (cur.plan && cur.weightKg !== null && !sameCount) {
     const before = calcFor(cur.days.length);
     const after = calcFor(w.daysPerWeek);
-    if (before && after) {
+    // Only a real move in the calculator's answer changes food (his plan is never re-clamped for nothing).
+    if (before && after && (before.proteinG !== after.proteinG || before.calories !== after.calories)) {
       const ref = cur.heightCm ? referenceWeightKg(cur.weightKg, cur.heightCm) : cur.weightKg;
-      const [pMin, pMax] = PROPOSAL_RULES.proteinPerKg;
+      const [pMin, pMax] = PROPOSAL_RULES.proteinPerKg[cur.phase];
       const protein = Math.min(Math.round(ref * pMax), Math.max(Math.round(ref * pMin), cur.plan.proteinG + (after.proteinG - before.proteinG)));
       const kcal = Math.round((cur.plan.calories + (after.calories - before.calories)) / 10) * 10;
       const next = macrosFor(kcal, protein, cur.weightKg, cur.heightCm);
@@ -116,6 +131,11 @@ export function planAvailability(wish: AvailabilityWish, cur: AvailabilityCurren
   }
   const strengthChanged = w.strengthMin !== cur.strengthMin;
   const cardioChanged = cardioPlanned !== cur.cardioPlanned;
+  const on = w.carbDays !== false;
+  const wasOn = cur.carbDays !== false;
+  const food = nutrition ?? cur.plan;
+  const carb = on && food ? carbDays(food, days, cur.sex ?? null) : null;
+  const writePlan = !!food && (nutritionChanged || on !== wasOn || (on && daysChanged));
   return {
     days,
     daysChanged,
@@ -127,6 +147,10 @@ export function planAvailability(wish: AvailabilityWish, cur: AvailabilityCurren
     cardioCap: w.cardioMin,
     nutrition,
     nutritionChanged,
-    changed: daysChanged || strengthChanged || cardioChanged || nutritionChanged,
+    carbDaysOn: on,
+    carb,
+    writePlan,
+    food: writePlan ? food : null,
+    changed: daysChanged || strengthChanged || cardioChanged || nutritionChanged || on !== wasOn,
   };
 }

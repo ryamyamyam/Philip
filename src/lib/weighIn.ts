@@ -104,7 +104,8 @@ export function reviewWeighIn(
 }
 
 /** The target plan a refresh writes (append-only, effective today). */
-export function refreshPlan(r: TargetRefresh, today: YMD): Omit<TargetPlan, 'id' | 'createdAt'> {
+/** `weekdayOverrides`: Story 12 carb days, carried over when the plan it replaces had them. */
+export function refreshPlan(r: TargetRefresh, today: YMD, weekdayOverrides: TargetPlan['weekdayOverrides'] = null): Omit<TargetPlan, 'id' | 'createdAt'> {
   return {
     effectiveFrom: today,
     calories: r.to.calories,
@@ -120,8 +121,9 @@ export function refreshPlan(r: TargetRefresh, today: YMD): Omit<TargetPlan, 'id'
       warnings: r.to.warnings.map((w) => w.code),
       needsReview: r.to.needsReview,
       source: 'weighIn',
+      ...(weekdayOverrides ? { carbDays: true } : {}),
       ...(r.line ?? {}),
     },
-    weekdayOverrides: null,
+    weekdayOverrides,
   };
 }

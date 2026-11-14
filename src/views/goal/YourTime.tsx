@@ -37,6 +37,7 @@ export function YourTime({ program }: { program: TrainingProgram }) {
   const [days, setDays] = useState(curDays.length);
   const [strength, setStrength] = useState(curStrength);
   const [cardio, setCardio] = useState(program.availability?.cardioMin ?? Math.max(curCardio, AVAILABILITY_RULES.cardioMin.min));
+  const [carbOn, setCarbOn] = useState(program.carbDays !== false);
   const [busy, setBusy] = useState(false);
   const plan = plans ? planForDate(plans, today) : null;
   const workoutOpen = sessions?.some((s) => s.status === 'in_progress') ?? false;
@@ -45,8 +46,18 @@ export function YourTime({ program }: { program: TrainingProgram }) {
     if (!profile) return null;
     const weightKg = cycle?.goal.startWeightKg ?? profile.weightKg ?? null;
     return planAvailability(
-      { daysPerWeek: days, strengthMin: strength, cardioMin: cardio },
-      { days: curDays, strengthMin: curStrength, cardioPlanned: curCardio, phase, plan: plan ? { calories: plan.calories, proteinG: plan.proteinG, fatG: plan.fatG, carbsG: plan.carbsG } : null, weightKg, heightCm: profile.heightCm },
+      { daysPerWeek: days, strengthMin: strength, cardioMin: cardio, carbDays: carbOn },
+      {
+        days: curDays,
+        strengthMin: curStrength,
+        cardioPlanned: curCardio,
+        phase,
+        plan: plan ? { calories: plan.calories, proteinG: plan.proteinG, fatG: plan.fatG, carbsG: plan.carbsG } : null,
+        weightKg,
+        heightCm: profile.heightCm,
+        carbDays: program.carbDays !== false,
+        sex: profile.sex,
+      },
       (n) => {
         if (!cycle) return null;
         const inputs = calcInputsForGoal(profile, phase, cycle.goal, today, n);
@@ -58,7 +69,7 @@ export function YourTime({ program }: { program: TrainingProgram }) {
         }
       },
     );
-  }, [profile, cycle, days, strength, cardio, curDays, curStrength, curCardio, phase, plan, today]);
+  }, [profile, cycle, days, strength, cardio, carbOn, curDays, curStrength, curCardio, phase, plan, today, program.carbDays]);
   const firstSave = !program.availability;
 
   const confirm = async () => {
@@ -90,7 +101,7 @@ export function YourTime({ program }: { program: TrainingProgram }) {
           ))}
         </div>
       </div>
-      <div className="setup-inputs">
+      <div className="setup-inputs time-inputs">
         <label className="field">
           <span className="field-label">{tg('time.strength')}</span>
           <select className="input num" value={strength} onChange={(e) => setStrength(Number(e.target.value))}>
@@ -112,6 +123,13 @@ export function YourTime({ program }: { program: TrainingProgram }) {
           </select>
         </label>
       </div>
+      <label className="review-item">
+        <input type="checkbox" checked={carbOn} onChange={(e) => setCarbOn(e.target.checked)} />
+        <span className="stack-xs">
+          <span>{tg('time.carbs')}</span>
+          <span className="small muted">{tg('time.carbsHint')}</span>
+        </span>
+      </label>
       {result && (
         <div className="stack-xs" aria-live="polite" data-testid="time-changes">
           <span className="field-label">{tg('time.changes')}</span>
@@ -129,10 +147,18 @@ export function YourTime({ program }: { program: TrainingProgram }) {
           ) : (
             result.changed && cardio > curCardio && <p className="small num">{tg('time.row.cardioKeep', { n: curCardio })}</p>
           )}
+          {result.writePlan &&
+            (result.carb ? (
+              <p className="small num">
+                {tg('time.row.carbs', { train: result.carb.train.calories, trainC: result.carb.train.carbsG, rest: result.carb.rest.calories, restC: result.carb.rest.carbsG })}
+              </p>
+            ) : (
+              !result.carbDaysOn && <p className="small">{tg('time.row.carbsOff')}</p>
+            ))}
           {result.nutritionChanged && result.nutrition && plan ? (
             <p className="small num">{tg('time.row.food', { fromKcal: plan.calories, toKcal: result.nutrition.calories, fromP: plan.proteinG, toP: result.nutrition.proteinG })}</p>
           ) : (
-            result.changed && <p className="small">{tg('time.row.foodKeep')}</p>
+            result.changed && !result.writePlan && <p className="small">{tg('time.row.foodKeep')}</p>
           )}
         </div>
       )}

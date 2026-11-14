@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react';
 import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { addTargetPlan, addTm, startCycle, updateProfile } from '../../db/repo';
-import type { CycleRecord, Profile, TmRecord, WeightEntry, WorkoutSession } from '../../db/types';
+import type { CycleRecord, IsoWeekday, Profile, TmRecord, WeightEntry, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
 import { todayYmd } from '../../lib/date';
 import { fmtDate, fmtKcal, fmtNum } from '../../lib/format';
 import { parseDecimal } from '../../lib/numbers';
 import { calculateTargets } from '../../lib/targets';
 import { continuation } from '../../lib/goal/deadline';
+import { overridesFor } from '../../lib/goal/carbDays';
+import { DEFAULT_TRAINING_DAYS } from '../../lib/training/schedule';
 import {
   calcInputsForGoal,
   checkUserGoal,
@@ -40,9 +42,14 @@ export function StartCycleView({
   sessions,
   tmHistory,
   trainingDays,
+  days,
+  carbOn = true,
 }: {
   /** Story 12: training days a week when the owner set his time (else Story 5's four). */
   trainingDays?: number;
+  /** Story 12 update: his training weekdays and the carb-day switch, for the plan's day split. */
+  days?: readonly IsoWeekday[];
+  carbOn?: boolean;
   profile: Profile;
   weights: readonly WeightEntry[];
   cycles: readonly CycleRecord[];
@@ -122,8 +129,9 @@ export function StartCycleView({
         fatG: res.fatG,
         carbsG: res.carbsG,
         method: 'calculated',
-        inputsSnapshot: { ...inputs, bmr: res.bmr, tdee: res.tdee, adjustment: res.adjustment, warnings: res.warnings.map((w) => w.code), needsReview: res.needsReview, source: 'cycleBriefing' },
-        weekdayOverrides: null,
+        inputsSnapshot: { ...inputs, bmr: res.bmr, tdee: res.tdee, adjustment: res.adjustment, warnings: res.warnings.map((w) => w.code), needsReview: res.needsReview, source: 'cycleBriefing', carbDays: carbOn },
+        // Story 12 update: training days +carbs, rest days −carbs (same week).
+        weekdayOverrides: overridesFor(res, days ?? DEFAULT_TRAINING_DAYS, profile.sex, carbOn),
       });
     }
     await startCycle({ index, block: blockForCycle(index), startedAt: Date.now(), phase, tms: snapshot, goal: { ...goal, targetPlanId } });

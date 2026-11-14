@@ -709,3 +709,9 @@
 .goal-history li + li {
   margin-top: var(--space-2);
 }
+
+/* Story 12: "Your time" — both boxes on one line even if a label wraps. */
+.time-inputs {
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+}

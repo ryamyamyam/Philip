@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Sheet } from '../../components/Sheet';
@@ -43,7 +43,7 @@ const exName = (id: string) => t(`exercise.${id}` as StringKey);
  * preselected (the cycle continues, the levers apply now); a new goal restarts the cycle. Every new goal
  * has a goal date: Philip suggests it, the owner can move it, and the pace follows.
  */
-export default function GoalSheet({ manual = false }: { manual?: boolean }) {
+export default function GoalSheet({ manual = false, autoAsk = false }: { manual?: boolean; autoAsk?: boolean }) {
   const { closeSheet } = useUI();
   const toast = useToast();
   const state = useGoalState();
@@ -147,6 +147,16 @@ export default function GoalSheet({ manual = false }: { manual?: boolean }) {
   const blocked = choice?.issues?.some((i) => i.level === 'error') ?? false;
   const restart = kind === 'reached' || mode !== 'keep';
 
+  // 0.12.3: opened from a weigh-in ("Let Philip re-plan"): ask Philip straight away, once, with the goal kept.
+  const askRef = useRef<() => Promise<void>>(async () => {});
+  const autoFired = useRef(false);
+  const loaded = !!state && !!profile && !!weights && !!sessions && !!cycles && !!plans && program !== undefined && !!choices;
+  useEffect(() => {
+    if (!autoAsk || autoFired.current || !loaded || !choice || blocked || open) return;
+    autoFired.current = true;
+    void askRef.current();
+  }, [autoAsk, loaded, choice, blocked, open]);
+
   if (!state || !cycle || !profile || !weights || !sessions || !cycles || !plans || program === undefined || !choices || !prompt) {
     return (
       <Sheet title={tg('goal.title.reached')} onClose={closeSheet}>
@@ -211,6 +221,8 @@ export default function GoalSheet({ manual = false }: { manual?: boolean }) {
     }
   };
 
+  askRef.current = ask;
+
   const items = (pc: PlanChange): GoalPlanItems => {
     const p = pc.proposal;
     return {
@@ -219,6 +231,8 @@ export default function GoalSheet({ manual = false }: { manual?: boolean }) {
       cardioMin: p && p.cardioMin !== null && !off.cardioMin ? p.cardioMin : null,
       days: p && p.days && !off.days ? p.days : null,
       swaps: (p?.swaps ?? []).filter((s) => !off[`swap-${s.day}-${s.slot}`]),
+      tms: (p?.tms ?? []).filter((x) => !off[`tm-${x.lift}`]),
+      loads: (p?.loads ?? []).filter((x) => !off[`load-${x.exerciseId}`]),
     };
   };
 
@@ -323,7 +337,7 @@ export default function GoalSheet({ manual = false }: { manual?: boolean }) {
             <h3 id="goal-h2">{tg(kind === 'reached' ? 'goal.step.next' : 'goal.step.revise')}</h3>
             <div className="segmented" role="radiogroup" aria-label={tg('goal.step.next')}>
               {(kind === 'reached' ? (['repeat', 'philip', 'own'] as const) : (['keep', 'philip', 'own'] as const)).map((m) => (
-                <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} disabled={waiting}>
+                <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} disabled={waiting || (state.workoutOpen && m !== 'keep' && m !== 'repeat')}>
                   {tg(`goal.opt.${m}` as GoalKey)}
                 </button>
               ))}
@@ -378,6 +392,7 @@ export default function GoalSheet({ manual = false }: { manual?: boolean }) {
                 )}
               </div>
             )}
+            {state.workoutOpen && kind !== 'reached' && <p className="small muted">{tg('replan.workoutOpenGoal')}</p>}
             {mode === 'keep' && choice?.deadline && <p className="small num">{tg('goal.dateKept', { date: fmtDate(choice.deadline, 'short') })}</p>}
             <p className="small muted">
               {restart
@@ -440,6 +455,15 @@ export default function GoalSheet({ manual = false }: { manual?: boolean }) {
               {proposal.kcal !== null && (
                 <Row id="kcal" off={off} setOff={setOff} label={tg('goal.row.kcal')} from={plan ? tg('goal.kcal', { n: plan.calories }) : '–'} to={tg('goal.kcal', { n: proposal.kcal })} why={proposal.why.kcal} />
               )}
+              {proposal.kcal !== null && (() => {
+                // The full P/F/C: fat sits on the floor, carbs take the rest (lib/goal/carbDays.ts).
+                const m = macrosFor(proposal.kcal, proposal.proteinG ?? plan?.proteinG ?? 0, open.choice.startWeightKg, profile.heightCm);
+                return (
+                  <p className="small num">
+                    {tg('goal.pfc', { fromP: plan?.proteinG ?? '–', fromF: plan?.fatG ?? '–', fromC: plan?.carbsG ?? '–', p: m.proteinG, f: m.fatG, c: m.carbsG })}
+                  </p>
+                );
+              })()}
               {proposal.kcal !== null && program?.carbDays !== false && (() => {
                 const split = carbDays(macrosFor(proposal.kcal, proposal.proteinG ?? plan?.proteinG ?? 0, open.choice.startWeightKg, profile.heightCm), trainingDaysOrDefault(proposal.days ?? program?.trainingDays), profile.sex);
                 return split ? <p className="small muted num">{tg('goal.carbSplit', { train: split.train.calories, rest: split.rest.calories })}</p> : null;
@@ -471,6 +495,30 @@ export default function GoalSheet({ manual = false }: { manual?: boolean }) {
                   from={exName(exerciseFor(s.day, s.slot, reviewBlock, choiceMap))}
                   to={exName(s.exerciseId)}
                   why={k === 0 ? proposal.why.swaps : undefined}
+                />
+              ))}
+              {(proposal.tms ?? []).map((x) => (
+                <Row
+                  key={`tm-${x.lift}`}
+                  id={`tm-${x.lift}`}
+                  off={off}
+                  setOff={setOff}
+                  label={tg('goal.row.tm', { lift: exName(x.lift) })}
+                  from={fmtIn(x.fromKg, unit)}
+                  to={fmtIn(x.toKg, unit)}
+                  why={proposal.why.tms?.[x.lift]}
+                />
+              ))}
+              {(proposal.loads ?? []).map((x) => (
+                <Row
+                  key={`load-${x.exerciseId}`}
+                  id={`load-${x.exerciseId}`}
+                  off={off}
+                  setOff={setOff}
+                  label={tg('goal.row.load', { name: exName(x.exerciseId) })}
+                  from={fmtIn(x.fromKg, unit)}
+                  to={fmtIn(x.toKg, unit)}
+                  why={proposal.why.loads?.[x.exerciseId]}
                 />
               ))}
               {proposal.clamps.map((c) => (

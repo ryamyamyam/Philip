@@ -65,6 +65,17 @@ Owner: cut and bulk should have different P/F/C ratios, and training days should
 - **Your time:** labels shortened ("Lifting, min/session", "Cardio, min/session max") and the two boxes share one line.
 - Tests: unit `story12.test.ts` (bands, split maths, floors, goal plan, Your time); e2e checks the boxes line up. Protein expectations in `story11.spec.ts`/`story12.spec.ts` now reflect the 2.0 g/kg bulk cap (Philip's 150 g is capped at 146–149 g).
 
+## 6c. Weigh-in → Philip re-plans everything (0.12.3, owner feedback 2026-11-13)
+
+Owner (screenshot): after a weigh-in he tapped "Ask Philip for a full update" and got a chat answer; nothing changed in the app. Re-plan was greyed out by an open workout, and it had no lift-weight levers.
+
+- **Weigh-in:** with a cycle running, the weigh-in card's first button is **Let Philip re-plan**. It opens the Re-plan sheet and asks Philip at once (Keep this goal). The formula "Update my targets" stays as a secondary button; the chat button shows only without a cycle.
+- **Lift weights are levers:** Philip may move each main lift's training max (±10%, every working weight follows) and each accessory's next weight (±20% of the last logged weight), the same bounds as the workout report. Each is a row with its own switch. TM changes append `tmHistory` rows (`reason: 'adjust'`); accessory weights become `TrainingProgram.nextOverrides`. Undo appends the old TMs back (`reason: 'undo'`) and restores the overrides. Not offered on a restart (the new cycle has its own TM progression).
+- **P/F/C in the review:** a line shows protein / fat / carbs before → after, plus the training-day / rest-day calories.
+- **Open workout:** no longer disables Re-plan. The open session's orders are frozen, so food and future sessions can change; only a new goal (a restart) waits, with a plain note.
+- **Ask Philip:** when asked for new targets or weights, he points to Re-plan with Philip instead of answering in chat.
+- Tests: unit (prompt, clamps, restart, Apply/Undo with a workout open, restart refused); e2e weigh-in → re-plan → uncheck one lift → Apply → Cycle plan shows the new TM.
+
 ## 7. Data
 
 No Dexie bump, no new tables, backup `schemaVersion` 1. New optional fields only; the backup parser accepts `'manual'`, `weeks`, `deadline` and `availability`, and older backups restore unchanged.
@@ -82,4 +93,4 @@ No Dexie bump, no new tables, backup `schemaVersion` 1. New optional fields only
 9. Goal date: suggestion, clamp, pace, calculator rate, continuation (unit); picker (e2e).
 10. Your time: weekdays, cardio rule, nutrition rule, Confirm/Undo (unit); Settings flow (e2e).
 11. 60 minutes; Copy to today; day slide; version line (unit + e2e).
-12. 0.12.2: tsc, unit 457/457, build, size 175.7/176 KB, Chromium e2e 119/119. WebKit pending on the Mac.
+12. 0.12.3: tsc, unit 461/461, Chromium e2e 120/120. 0.12.2: tsc, unit 457/457, build, size 175.7/176 KB, Chromium e2e 119/119. WebKit pending on the Mac.

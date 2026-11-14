@@ -16,6 +16,10 @@ import { calcInputsForGoal } from '../../lib/training/cycleGoal';
 import { blockForCycle } from '../../lib/training/program';
 import { nextCycleIndex } from '../../lib/training/progress';
 import { trainingDaysOrDefault } from '../../lib/training/schedule';
+import { exerciseFor, type ExerciseId } from '../../lib/training/exercises';
+import { LIFTS } from '../../lib/training/program';
+import { tmsForCycle } from '../../lib/training/progress';
+import { lastSessionIdFor, lastSetsFor } from '../../lib/training/sessionLog';
 import { goalWindow, type GoalWindow } from '../../lib/goal/window';
 import { leverRanges, parseProposal, proposalPrompt, type LeverRanges } from '../../lib/goal/proposal';
 import { extractJson } from '../../services/foodAnalysis/parse';
@@ -32,7 +36,7 @@ export interface Prepared {
 
 /** Everything Philip needs, from the database (one read), for the goal the owner picked. */
 export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, event: PlanChange['event'], reason: string, restart: boolean, today: YMD): Promise<Prepared> {
-  const [profile, plans, weights, program, cycles, sessions, choices] = await Promise.all([
+  const [profile, plans, weights, program, cycles, sessions, choices, tmRows] = await Promise.all([
     db.profile.get('me'),
     db.targetPlans.toArray(),
     db.weightEntries.toArray(),
@@ -40,6 +44,7 @@ export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, eve
     db.cycles.toArray(),
     db.workoutSessions.toArray(),
     db.slotChoices.toArray(),
+    db.tmHistory.toArray(),
   ]);
   const start = toYmd(new Date(cycle.startedAt));
   const food = await db.foodEntries.where('date').between(start, today, true, true).toArray();
@@ -65,6 +70,20 @@ export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, eve
     }
   }
   const block = restart ? blockForCycle(nextCycleIndex(cycles, sessions)) : cycle.block;
+  const choiceMap = Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>;
+  // 0.12.3: lift weights Philip may move, while the cycle continues (a restart applies its own TM progression).
+  const tmNow = tmsForCycle(tmRows, cycle.index);
+  const tms = restart ? [] : LIFTS.flatMap((l) => (tmNow[l] !== null ? [{ lift: l, kg: tmNow[l] as number }] : []));
+  const loads: { exerciseId: string; kg: number }[] = [];
+  if (!restart) {
+    for (const day of [1, 2, 3, 4] as const)
+      for (const slot of ['A1', 'A2', 'B'] as const) {
+        const id = exerciseFor(day, slot, block, choiceMap);
+        if (loads.some((x) => x.exerciseId === id) || !lastSessionIdFor(sessions, id)) continue;
+        const kgs = (lastSetsFor(sessions, id) ?? []).filter((a) => a.done && a.kg !== null && a.kg > 0).map((a) => a.kg as number);
+        if (kgs.length) loads.push({ exerciseId: id, kg: Math.max(...kgs) });
+      }
+  }
   const ranges = leverRanges({
     choice,
     calc,
@@ -76,6 +95,9 @@ export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, eve
     choices: Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])),
     goalDays: Math.round((choice.weeks ?? 4) * 7),
     ...(program?.availability ? { cardioCap: program.availability.cardioMin, strengthMin: program.availability.strengthMin } : {}),
+    tms,
+    loads,
+    unit: program?.weightUnit ?? 'kg',
   });
   const brief = await loadBrief(today);
   const prompt = proposalPrompt({ event, reason, restart, choice, ranges, window, brief, name: exName });

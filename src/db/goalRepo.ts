@@ -25,6 +25,7 @@ import { blockForCycle } from '../lib/training/program';
 import { slotKey } from '../lib/training/exercises';
 import { nextCycleIndex } from '../lib/training/progress';
 import { progressionFor } from '../lib/training/nextCycle';
+import { lastSessionIdFor } from '../lib/training/sessionLog';
 
 export { firedPrompts, markPromptFired } from './goalPrompts';
 
@@ -61,7 +62,8 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
     if (!pc || !program || !profile) throw new GoalApplyError('missing');
     if (pc.status === 'applied') throw new GoalApplyError('stale');
     const sessions = await database.workoutSessions.toArray();
-    if (sessions.some((s) => s.status === 'in_progress')) throw new GoalApplyError('workoutOpen');
+    // 0.12.3: an open workout blocks only a restart. Its orders are frozen, so food and the next sessions can change now.
+    if (pc.restart && sessions.some((s) => s.status === 'in_progress')) throw new GoalApplyError('workoutOpen');
     const cycles = await database.cycles.toArray();
     const current = cycles.find((c) => c.index === program.currentCycle);
     if (!current || current.index !== pc.cycle) throw new GoalApplyError('stale');
@@ -131,6 +133,26 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
       await database.cycles.put({ ...current, ...(items.cardioMin !== null ? { cardioMin: items.cardioMin } : {}) });
     }
 
+    // 0.12.3: training maxes (main-lift weights follow) and accessory next weights. TM history stays append-only.
+    let nextOverrides = program.nextOverrides;
+    if (!pc.restart && items.tms?.length) {
+      undo.tmsBefore = items.tms.map((x) => ({ lift: x.lift, kg: x.fromKg }));
+      for (const x of items.tms) await database.tmHistory.add({ lift: x.lift, tmKg: x.toKg, effectiveCycle: current.index, reason: 'adjust', createdAt: now });
+    }
+    if (!pc.restart && items.loads?.length) {
+      undo.nextOverridesBefore = program.nextOverrides ? program.nextOverrides.map((o) => ({ ...o })) : null;
+      const list = [...(program.nextOverrides ?? [])];
+      for (const x of items.loads) {
+        const after = lastSessionIdFor(sessions, x.exerciseId);
+        if (!after) continue;
+        const i = list.findIndex((o) => o.exerciseId === x.exerciseId);
+        const o = { exerciseId: x.exerciseId, afterSessionId: after, kg: x.toKg, reps: null, sets: null };
+        if (i >= 0) list[i] = o;
+        else list.push(o);
+      }
+      nextOverrides = list;
+    }
+
     for (const s of items.swaps) {
       const key = slotKey(s.day, s.slot, block);
       undo.swaps.push({ slotKey: key, from: (await database.slotChoices.get(key))?.exerciseId ?? null });
@@ -140,6 +162,7 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
       ...program,
       ...(newIndex !== null ? { currentCycle: newIndex } : {}),
       ...(items.days ? { trainingDays: [...items.days] } : {}),
+      ...(nextOverrides ? { nextOverrides } : {}),
       updatedAt: now,
     });
     if (pc.restart) await database.profile.put({
@@ -174,7 +197,7 @@ export function canUndo(pc: PlanChange, sessions: readonly { cycle: number }[], 
 }
 
 export async function undoGoalPlan(id: number, today: YMD, database: PhilipDB = db): Promise<void> {
-  const tables = [database.planChanges, database.cycles, database.trainingProgram, database.workoutSessions, database.profile, database.targetPlans, database.slotChoices, database.coachNotes];
+  const tables = [database.planChanges, database.cycles, database.trainingProgram, database.workoutSessions, database.profile, database.targetPlans, database.slotChoices, database.coachNotes, database.tmHistory];
   await database.transaction('rw', tables, async () => {
     const pc = await database.planChanges.get(id);
     const sessions = await database.workoutSessions.toArray();
@@ -207,6 +230,7 @@ export async function undoGoalPlan(id: number, today: YMD, database: PhilipDB = 
         ...rest,
         ...(u.trainingDays ? { trainingDays: [...u.trainingDays] } : {}),
         ...(u.restart ? { currentCycle: u.restart.oldCycle } : {}),
+        ...(u.nextOverridesBefore !== undefined ? { nextOverrides: u.nextOverridesBefore ?? [] } : {}),
         updatedAt: now,
       });
     }
@@ -215,6 +239,7 @@ export async function undoGoalPlan(id: number, today: YMD, database: PhilipDB = 
       await database.targetPlans.add({ ...u.targetPlanBefore, effectiveFrom: today, createdAt: now });
     }
     if (u.noteIds.length) await database.coachNotes.bulkDelete(u.noteIds);
+    for (const t of u.tmsBefore ?? []) await database.tmHistory.add({ lift: t.lift, tmKg: t.kg, effectiveCycle: pc.cycle, reason: 'undo', createdAt: now });
     await database.planChanges.put({ ...pc, status: 'undone' });
   });
 }

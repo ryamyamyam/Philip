@@ -11,11 +11,8 @@ export const REPLAN_RULES = {
   recentDays: 7,
 } as const;
 
-export type ReplanButton =
-  | { state: 'hidden' }
-  | { state: 'disabled'; reason: 'workoutOpen' }
-  | { state: 'see'; manual: boolean }
-  | { state: 'ask' };
+/** 0.12.3: an open workout no longer disables the button: the sheet only holds back a new goal (a restart). */
+export type ReplanButton = { state: 'hidden' } | { state: 'see'; manual: boolean } | { state: 'ask' };
 
 export interface ReplanInput {
   /** A cycle is running and has sessions left (no setup, no briefing pending). */
@@ -29,7 +26,6 @@ export interface ReplanInput {
 
 export function replanButton(i: ReplanInput): ReplanButton {
   if (!i.cycleActive) return { state: 'hidden' };
-  if (i.workoutOpen) return { state: 'disabled', reason: 'workoutOpen' };
   if (i.open) return { state: 'see', manual: false };
   if (i.openManual) return { state: 'see', manual: true };
   return { state: 'ask' };

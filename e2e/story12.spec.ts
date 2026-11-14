@@ -96,9 +96,46 @@ test('the button: hidden before the first cycle; on Plan, Goals and Ask Philip d
   await expect(main(page)).toContainText('Give me 60 minutes');
   await expect(main(page)).toContainText('(outside the 60)');
   await main(page).getByRole('button', { name: 'Start workout' }).click();
+  // 0.12.3: still usable; only a new goal (a restart) waits for the workout.
   await openAsk(page);
-  await expect(replan(page)).toBeDisabled();
-  await expect(main(page)).toContainText('Finish or close the open workout first.');
+  await replan(page).click();
+  const s = sheet(page);
+  await expect(s).toContainText('A workout is open, so a new goal waits');
+  await expect(s.getByRole('radio', { name: 'Keep this goal' })).toHaveAttribute('aria-checked', 'true');
+  await expect(s.getByRole('radio', { name: 'Set my own' })).toBeDisabled();
+});
+
+test('weigh-in → "Let Philip re-plan" asks at once; he proposes food, P/F/C and lift weights; yes/no each; Apply changes the app', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
+  const prompts = mockGemini(page, { ...PLAN, tms: [{ lift: 'bench', kg: 95, why: 'Bench key sets are flying.' }, { lift: 'squat', kg: 140, why: 'Squat too.' }] });
+  await fresh(page, { at: 'home' });
+  await setKey(page);
+  await startCycleOne(page);
+  await page.clock.setFixedTime(new Date('2026-11-12T10:00:00'));
+  await page.reload();
+  await tab(page, 'Progress').click();
+  const card = page.getByRole('region', { name: 'Log weight' });
+  await card.getByLabel(/^Weight/).fill('163');
+  await card.getByRole('button', { name: 'Log weight' }).click();
+  await page.getByRole('button', { name: 'Let Philip re-plan' }).click();
+
+  const s = sheet(page);
+  await expect(s).toContainText('You are on pace.');
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]).toContain('tms: optional training-max changes');
+  await expect(s).toContainText('Bench press: training max');
+  await expect(s).toContainText('Back squat: training max');
+  await shot(page, '7-lift-weights');
+  // Say no to the squat change, yes to the rest.
+  await s.getByRole('checkbox', { name: /Back squat: training max/ }).uncheck();
+  await s.getByRole('button', { name: 'Yes, let’s go' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'New plan is live.' })).toBeVisible();
+
+  await tab(page, 'Home').click();
+  await main(page).getByRole('button', { name: /^Workout/ }).click();
+  await main(page).getByRole('button', { name: 'Cycle plan' }).click();
+  await expect(main(page)).toContainText(/Bench press: training max 209(\.\d)? lb/); // 95 kg
+  await expect(main(page)).toContainText('Back squat: training max 298 lb'); // unchanged 135 kg
 });
 
 test('keep this goal: Philip tunes the levers, the cycle stays; then "See Philip’s plan", the 7-day note and a goal date', async ({ page }) => {
@@ -174,7 +211,7 @@ test('your time: days a week and minutes re-plan on Confirm; the version line', 
   await fresh(page, { at: 'home' });
   await startCycleOne(page);
   await tab(page, 'Settings').click();
-  await expect(main(page)).toContainText('Version 0.12.2');
+  await expect(main(page)).toContainText('Version 0.12.3');
   const time = main(page).getByRole('group', { name: 'Your time' });
   await expect(time.getByRole('radio', { name: '4' })).toHaveAttribute('aria-checked', 'true');
   await expect(time.getByLabel('Lifting, min/session')).toHaveValue('60');

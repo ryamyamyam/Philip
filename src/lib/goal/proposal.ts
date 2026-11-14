@@ -19,7 +19,8 @@ import { referenceWeightKg, SAFETY } from '../targets';
 import type { GoalChoice, GoalPlanItems, GoalProposalRecord, IsoWeekday, Sex } from '../../db/types';
 import { CARDIO_MINUTES } from '../training/cardio';
 import { exerciseFor, menuSlot, type ExerciseId } from '../training/exercises';
-import type { Block, Day } from '../training/program';
+import { roundTo, type Block, type Day, type LiftId } from '../training/program';
+import { roundToStep } from '../training/plates';
 import { parseRemember, REMEMBER_RULE } from '../coach/memory';
 import type { GoalWindow } from './window';
 import { PROTEIN_PER_KG } from './carbDays';
@@ -35,6 +36,9 @@ export const PROPOSAL_RULES = {
   /** Story 12 update: by phase (lib/goal/carbDays.ts › PROTEIN_PER_KG). */
   proteinPerKg: PROTEIN_PER_KG,
   cardioMin: { gain: [15, 25], maintain: [15, 30], lose: [20, 40] } as const,
+  /** 0.12.3: same bounds as the workout report (COACH_BOUNDS): TM ±10%, accessory next weight ±20%. */
+  tmPct: 0.1,
+  loadPct: 0.2,
   messageMax: 700,
   whyMax: 200,
 } as const;
@@ -55,6 +59,11 @@ export interface LeverRanges {
   block: Block;
   trainingDays: IsoWeekday[];
   choices: Readonly<Record<string, string>>;
+  /** 0.12.3: current training maxes and accessory weights Philip may move (only while the cycle continues). */
+  tms?: { lift: LiftId; kg: number }[];
+  loads?: { exerciseId: string; kg: number }[];
+  /** Plate / dumbbell unit for rounding. */
+  unit?: 'kg' | 'lb';
   /** Story 12: the most cardio the owner will walk after a session, and his minutes for the lifts (his availability). */
   cardioCap?: number;
   strengthMin?: number;
@@ -77,6 +86,9 @@ export interface RangeInput {
   goalDays?: number;
   cardioCap?: number;
   strengthMin?: number;
+  tms?: { lift: LiftId; kg: number }[];
+  loads?: { exerciseId: string; kg: number }[];
+  unit?: 'kg' | 'lb';
 }
 
 const r10 = (n: number) => Math.round(n / 10) * 10;
@@ -126,6 +138,9 @@ export function leverRanges(i: RangeInput): LeverRanges {
     heightCm: i.heightCm,
     sex: i.sex,
     ...(i.cardioCap !== undefined ? { cardioCap: i.cardioCap } : {}),
+    ...(i.tms?.length ? { tms: i.tms } : {}),
+    ...(i.loads?.length ? { loads: i.loads } : {}),
+    ...(i.unit ? { unit: i.unit } : {}),
     ...(i.strengthMin !== undefined ? { strengthMin: i.strengthMin } : {}),
   };
 }
@@ -196,13 +211,27 @@ export function proposalPrompt(p: PromptInput): string {
     `- days: exactly ${dayCount} training weekdays, 1 = Monday ... 7 = Sunday (now ${r.trainingDays.join(', ')}). Null to keep.`,
     '- swaps: optional, at most 3, each one of the options for that slot below. Use them to aim training at his goals and his notes (e.g. a weak spot). Empty list to keep.',
     menuText(r, p.name),
+    ...(r.tms?.length
+      ? [
+          '- tms: optional training-max changes; every main-lift working weight is a % of it. Each within 10% of now; only when the logs support it (key sets hit easily or missed). Now: ' +
+            r.tms.map((x) => `${x.lift} ${x.kg} kg`).join(', ') +
+            '.',
+        ]
+      : []),
+    ...(r.loads?.length
+      ? [
+          '- loads: optional next weights for accessories (dumbbells per hand), each within 20% of the last weight; only when the logs support it. Last: ' +
+            r.loads.map((x) => `${x.exerciseId} (${p.name(x.exerciseId)}) ${x.kg} kg`).join(', ') +
+            '.',
+        ]
+      : []),
     '',
     'Food: fat stays on the safety floor and carbs fill the rest. The app splits the day by training: more carbs on training days, fewer on rest days, same weekly calories and protein. Give kcal as the daily average.',
     '',
     REMEMBER_RULE,
     '',
     'Reply with JSON only, this shape:',
-    '{"message": "2-4 sentences for him: what you saw and what you are changing", "kcal": {"value": 2900, "why": "..."}, "proteinG": {"value": 150, "why": "..."}, "cardioMin": {"value": 20, "why": "..."}, "days": {"value": [1,2,4,5], "why": "..."} or null, "swaps": [{"day": 2, "slot": "A1", "exerciseId": "...", "why": "..."}], "remember": []}',
+    '{"message": "2-4 sentences for him: what you saw and what you are changing", "kcal": {"value": 2900, "why": "..."}, "proteinG": {"value": 150, "why": "..."}, "cardioMin": {"value": 20, "why": "..."}, "days": {"value": [1,2,4,5], "why": "..."} or null, "swaps": [{"day": 2, "slot": "A1", "exerciseId": "...", "why": "..."}], "tms": [{"lift": "bench", "kg": 92.5, "why": "..."}], "loads": [{"exerciseId": "...", "kg": 22.5, "why": "..."}], "remember": []}',
     '',
     'His history (the brief):',
     p.brief,
@@ -270,11 +299,43 @@ export function parseProposal(raw: unknown, r: LeverRanges, source: GoalProposal
       if (w) swapWhy.push(w);
     }
   }
+  // 0.12.3: lift weights. Clamped to the report's bounds, rounded to what can be loaded; unchanged ones dropped.
+  const tms: NonNullable<GoalPlanItems['tms']> = [];
+  const loads: NonNullable<GoalPlanItems['loads']> = [];
+  const tmWhy: Record<string, string> = {};
+  const loadWhy: Record<string, string> = {};
+  if (Array.isArray(raw.tms) && r.tms) {
+    for (const x of raw.tms) {
+      if (!isObj(x)) continue;
+      const cur = r.tms.find((t) => t.lift === x.lift);
+      const kg = numOf(x.kg);
+      if (!cur || kg === null || tms.some((t) => t.lift === cur.lift)) continue;
+      const toKg = roundTo(Math.min(cur.kg * (1 + PROPOSAL_RULES.tmPct), Math.max(cur.kg * (1 - PROPOSAL_RULES.tmPct), kg)), 0.5);
+      if (toKg === cur.kg) continue;
+      tms.push({ lift: cur.lift, fromKg: cur.kg, toKg });
+      tmWhy[cur.lift] = clean(x.why, PROPOSAL_RULES.whyMax);
+    }
+  }
+  if (Array.isArray(raw.loads) && r.loads) {
+    for (const x of raw.loads) {
+      if (!isObj(x)) continue;
+      const cur = r.loads.find((l) => l.exerciseId === x.exerciseId);
+      const kg = numOf(x.kg);
+      if (!cur || kg === null || cur.kg <= 0 || loads.some((l) => l.exerciseId === cur.exerciseId)) continue;
+      const toKg = Math.max(0, roundToStep(Math.min(cur.kg * (1 + PROPOSAL_RULES.loadPct), Math.max(cur.kg * (1 - PROPOSAL_RULES.loadPct), kg)), r.unit ?? 'kg'));
+      if (toKg === cur.kg || toKg <= 0) continue;
+      loads.push({ exerciseId: cur.exerciseId, fromKg: cur.kg, toKg });
+      loadWhy[cur.exerciseId] = clean(x.why, PROPOSAL_RULES.whyMax);
+    }
+  }
+
   const why: GoalProposalRecord['why'] = {};
+  if (tms.length) why.tms = tmWhy;
+  if (loads.length) why.loads = loadWhy;
   if (kcal !== null) why.kcal = whyOf(raw.kcal);
   if (proteinG !== null) why.proteinG = whyOf(raw.proteinG);
   if (cardioMin !== null) why.cardioMin = whyOf(raw.cardioMin);
   if (days) why.days = whyOf(raw.days);
   if (swapWhy.length) why.swaps = swapWhy.join(' ');
-  return { message, kcal, proteinG, cardioMin, days, swaps, why, clamps, remember: parseRemember(raw), source, at };
+  return { message, kcal, proteinG, cardioMin, days, swaps, ...(tms.length ? { tms } : {}), ...(loads.length ? { loads } : {}), why, clamps, remember: parseRemember(raw), source, at };
 }

@@ -134,10 +134,10 @@ describe('manual plans and the goal reminder', () => {
     expect(isResolved([{ status: 'applied', event: 'reached', reason: 'weight' }], 'offtrack', 'tooFast')).toBe(true);
   });
 
-  it('button: hidden without a cycle, disabled in a workout, reopens a waiting request, else asks', () => {
+  it('button: hidden without a cycle, usable in a workout (0.12.3), reopens a waiting request, else asks', () => {
     const base = { cycleActive: true, workoutOpen: false, open: null, openManual: null };
     expect(replanButton({ ...base, cycleActive: false })).toEqual({ state: 'hidden' });
-    expect(replanButton({ ...base, workoutOpen: true })).toEqual({ state: 'disabled', reason: 'workoutOpen' });
+    expect(replanButton({ ...base, workoutOpen: true })).toEqual({ state: 'ask' });
     expect(replanButton({ ...base, openManual: { status: 'waiting' } })).toEqual({ state: 'see', manual: true });
     expect(replanButton({ ...base, open: { status: 'ready' }, openManual: { status: 'ready' } })).toEqual({ state: 'see', manual: false });
     expect(replanButton(base)).toEqual({ state: 'ask' });
@@ -387,5 +387,72 @@ describe('macros by phase and carb days (Story 12 update)', () => {
     expect(moved.writePlan).toBe(true);
     expect(Object.values(moved.carb!.overrides).filter((m) => m!.carbsG > 370)).toHaveLength(3);
     expect(planAvailability({ daysPerWeek: 4, strengthMin: 60, cardioMin: 15, carbDays: true }, { ...cur, carbDays: true }, () => null).changed).toBe(false);
+  });
+});
+
+describe('lift weights in the re-plan (0.12.3)', () => {
+  const window = goalWindow({ start: '2026-11-02', today: '2026-11-12', startKg: 73, weights: [], food: [], targetOn: () => null, sessions: [], cycle: 1 });
+  const ranges = leverRanges({
+    choice: keep,
+    calc: null,
+    window,
+    sex: 'male',
+    heightCm: 184,
+    block: 'A',
+    trainingDays: [1, 2, 4, 5],
+    choices: {},
+    tms: [{ lift: 'bench', kg: 90 }, { lift: 'squat', kg: 135 }],
+    loads: [{ exerciseId: 'db-incline-press', kg: 22.5 }],
+    unit: 'kg',
+  });
+  const src = { kind: 'claude-paste' as const, model: null };
+
+  it('the prompt lists TMs and accessory weights; replies are clamped to ±10% / ±20% and rounded', () => {
+    const text = proposalPrompt({ event: 'manual', reason: 'manual', restart: false, choice: keep, ranges, window, brief: 'B', name: (id) => id });
+    expect(text).toContain('bench 90 kg');
+    expect(text).toContain('db-incline-press (db-incline-press) 22.5 kg');
+    const p = parseProposal(
+      { message: 'ok', proteinG: { value: 140 }, cardioMin: { value: 15 }, tms: [{ lift: 'bench', kg: 120, why: 'Key sets flew.' }, { lift: 'squat', kg: 135 }, { lift: 'ohp', kg: 50 }], loads: [{ exerciseId: 'db-incline-press', kg: 24, why: 'Top of the range.' }, { exerciseId: 'nope', kg: 10 }] },
+      ranges,
+      src,
+      1,
+    );
+    expect(p.tms).toEqual([{ lift: 'bench', fromKg: 90, toKg: 99 }]);
+    expect(p.loads).toEqual([{ exerciseId: 'db-incline-press', fromKg: 22.5, toKg: 25 }]);
+    expect(p.why.tms?.bench).toBe('Key sets flew.');
+  });
+
+  it('a restart offers no lift weights (the new cycle has its own TM progression)', () => {
+    const r = leverRanges({ choice: keep, calc: null, window, sex: 'male', heightCm: 184, block: 'A', trainingDays: [1, 2, 4, 5], choices: {} });
+    const p = parseProposal({ message: 'ok', proteinG: { value: 140 }, cardioMin: { value: 15 }, tms: [{ lift: 'bench', kg: 95 }] }, r, src, 1);
+    expect(p.tms).toBeUndefined();
+  });
+
+  it('Apply with a workout open: food and lift weights change, the open session stays; Undo puts the TM back (append-only)', async () => {
+    const db = await setup();
+    const base = logged('s1', '2026-11-03', 1);
+    const done = { ...base, exercises: base.exercises.map((e) => ({ ...e, actual: e.actual.map((x) => ({ ...x, kg: 20, reps: 10, done: true })) })) };
+    await saveWorkoutSession(done, db);
+    await saveWorkoutSession({ ...logged('s2', '2026-11-12', 1), status: 'in_progress', finishedAt: null }, db);
+    const accessory = done.exercises.find((e) => e.slot !== 'main')!.exerciseId;
+    const id = await addPlanChange(manual(), db);
+    await applyGoalPlan(id, { ...all, days: null, tms: [{ lift: 'squat', fromKg: 135, toKg: 140 }], loads: [{ exerciseId: accessory, fromKg: 20, toKg: 22.5 }] }, '2026-11-12', null, db);
+    const { tmsForCycle } = await import('../lib/training/progress');
+    expect(tmsForCycle(await db.tmHistory.toArray(), 1).squat).toBe(140);
+    const program = await db.trainingProgram.get('me');
+    expect(program?.nextOverrides).toEqual([{ exerciseId: accessory, afterSessionId: 's1', kg: 22.5, reps: null, sets: null }]);
+    expect((await db.workoutSessions.get('s2'))?.status).toBe('in_progress');
+    const rows = await db.tmHistory.count();
+    await undoGoalPlan(id, '2026-11-12', db);
+    expect(tmsForCycle(await db.tmHistory.toArray(), 1).squat).toBe(135);
+    expect(await db.tmHistory.count()).toBe(rows + 1);
+    expect((await db.trainingProgram.get('me'))?.nextOverrides).toEqual([]);
+  });
+
+  it('a restart is still refused while a workout is open', async () => {
+    const db = await setup();
+    await saveWorkoutSession({ ...logged('s2', '2026-11-12', 1), status: 'in_progress', finishedAt: null }, db);
+    const id = await addPlanChange(manual({ restart: true, choice: fresh }), db);
+    await expect(applyGoalPlan(id, all, '2026-11-12', null, db)).rejects.toMatchObject({ code: 'workoutOpen' });
   });
 });

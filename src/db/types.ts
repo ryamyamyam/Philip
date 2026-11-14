@@ -406,12 +406,15 @@ export interface GoalPlanItems {
   cardioMin: number | null;
   days: IsoWeekday[] | null;
   swaps: { day: Day; slot: 'A1' | 'A2' | 'B'; exerciseId: string }[];
+  /** Story 12 (0.12.3): main-lift training maxes (their working weights follow) and accessory next weights. */
+  tms?: { lift: LiftId; fromKg: number; toKg: number }[];
+  loads?: { exerciseId: string; fromKg: number; toKg: number }[];
 }
 
 /** What Philip proposed for a goal (validated and clamped by lib/goal/proposal.ts). */
 export interface GoalProposalRecord extends GoalPlanItems {
   message: string;
-  why: Partial<Record<'kcal' | 'proteinG' | 'cardioMin' | 'days' | 'swaps', string>>;
+  why: Partial<Record<'kcal' | 'proteinG' | 'cardioMin' | 'days' | 'swaps', string>> & { tms?: Record<string, string>; loads?: Record<string, string> };
   /** Values Philip asked for outside the safe range, and what was used instead. */
   clamps: { lever: 'kcal' | 'proteinG' | 'cardioMin'; asked: number; used: number }[];
   remember: string[];
@@ -444,6 +447,9 @@ export interface GoalPlanUndo {
   trainingDays: IsoWeekday[] | null;
   swaps: { slotKey: string; from: string | null }[];
   noteIds: number[];
+  /** 0.12.3: TMs before (Undo appends them back; TM history is append-only) and the accessory orders before. */
+  tmsBefore?: { lift: LiftId; kg: number }[];
+  nextOverridesBefore?: AccessoryOverride[] | null;
 }
 
 /**

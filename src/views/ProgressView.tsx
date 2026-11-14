@@ -24,6 +24,8 @@ import { goalDate, weightPlanLine, weightProgress, WEIGHT_LOG_RANGE, type Weight
 import { useUI } from '../ui';
 import { StrengthPanel } from './StrengthPanel';
 import { GoalHistory } from './goal/GoalHistory';
+import { useGoalState } from '../hooks/useGoal';
+import { tg } from '../i18n/goal';
 
 const STATUS_KEY: Record<WeightStatus, StringKey> = {
   onTrack: 'progress.status.onTrack',
@@ -271,10 +273,17 @@ function WeighInTake({
   latestKg: number;
   onDone: () => void;
 }) {
-  const { navigate } = useUI();
+  const { navigate, openSheet } = useUI();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const program = useTrainingProgram();
+  // 0.12.3: with a cycle running, Philip re-plans everything (food, P/F/C, lift weights, cardio, days) for a yes/no each.
+  const goal = useGoalState();
+  const canReplan = !!goal?.cycle && !goal.cycle.endedEarly && !goal.cycleDone;
+  const replan = () => {
+    onDone();
+    openSheet(goal?.open ? { kind: 'goal' } : { kind: 'goal', manual: true, autoAsk: !goal?.openManual });
+  };
   const review = useMemo(() => reviewWeighIn(plans, profile, entries, today), [plans, profile, entries, today]);
   const r = review.refresh;
   const fmtW = (kg: number) => fmtNum(toUnit(kg), 1);
@@ -324,12 +333,17 @@ function WeighInTake({
         )}
         {/* Safety text stays plain (D-020). */}
         {review.needsReview && !r && review.progress.status !== 'reached' && <p className="banner banner-warning">{t('weighIn.review')}</p>}
+        {canReplan && (
+          <button type="button" className="btn btn-primary btn-block" onClick={replan}>
+            <Icon name="sparkle" /> {tg('replan.weighIn')}
+          </button>
+        )}
         {r && review.progress.status !== 'reached' && (
           <>
             <p className="small num">
               {t('weighIn.newMacros', { kcal: fmtNum(r.to.calories, 0), p: fmtNum(r.to.proteinG, 0), f: fmtNum(r.to.fatG, 0), c: fmtNum(r.to.carbsG, 0) })}
             </p>
-            <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={() => void apply()}>
+            <button type="button" className={`btn ${canReplan ? 'btn-secondary' : 'btn-primary'} btn-block`} disabled={busy} onClick={() => void apply()}>
               {t('weighIn.apply')}
             </button>
             <button
@@ -350,7 +364,7 @@ function WeighInTake({
           </button>
         )}
         <p className="small muted">{t('weighIn.training')}</p>
-        {profile.geminiKey && (
+        {profile.geminiKey && !canReplan && (
           <button type="button" className="btn btn-ghost btn-block" onClick={ask}>
             <Icon name="sparkle" /> {t('weighIn.ask')}
           </button>

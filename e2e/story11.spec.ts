@@ -113,8 +113,10 @@ test('goal reached pops up; "Same again" is preselected; Philip plans; Apply sta
   await expect(main(page).getByRole('button', { name: /^Workout/ })).toContainText('Block A');
 });
 
-test('no key: ask Philip in Claude by pasting his reply; "Later" leaves a reminder on Home', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('no key: ask Philip in Claude by pasting his reply; "Later" leaves a reminder on Home', async ({ page, context, browserName }) => {
+  // WebKit has no clipboard permissions to grant (see qa-feedback.spec.ts); the copy check runs in Chromium.
+  const chromium = browserName === 'chromium';
+  if (chromium) await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
   await fresh(page, { at: 'home' });
   await startCycleOne(page);
@@ -133,9 +135,11 @@ test('no key: ask Philip in Claude by pasting his reply; "Later" leaves a remind
   await s.getByRole('button', { name: 'Ask Philip for the plan' }).click();
   await expect(s).toContainText('Philip needs a way to think');
   await s.getByRole('button', { name: 'Ask Philip in Claude' }).click();
-  await s.getByRole('button', { name: 'Copy prompt' }).click();
-  await expect(s.getByRole('button', { name: 'Prompt copied' })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('Reply with JSON only');
+  if (chromium) {
+    await s.getByRole('button', { name: 'Copy prompt' }).click();
+    await expect(s.getByRole('button', { name: 'Prompt copied' })).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('Reply with JSON only');
+  }
 
   await s.getByLabel('Claude’s reply').fill('not json');
   await s.getByRole('button', { name: 'Use this reply' }).click();

@@ -31,7 +31,7 @@ export interface Prepared {
 }
 
 /** Everything Philip needs, from the database (one read), for the goal the owner picked. */
-export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, event: 'reached' | 'offtrack', reason: string, restart: boolean, today: YMD): Promise<Prepared> {
+export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, event: PlanChange['event'], reason: string, restart: boolean, today: YMD): Promise<Prepared> {
   const [profile, plans, weights, program, cycles, sessions, choices] = await Promise.all([
     db.profile.get('me'),
     db.targetPlans.toArray(),
@@ -55,7 +55,7 @@ export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, eve
   });
   let calc = null;
   if (profile) {
-    const inputs = calcInputsForGoal(profile, choice.phase, choice, today);
+    const inputs = calcInputsForGoal(profile, choice.phase, choice, today, program?.trainingDays ? trainingDaysOrDefault(program.trainingDays).length : undefined);
     if (inputs) {
       try {
         calc = calculateTargets(inputs);
@@ -74,6 +74,8 @@ export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, eve
     block,
     trainingDays: trainingDaysOrDefault(program?.trainingDays),
     choices: Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])),
+    goalDays: Math.round((choice.weeks ?? 4) * 7),
+    ...(program?.availability ? { cardioCap: program.availability.cardioMin, strengthMin: program.availability.strengthMin } : {}),
   });
   const brief = await loadBrief(today);
   const prompt = proposalPrompt({ event, reason, restart, choice, ranges, window, brief, name: exName });
@@ -103,7 +105,18 @@ function accept(pc: PlanChange, text: string | unknown, source: GoalProposalReco
  * Sends (or re-sends) a waiting request: cloud first, queued if every free model is busy; else this
  * device's key. Offline: stays waiting and goes out when the app is back online.
  */
-export async function sendRequest(id: number): Promise<SendOutcome> {
+export function sendRequest(id: number): Promise<SendOutcome> {
+  // One send at a time per request: the sheet and the watcher can both ask for the same one (Story 12).
+  const running = inFlight.get(id);
+  if (running) return running;
+  const p = sendNow(id).finally(() => inFlight.delete(id));
+  inFlight.set(id, p);
+  return p;
+}
+
+const inFlight = new Map<number, Promise<SendOutcome>>();
+
+async function sendNow(id: number): Promise<SendOutcome> {
   const pc = await db.planChanges.get(id);
   if (!pc || (pc.status !== 'waiting' && pc.status !== 'ready')) return 'failed';
   if (!online()) return 'offline';

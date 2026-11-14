@@ -6,10 +6,10 @@ import { canFinishCardio, clampField } from '../../lib/training/cardio';
 import { settingToMph } from '../../lib/training/treadmill';
 
 /**
- * The cardio finisher after the lifts (Story 7, OBS-93A8C0): an incline walk, outside the 45-minute
+ * The cardio finisher after the lifts (Story 7, OBS-93A8C0): an incline walk, outside the lifting-minute
  * budget. Minutes are needed to tick it done; incline and speed are optional.
  */
-export function CardioCard({ cardio, cut, treadmill, onChange }: { cardio: CardioLog; cut: boolean; treadmill?: Treadmill; onChange: (next: CardioLog) => void }) {
+export function CardioCard({ cardio, cut, treadmill, budgetMin, onChange }: { cardio: CardioLog; cut: boolean; treadmill?: Treadmill; budgetMin: number; onChange: (next: CardioLog) => void }) {
   // Story 10 (OBS-E19B38): the speed is the machine's own number; Philip projects mph next to it.
   const machine: Treadmill = treadmill ?? { name: '', scale: cardio.speedUnit, source: 'me' };
   const [min, setMin] = useState(cardio.minutes === null ? '' : String(cardio.minutes));
@@ -45,7 +45,7 @@ export function CardioCard({ cardio, cut, treadmill, onChange }: { cardio: Cardi
       </header>
       <div className="ex-orders" aria-label={t('session.orders')}>
         <p className="ex-label">{t('session.orders')}</p>
-        <p className="ex-summary num">{t('cardio.order', { n: cardio.planMin })}</p>
+        <p className="ex-summary num">{t('cardio.order', { n: cardio.planMin, min: budgetMin })}</p>
         <p className="small muted ex-why">{t(cut ? 'cardio.whyCut' : 'cardio.why')}</p>
       </div>
       {cardio.skipped ? (

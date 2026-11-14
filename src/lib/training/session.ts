@@ -1,5 +1,5 @@
 /**
- * Builds one day's session — Philip's orders — and keeps it inside 45 minutes (Story 5 §4.6, T-012).
+ * Builds one day's session — Philip's orders — and keeps it inside the lifting budget (60 minutes since Story 12; cardio and stretching are never counted) (Story 5 §4.6, T-012).
  * Pure. The result is frozen onto the stored session; later rule changes never rewrite it.
  */
 import { exerciseFor, exerciseInfo, MAIN_EXERCISE, menuSlot, type ExerciseId, type Slot } from './exercises';
@@ -65,7 +65,7 @@ export interface PlannedSession {
   phase: Phase;
   exercises: PlannedExercise[];
   estMinutes: number;
-  /** Trims applied to fit the 45-minute budget, in order. */
+  /** Trims applied to fit the lifting-time budget, in order. */
   trims: Trim[];
 }
 
@@ -90,9 +90,12 @@ export interface SessionInput {
   bodyWeightKg?: number | null;
   /** Story 7: a next-time order from Philip's report for this exercise (weight, reps, sets), or null. */
   override?: (id: ExerciseId) => { kg: number | null; reps: number | null; sets: number | null } | null;
+  /** Story 12: the owner's lifting minutes for this session ("Your time"). Default: SESSION_BUDGET_MIN. */
+  budgetMin?: number;
 }
 
-export const SESSION_BUDGET_MIN = 45;
+/** Lifting minutes per session (owner, 2026-11-13: 60; was 45). Excludes the cardio finisher and stretching. */
+export const SESSION_BUDGET_MIN = 60;
 
 /* ---------------- Time model ---------------- */
 
@@ -219,7 +222,7 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
   };
 }
 
-/** Philip's orders for one day, trimmed to fit 45 minutes (§4.6 trim order). */
+/** Philip's orders for one day, trimmed to fit the lifting budget (§4.6 trim order). */
 export function buildSession(input: SessionInput): PlannedSession {
   const block = blockForCycle(input.cycle);
   const lift = DAY_LIFT[input.day];
@@ -239,7 +242,8 @@ export function buildSession(input: SessionInput): PlannedSession {
     }));
   }
   const trims: Trim[] = [];
-  const over = () => estimateMinutes(exercises) > SESSION_BUDGET_MIN;
+  const budget = input.budgetMin ?? SESSION_BUDGET_MIN;
+  const over = () => estimateMinutes(exercises) > budget;
   const baseSets = accessoryRules(block, input.week).sets;
 
   if (over() && input.phase === 'gain' && input.week !== DELOAD_WEEK) {

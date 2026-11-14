@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 
-/** Width of the revealed action area, px. Two 72px buttons (≥ 44px touch targets). */
-export const SWIPE_ACTIONS_W = 144;
+/** Width of the revealed action area, px. Three 72px buttons: Copy to today, Move, Delete (≥ 44px touch targets). */
+export const SWIPE_ACTIONS_W = 216;
 const LOCK_PX = 8; // movement before deciding horizontal vs vertical
 const OPEN_RATIO = 0.4; // released past 40% of the action width → snap open
 

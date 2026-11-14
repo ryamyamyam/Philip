@@ -2,16 +2,18 @@ import { useMemo, useState } from 'react';
 import { CategoryChip } from '../components/CategoryChip';
 import { DateNav } from '../components/DateNav';
 import { Icon } from '../components/Icon';
+import { CopyToTodayDialog } from '../components/CopyToTodayDialog';
 import { MoveEntryDialog } from '../components/MoveEntryDialog';
 import { SwipeRow } from '../components/SwipeRow';
 import { useToast } from '../components/Toast';
-import { deleteFoodEntry, moveFoodEntry, restoreFoodEntry } from '../db/repo';
+import { deleteFoodEntry, duplicateFoodEntry, moveFoodEntry, restoreFoodEntry } from '../db/repo';
 import { MEALS, type FoodEntry, type Meal } from '../db/types';
 import { useEntriesForDate } from '../hooks/useData';
+import { useDaySlide } from '../hooks/useDaySlide';
 import { useSwipe } from '../hooks/useSwipe';
 import { t } from '../i18n';
 import { MEAL_CATEGORY } from '../lib/category';
-import { addDays } from '../lib/date';
+import { addDays, todayYmd } from '../lib/date';
 import { fmtDate, fmtG, fmtKcal } from '../lib/format';
 import { groupByMeal, sumMacros } from '../lib/nutrition';
 import { useUI } from '../ui';
@@ -27,6 +29,7 @@ export default function MealsView() {
   const { date, setDate, openSheet } = useUI();
   const entries = useEntriesForDate(date);
   const byMeal = useMemo(() => groupByMeal(entries ?? []), [entries]);
+  const slide = useDaySlide<HTMLDivElement>(date);
   const swipe = useSwipe(
     () => setDate(addDays(date, 1)),
     () => setDate(addDays(date, -1)),
@@ -34,7 +37,7 @@ export default function MealsView() {
   return (
     <div className="view view-fit" {...swipe}>
       <DateNav />
-      <div className="stack-sm meals-stack">
+      <div className="stack-sm meals-stack day-slide" ref={slide}>
         {MEALS.map((meal) => (
           <MealCard key={`${date}-${meal}`} meal={meal} entries={byMeal[meal]} onAdd={() => openSheet({ kind: 'add', date, meal })} />
         ))}
@@ -51,6 +54,7 @@ export function MealCard({ meal, entries, onAdd, collapse = true }: { meal: Meal
   const { openSheet } = useUI();
   const toast = useToast();
   const [moving, setMoving] = useState<FoodEntry | null>(null);
+  const [copying, setCopying] = useState<FoodEntry | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   const remove = async (e: FoodEntry) => {
@@ -61,6 +65,12 @@ export function MealCard({ meal, entries, onAdd, collapse = true }: { meal: Meal
     setMoving(null);
     const prev = await moveFoodEntry(e.id, target);
     if (prev) toast(t('today.moved', { date: fmtDate(target.date, 'weekday') }), { label: t('common.undo'), run: () => void moveFoodEntry(e.id, prev) });
+  };
+
+  const copy = async (e: FoodEntry, target: Meal) => {
+    setCopying(null);
+    const id = await duplicateFoodEntry(e.id, { date: todayYmd(), meal: target });
+    toast(t('today.copied', { meal: t(`meal.${target}`).toLocaleLowerCase() }), { label: t('common.undo'), run: () => void deleteFoodEntry(id) });
   };
 
   const total = sumMacros(entries).calories;
@@ -90,6 +100,10 @@ export function MealCard({ meal, entries, onAdd, collapse = true }: { meal: Meal
                 label={t('today.entryActions', { name: e.name })}
                 actions={
                   <>
+                    <button type="button" className="swipe-action swipe-action-copy" onClick={() => setCopying(e)}>
+                      <Icon name="copy" />
+                      <span>{t('today.copy')}</span>
+                    </button>
                     <button type="button" className="swipe-action swipe-action-move" onClick={() => setMoving(e)}>
                       <Icon name="calendar" />
                       <span>{t('today.move')}</span>
@@ -140,6 +154,7 @@ export function MealCard({ meal, entries, onAdd, collapse = true }: { meal: Meal
           )}
         </ul>
       )}
+      {copying && <CopyToTodayDialog entry={copying} onCancel={() => setCopying(null)} onCopy={(m) => void copy(copying, m)} />}
       {moving && <MoveEntryDialog entry={moving} onCancel={() => setMoving(null)} onMove={(target) => void move(moving, target)} />}
     </section>
   );

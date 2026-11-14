@@ -499,3 +499,11 @@
   flex: none;
   white-space: nowrap;
 }
+
+/* Story 12: the day slides in (hooks/useDaySlide). Clip sideways so the slide never adds a horizontal scroll. */
+.view-fit {
+  overflow-x: clip;
+}
+.day-slide {
+  will-change: auto;
+}

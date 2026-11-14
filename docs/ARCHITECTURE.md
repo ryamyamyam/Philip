@@ -167,7 +167,7 @@ A reusable, self-contained module for capturing observations (bugs, UI/usability
 
 ## Training engine (`src/lib/training/`, D-025)
 
-Pure modules, all tested: `program.ts` (blocks, waves, deload, RDL caps, TM progression, double progression), `session.ts` (builds a day's orders and the 45-minute time model + trim order), `plates.ts` (loadable rounding and per-side plates), `cycleGoal.ts` (goal briefing defaults and checks), `exercises.ts` (library + Appendix A menu; copy in `en.ts` as `exercise.*`, `cue.*`, `why.*`), `progress.ts` (TMs per cycle, next day in sequence, e1RM points), `trainingBackup.ts` (optional `training` backup block). Days are a sequence, not weekdays. Cycle numbers never repeat, even after a program reset.
+Pure modules, all tested: `program.ts` (blocks, waves, deload, RDL caps, TM progression, double progression), `session.ts` (builds a day's orders and the lifting-budget (60 min, Story 12) time model + trim order), `plates.ts` (loadable rounding and per-side plates), `cycleGoal.ts` (goal briefing defaults and checks), `exercises.ts` (library + Appendix A menu; copy in `en.ts` as `exercise.*`, `cue.*`, `why.*`), `progress.ts` (TMs per cycle, next day in sequence, e1RM points), `trainingBackup.ts` (optional `training` backup block). Days are a sequence, not weekdays. Cycle numbers never repeat, even after a program reset.
 
 ## Workout screens (Story 5, T-013/T-014)
 
@@ -233,6 +233,7 @@ These are the seams that keep parallel work safe. Changing any of them is an arc
 - **Copy:** voice and emoji per D-020; decorative meal (🌅 🌞 🌙 🍿) and macro (🥩 🥑 🍚) symbols are `aria-hidden` spans so accessible names are unchanged.
 
 ## Story 11: goal reached → next goal → Philip's plan (D-034)
+- **Story 12 (D-035):** the same sheet opens on demand in `manual` mode (`views/goal/ReplanButton.tsx`, `lib/goal/replan.ts`); manual `planChanges` rows never remind on Home (`useGoalState().openManual`). Goals carry an optional date (`lib/goal/deadline.ts`). "Your time" (`lib/training/availability.ts`, `db/availabilityRepo.ts`, `views/goal/YourTime.tsx`) sets 3–5 training days, the lifting budget (`SessionInput.budgetMin`, default 60) and a cardio ceiling. Spec: `docs/stories/STORY_12_REPLAN.md`.
 - **Pure:** `lib/goal/goalCheck.ts` (events, ETA), `nextGoal.ts` (Same again / Philip's pick / own), `window.ts` (what happened over the goal window, measured maintenance), `proposal.ts` (lever ranges, prompt, validation and caps), `lib/training/nextCycle.ts` (TM progression, shared with the cycle briefing).
 - **Data:** `db/goalRepo.ts` (Apply / Undo in one transaction), `db/goalPrompts.ts` (events already shown, `META.goalPrompts`).
 - **UI:** `hooks/useGoal.ts` (eager, small) feeds Home's line and the lazy `components/GoalWatcher.tsx`, which opens the `goal` sheet (`views/goal/GoalSheet.tsx`, lazy) and nudges waiting requests. `views/goal/request.ts` builds and sends the request; `GoalHistory` (Progress) and `CloudSettings` (Settings). Strings: lazy pack `i18n/goal.ts`.

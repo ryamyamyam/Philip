@@ -53,6 +53,9 @@ export interface LeverRanges {
   block: Block;
   trainingDays: IsoWeekday[];
   choices: Readonly<Record<string, string>>;
+  /** Story 12: the most cardio the owner will walk after a session, and his minutes for the lifts (his availability). */
+  cardioCap?: number;
+  strengthMin?: number;
   /** Fat and carbs follow from kcal and protein with the calculator's fat floor. */
   weightKg: number;
   heightCm: number | null;
@@ -70,6 +73,8 @@ export interface RangeInput {
   choices: Readonly<Record<string, string>>;
   /** Days left to reach the goal (a new cycle: 28; off track, same cycle: what's left of it). */
   goalDays?: number;
+  cardioCap?: number;
+  strengthMin?: number;
 }
 
 const r10 = (n: number) => Math.round(n / 10) * 10;
@@ -104,7 +109,10 @@ export function leverRanges(i: RangeInput): LeverRanges {
     max: Math.round(ref * pMax),
     def: calc ? Math.min(Math.round(ref * pMax), Math.max(Math.round(ref * pMin), calc.proteinG)) : Math.round(ref * 1.8),
   };
-  const [cMin, cMax] = PROPOSAL_RULES.cardioMin[c.phase];
+  const [cMin0, cMax0] = PROPOSAL_RULES.cardioMin[c.phase];
+  // Story 12: his time is a ceiling; the phase's range never pushes him past it.
+  const cMax = i.cardioCap !== undefined ? Math.max(1, Math.min(cMax0, i.cardioCap)) : cMax0;
+  const cMin = Math.min(cMin0, cMax);
   return {
     kcal,
     proteinG,
@@ -115,6 +123,8 @@ export function leverRanges(i: RangeInput): LeverRanges {
     weightKg: c.startWeightKg,
     heightCm: i.heightCm,
     sex: i.sex,
+    ...(i.cardioCap !== undefined ? { cardioCap: i.cardioCap } : {}),
+    ...(i.strengthMin !== undefined ? { strengthMin: i.strengthMin } : {}),
   };
 }
 
@@ -142,7 +152,7 @@ function menuText(r: LeverRanges, name: (id: string) => string): string {
 }
 
 export interface PromptInput {
-  event: 'reached' | 'offtrack';
+  event: 'reached' | 'offtrack' | 'manual';
   reason: string;
   restart: boolean;
   choice: GoalChoice;
@@ -161,13 +171,18 @@ export function proposalPrompt(p: PromptInput): string {
   const situation =
     p.event === 'reached'
       ? `The lifter just reached this cycle's goal (${p.reason}). The cycle ends now and a new one starts with the goal below.`
-      : `The lifter is off track this cycle (${p.reason}).${p.restart ? ' He chose to restart the cycle with the goal below.' : ' The cycle continues; nutrition and the listed training levers change now.'}`;
+      : p.event === 'manual'
+        ? `The lifter asked for a fresh look mid-cycle; he may be on track. ${p.restart ? 'He picked a new goal (below), so the cycle restarts with it.' : 'He keeps the current goal (below); the cycle continues and the levers change now.'} Change only what his data supports. "Keep everything as it is, it is working" is a valid answer: still return every lever, inside its range, at today's value.`
+        : `The lifter is off track this cycle (${p.reason}).${p.restart ? ' He chose to restart the cycle with the goal below.' : ' The cycle continues; nutrition and the listed training levers change now.'}`;
+  const weeks = p.choice.weeks ?? 4;
+  const lengthText = p.choice.deadline ? `by ${p.choice.deadline} (${weeks} weeks)` : `in ${weeks} weeks`;
+  const dayCount = r.trainingDays.length;
   return [
     "You are Philip, the lifter's coach. Short, warm, persuasive, never scolding, no emoji, no comments on body or looks.",
-    'Decide his plan for the next 4 weeks from HIS data below. Pick a value for every numeric lever inside its range and give one short reason tied to the data.',
+    'Decide his plan for this goal from HIS data below. Pick a value for every numeric lever inside its range and give one short reason tied to the data.',
     '',
     situation,
-    `New goal: ${PHASE_WORD[c.phase]}, ${c.startWeightKg} kg -> ${c.endWeightKg} kg in 4 weeks (${c.weeklyRatePct}% of body weight a week)${c.bfLinePct !== null ? `, body fat line ${c.bfLinePct}%` : ''}.`,
+    `New goal: ${PHASE_WORD[c.phase]}, ${c.startWeightKg} kg -> ${c.endWeightKg} kg ${lengthText} (${c.weeklyRatePct}% of body weight a week)${c.bfLinePct !== null ? `, body fat line ${c.bfLinePct}%` : ''}.`,
     '',
     'What happened over the goal window:',
     windowText(p.window),
@@ -175,8 +190,8 @@ export function proposalPrompt(p: PromptInput): string {
     'Levers and allowed ranges (the app caps anything outside them):',
     r.kcal ? `- kcal: ${r.kcal.min}-${r.kcal.max} a day (formula ${r.kcal.def}).` : '- kcal: not available (body stats missing); return null.',
     r.proteinG ? `- proteinG: ${r.proteinG.min}-${r.proteinG.max} g a day (1.6-2.2 g/kg; formula ${r.proteinG.def}).` : '- proteinG: not available; return null.',
-    `- cardioMin: ${r.cardioMin.min}-${r.cardioMin.max} minutes of incline walk after each session (default ${r.cardioMin.def}; outside the 45-minute lifting budget).`,
-    `- days: exactly 4 training weekdays, 1 = Monday ... 7 = Sunday (now ${r.trainingDays.join(', ')}). Null to keep.`,
+    `- cardioMin: ${r.cardioMin.min}-${r.cardioMin.max} minutes of incline walk after each session (default ${r.cardioMin.def}; outside the ${r.strengthMin ?? 60}-minute lifting budget, and he will not walk more than ${r.cardioCap ?? r.cardioMin.max}).`,
+    `- days: exactly ${dayCount} training weekdays, 1 = Monday ... 7 = Sunday (now ${r.trainingDays.join(', ')}). Null to keep.`,
     '- swaps: optional, at most 3, each one of the options for that slot below. Use them to aim training at his goals and his notes (e.g. a weak spot). Empty list to keep.',
     menuText(r, p.name),
     '',
@@ -231,7 +246,7 @@ export function parseProposal(raw: unknown, r: LeverRanges, source: GoalProposal
   const dRaw = isObj(raw.days) ? raw.days.value : raw.days;
   if (Array.isArray(dRaw)) {
     const ds = [...new Set(dRaw.filter((d): d is number => typeof d === 'number' && Number.isInteger(d) && d >= 1 && d <= 7))].sort((a, b) => a - b);
-    if (ds.length === 4 && ds.join() !== [...r.trainingDays].sort((a, b) => a - b).join()) days = ds as IsoWeekday[];
+    if (ds.length === r.trainingDays.length && ds.join() !== [...r.trainingDays].sort((a, b) => a - b).join()) days = ds as IsoWeekday[];
   }
   const swaps: GoalPlanItems['swaps'] = [];
   const swapWhy: string[] = [];

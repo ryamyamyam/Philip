@@ -150,6 +150,15 @@ export interface MetaRow {
 /* ---------------- Training (Story 5, DB v4) ---------------- */
 
 /** The single training program row. Loads are in kg; units only change display and rounding. */
+/**
+ * Story 12: the owner's time. Strength minutes exclude cardio and stretching; cardio minutes are the most
+ * he'll walk after a session. Days a week = the number of training weekdays (`trainingDays`, 3–5).
+ */
+export interface TrainingAvailability {
+  strengthMin: number;
+  cardioMin: number;
+}
+
 export interface TrainingProgram {
   id: 'me';
   startedAt: number;
@@ -162,6 +171,8 @@ export interface TrainingProgram {
   currentCycle: number;
   /** Training weekdays for the projected calendar (Story 6 §3.1), 1 = Mon … 7 = Sun. Absent = Philip's pick. */
   trainingDays?: IsoWeekday[];
+  /** Story 12: what the owner can give each session (minutes). Absent = 60 min of lifting, the phase's cardio. */
+  availability?: TrainingAvailability;
   /** Story 7 (OBS-F52773): the owner's exercise order per program day ('1'–'4'); main lift always first. */
   dayOrder?: Partial<Record<string, SessionSlot[]>>;
   /** Story 7 (OBS-3DB146): one-off accessory orders Philip's report set for the next time an exercise comes up. */
@@ -203,6 +214,9 @@ export interface CycleGoalSnapshot {
   source: 'philip' | 'user';
   /** The target plan written when the cycle started, if any. */
   targetPlanId: number | null;
+  /** Story 12: planned length in weeks and the goal date (deadline). Absent = the 4-week cycle (older goals). */
+  weeks?: number;
+  deadline?: YMD;
 }
 
 /** A started cycle, with the phase, TMs and goal snapshotted at its start. */
@@ -412,6 +426,9 @@ export interface GoalChoice {
   weeklyRatePct: number;
   bfLinePct: number | null;
   source: 'philip' | 'user' | 'repeat';
+  /** Story 12: planned length in weeks and the goal date (deadline). Absent = 4 weeks. */
+  weeks?: number;
+  deadline?: YMD;
 }
 
 /** Undo data for an applied goal plan. Every field holds the value before Apply. */
@@ -435,8 +452,9 @@ export interface PlanChange {
   id?: number;
   at: number;
   cycle: number;
-  event: 'reached' | 'offtrack';
-  reason: 'weight' | 'bf' | 'stalled' | 'tooFast' | 'bfCeiling';
+  /** Story 12: 'manual' = the owner asked Philip for a fresh plan (never a Home reminder). */
+  event: 'reached' | 'offtrack' | 'manual';
+  reason: 'weight' | 'bf' | 'stalled' | 'tooFast' | 'bfCeiling' | 'manual';
   restart: boolean;
   choice: GoalChoice;
   status: 'waiting' | 'ready' | 'applied' | 'undone' | 'dismissed';

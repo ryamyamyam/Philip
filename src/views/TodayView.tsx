@@ -7,6 +7,7 @@ import { DeckActions } from '../components/ControlDeck';
 import { TodayCard } from '../components/TodayCard';
 import { MEALS } from '../db/types';
 import { useEntriesForDate, useProfile, useSavedMeals, useTargetPlans } from '../hooks/useData';
+import { useDaySlide } from '../hooks/useDaySlide';
 import { useSwipe } from '../hooks/useSwipe';
 import { t } from '../i18n';
 import { addDays, todayYmd } from '../lib/date';
@@ -49,6 +50,7 @@ export function TodayView() {
   const meal = defaultMealFor();
   const [typing, setTyping] = useState(false);
 
+  const slide = useDaySlide<HTMLDivElement>(date);
   const swipe = useSwipe(
     () => setDate(addDays(date, 1)),
     () => setDate(addDays(date, -1)),
@@ -61,7 +63,7 @@ export function TodayView() {
   return (
     <div className="view view-fit view-today" {...swipe}>
       <DateNav />
-      <div className="stack">
+      <div className="stack day-slide" ref={slide}>
         <BackupReminder />
         {plans && (
           <TodayCard

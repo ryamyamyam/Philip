@@ -14,6 +14,9 @@ export default function GoalWatcher({ busy }: { busy: boolean }) {
   const state = useGoalState();
   const fresh = state?.fresh ?? null;
   const open = state?.open ?? null;
+  // Story 12: a manual request is polled and shown the same way, but never reminds on Home.
+  const manual = state?.openManual ?? null;
+  const live = open ?? manual;
   const blocked = busy || !!state?.workoutOpen;
 
   useEffect(() => {
@@ -21,7 +24,7 @@ export default function GoalWatcher({ busy }: { busy: boolean }) {
     void markPromptFired({ cycle: fresh.cycle, kind: fresh.kind, reason: fresh.reason }).then(() => openSheet({ kind: 'goal' }));
   }, [fresh, blocked, openSheet]);
 
-  const waitingId = open?.status === 'waiting' && !open.failed ? open.id : undefined;
+  const waitingId = live?.status === 'waiting' && !live.failed ? live.id : undefined;
   useEffect(() => {
     if (waitingId === undefined) return;
     const run = () => void import('../views/goal/request').then((m) => m.resumeWaiting(waitingId));
@@ -38,10 +41,10 @@ export default function GoalWatcher({ busy }: { busy: boolean }) {
   }, [waitingId]);
 
   // The plan arrived while the app was open: show it.
-  const prev = useRef(open?.status);
+  const prev = useRef(live?.status);
   useEffect(() => {
-    if (prev.current === 'waiting' && open?.status === 'ready' && !blocked) openSheet({ kind: 'goal' });
-    prev.current = open?.status;
-  }, [open?.status, blocked, openSheet]);
+    if (prev.current === 'waiting' && live?.status === 'ready' && !blocked) openSheet(manual && !open ? { kind: 'goal', manual: true } : { kind: 'goal' });
+    prev.current = live?.status;
+  }, [live?.status, manual, open, blocked, openSheet]);
   return null;
 }

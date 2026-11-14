@@ -51,7 +51,7 @@ Story 4 (tour, D-024) and Story 5 (Home hub + workouts, D-025) are built on stac
 - Reversing anything in docs/DECISIONS.md.
 
 ## Conventions
-- All UI strings in `src/i18n/en.ts`, accessed with `t('key', vars)` (Story 11's lazy screens use the pack `src/i18n/goal.ts` with `tg()`, D-034). Dates/numbers via `src/lib/format.ts` (Intl).
+- All UI strings in `src/i18n/en.ts`, accessed with `t('key', vars)` (Story 11 and 12's lazy screens use the pack `src/i18n/goal.ts` with `tg()`, D-034). Dates/numbers via `src/lib/format.ts` (Intl).
 - Dates are local `YYYY-MM-DD` strings (`src/lib/date.ts`). Never use `toISOString()` for dates.
 - Nutrition is metric internally (g, kcal). Daily totals are computed from entries, never stored.
 - Target plans are append-only: every change inserts a new plan; `planForDate` picks the latest `effectiveFrom <= date`.
@@ -63,6 +63,9 @@ Story 4 (tour, D-024) and Story 5 (Home hub + workouts, D-025) are built on stac
 - Copy uses Philip's voice (dominant, campy gay coach who is charming and persuasive and never scolds; short — D-020, D-032), but error, data-loss, delete/replace, safety and backup text stays plain. Never comment on body, weight or appearance; no sexual content.
 - **Guardrail (owner, D-023): no emoji in copy.** Sentences in text boxes, dialog bars, toasts, banners and buttons are words only; `src/i18n/en.test.ts` fails on any emoji in `en.ts`. Decorative meal/macro emoji exist only in markup chips and are `aria-hidden`.
 - `src/modules/qa-feedback/` is a portable module: it must not import from Philip code. Its strings live in `ui/strings.ts` (not `en.ts`) and its styles use `qa-` classes. Philip-specific wiring belongs in `src/qaFeedback.config.ts`.
+
+## Version (owner rule, Story 12)
+Settings shows `package.json`'s version. Scheme: `0.<story>.<build>` (Story 12's first build = `0.12.1`). Every story or fix batch that ships bumps it in `package.json` and `package-lock.json`: a new story starts at `.1`, a later build of the same story adds one.
 
 ## Commands
 `npm test` · `npm run typecheck` · `npm run build` · `npm run size` (bundle budgets, D-030; `e2e/perf.spec.ts` holds the CPU/animation budgets) · `npx playwright test --project=webkit-iphone` (or `chromium-mobile`). Details and Definition of Done: docs/QA_STRATEGY.md.

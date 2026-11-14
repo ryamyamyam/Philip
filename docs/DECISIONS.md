@@ -287,3 +287,16 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Consequences:** Dexie **v6** (`planChanges`, additive); optional `CycleRecord.{cardioMin, reachedAt, endedEarly}` and `Profile.bodyFatDate`; backup gains optional `training.planChanges` (Undo data dropped on restore); `schemaVersion` stays 1. CLAUDE.md "No backend" now has one exception: the owner's own Worker (push + coach proxy). D-030 initial JS budget 174 → **176 KB** gzip (174.5 KB: the goal check on Home). No new dependencies.
 - **Date:** 2026-11-13 · **By:** Ryan (owner) · **Status:** Implemented on `feat/T-028-next-goal`
 
+## D-035 — Story 12: Re-plan with Philip on demand, goal dates, your time, 60-minute sessions
+- **Context:** Owner, 2026-11-13: ask Philip for a fresh plan at any time; set a deadline for a goal with a date suggested by Philip; choose days a week and minutes for lifting and cardio; sessions of 60 minutes, not 45; version in Settings; slide between days; copy a food to today.
+- **Decision:**
+  1. **On-demand re-plan reuses the goal sheet** in a third mode (`manual`). `PlanChange.event/reason` gain `'manual'`. Keep this goal (preselected) continues the cycle; a new goal restarts it under Story 11's rules. No new storage.
+  2. **Manual plans are quiet:** never a Home reminder, and they never resolve a pending reached / off-track event.
+  3. **7-day note** after a recent plan is a coaching default in one constant (`REPLAN_RULES.recentDays`), never a block.
+  4. **Goal date:** a goal is a weight and a date. Philip suggests the date from the phase's default pace (4–26 weeks); the owner may pick 2–26 weeks. The date sets the pace; `lib/targets.ts` safety rules are unchanged. A goal can span cycles (the briefing carries it on).
+  5. **Your time** (owner chose "3–5 days, same 4-lift rotation"): the cycle stays 16 sessions, its calendar length follows the days. Lifting minutes are the session budget (default 60, replaces D-025's 45). Cardio minutes are a ceiling; extra room is used only on a cut. Nutrition changes only when the calculator's answer changes with training days.
+  6. Version shown in Settings is `package.json`'s, `0.<story>.<build>`; Story 12 = 0.12.1.
+- **Reason:** owner requests; reuse over forks; numbers from the calculator and his data, never invented.
+- **Alternatives:** a separate re-plan screen (duplicate flow); a new split for 3 or 5 days (new program design, deferred); crediting calories per training minute (no data in the app to support it).
+- **Consequences:** D-025's "exactly 4 days" and "45 minutes" become defaults (4 days, 60 minutes). Optional fields: `GoalChoice/CycleGoalSnapshot.{weeks, deadline}`, `TrainingProgram.availability`. No Dexie bump; backup `schemaVersion` 1. Swipe actions are 216 px wide. First-screen JS 175.7 / 176 KB: the next story needs the "split en.ts" work or a budget decision.
+- **Date:** 2026-11-13 · **By:** Ryan (owner) · **Status:** Implemented on `feat/T-029-replan`

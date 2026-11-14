@@ -10,6 +10,12 @@ import { DAY_LIFT, type Day, type LiftId, type Week } from './program';
 /** Philip's pick: squat and RDL 3 days apart, bench and OHP 3 days apart, weekend free (coaching default). */
 export const DEFAULT_TRAINING_DAYS: readonly IsoWeekday[] = [1, 2, 4, 5];
 export const TRAINING_DAYS_PER_WEEK = 4;
+/** Story 12: the owner can train 3–5 days a week; the 4-lift rotation and the 16-session cycle stay. */
+export const MIN_TRAINING_DAYS = 3;
+export const MAX_TRAINING_DAYS = 5;
+/** Philip's pick for each count (coaching defaults; 5 days always has one run of three). */
+const PICK: Record<number, readonly IsoWeekday[]> = { 3: [1, 3, 5], 4: DEFAULT_TRAINING_DAYS, 5: [1, 2, 4, 5, 6] };
+export const defaultDaysFor = (n: number): IsoWeekday[] => [...(PICK[n] ?? DEFAULT_TRAINING_DAYS)];
 
 export interface PlannedDay {
   date: YMD;
@@ -24,22 +30,52 @@ export const isoWeekday = (date: YMD): IsoWeekday => {
   return (wd === 0 ? 7 : wd) as IsoWeekday;
 };
 
-/** The owner's days if valid (exactly 4 distinct weekdays), else Philip's pick. */
+/** The owner's days if valid (3–5 distinct weekdays), else Philip's four-day pick. */
 export function trainingDaysOrDefault(days: readonly IsoWeekday[] | undefined | null): IsoWeekday[] {
   const set = [...new Set(days ?? [])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
-  return set.length === TRAINING_DAYS_PER_WEEK ? set : [...DEFAULT_TRAINING_DAYS];
+  return set.length >= MIN_TRAINING_DAYS && set.length <= MAX_TRAINING_DAYS ? set : [...DEFAULT_TRAINING_DAYS];
+}
+
+const gapDays = (a: number, b: number) => ((b - a + 7) % 7) || 7;
+
+/** How many places have three training days within two calendar days (squat and RDL would be two apart). */
+export function closeTriples(days: readonly IsoWeekday[]): number {
+  const d = [...new Set(days)].sort((a, b) => a - b);
+  const n = d.length;
+  if (n < MIN_TRAINING_DAYS) return 0;
+  let count = 0;
+  for (let i = 0; i < n; i++) if (gapDays(d[i] as number, d[(i + 1) % n] as number) + gapDays(d[(i + 1) % n] as number, d[(i + 2) % n] as number) <= 2) count++;
+  return count;
+}
+
+/**
+ * Philip's weekdays for `n` days a week: fewest close triples first, then the most days kept from
+ * `current`, then his own pick. Pure; searches all C(7, n) sets.
+ */
+export function bestDays(n: number, current: readonly IsoWeekday[]): IsoWeekday[] {
+  const pick = defaultDaysFor(n);
+  let best: IsoWeekday[] | null = null;
+  let bestKey: [number, number, number] | null = null;
+  for (let mask = 1; mask < 128; mask++) {
+    const set: IsoWeekday[] = [];
+    for (let d = 1; d <= 7; d++) if (mask & (1 << (d - 1))) set.push(d as IsoWeekday);
+    if (set.length !== n) continue;
+    const key: [number, number, number] = [closeTriples(set), -set.filter((x) => current.includes(x)).length, -set.filter((x) => pick.includes(x)).length];
+    if (!bestKey || key[0] < bestKey[0] || (key[0] === bestKey[0] && (key[1] < bestKey[1] || (key[1] === bestKey[1] && key[2] < bestKey[2])))) {
+      best = set;
+      bestKey = key;
+    }
+  }
+  return best ?? pick;
 }
 
 /**
  * True when squat (Day 1) and RDL (Day 3) can land only 2 calendar days apart, i.e. three training
- * days in a row. With exactly 4 distinct weekdays they can never be back to back, but a cycle can
- * start on any of the 4 days, so every rotation is checked (both squat → RDL and RDL → next squat).
+ * days in a row. A cycle can start on any of the days, so every rotation is checked (both squat →
+ * RDL and RDL → next squat). Story 12: any 3–5 days; five days always has one such run.
  */
 export function squatRdlTooClose(days: readonly IsoWeekday[]): boolean {
-  const d = [...new Set(days)].sort((a, b) => a - b);
-  if (d.length !== TRAINING_DAYS_PER_WEEK) return false;
-  const gap = (a: number, b: number) => ((b - a + 7) % 7) || 7;
-  return d.some((x, i) => gap(x, d[(i + 2) % 4] as number) <= 2);
+  return closeTriples(days) > 0;
 }
 
 /** Remaining (week, day) refs of a cycle in sequence order; an in-progress one stays in its place. */

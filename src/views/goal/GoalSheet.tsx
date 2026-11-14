@@ -10,12 +10,13 @@ import { useGoalState } from '../../hooks/useGoal';
 import { useProfile, useSlotChoices, useTargetPlans, useTrainingProgram, useWeightEntries, useWorkoutSessions, useCycles } from '../../hooks/useData';
 import { t, type StringKey } from '../../i18n';
 import { tg, type GoalKey } from '../../i18n/goal';
-import { addDays, daysBetween, todayYmd, toYmd } from '../../lib/date';
+import { addDays, daysBetween, isValidYmd, todayYmd, toYmd } from '../../lib/date';
 import { fmtDate, fmtNum } from '../../lib/format';
 import { parseDecimal } from '../../lib/numbers';
 import { planForDate } from '../../lib/nutrition';
+import { clampDeadline, suggestDeadline, weeksUntil } from '../../lib/goal/deadline';
 import { GOAL_RULES } from '../../lib/goal/goalCheck';
-import { ownGoal, philipNextGoal, recommendNextPhase, repeatGoal, type PrevGoal } from '../../lib/goal/nextGoal';
+import { GOAL_WEEKS, ownGoal, philipNextGoal, recommendNextPhase, repeatGoal, type PrevGoal } from '../../lib/goal/nextGoal';
 import { CARDIO_MINUTES } from '../../lib/training/cardio';
 import { RATE_PCT, rollingWeight, startingWeight, type GoalIssue } from '../../lib/training/cycleGoal';
 import { exerciseFor, type ExerciseId } from '../../lib/training/exercises';
@@ -35,8 +36,12 @@ const exName = (id: string) => t(`exercise.${id}` as StringKey);
  * Story 11: "Goal reached" (or "Off the plan"). Steps: what happened → next goal (same again,
  * Philip's pick or your own) → Philip's plan (his picks inside the engine's ranges) → review with a
  * switch per change → Apply (Undo for 24 h).
+ *
+ * Story 12: `manual` = "Re-plan with Philip", the same sheet opened on demand mid-cycle. Keep this goal is
+ * preselected (the cycle continues, the levers apply now); a new goal restarts the cycle. Every new goal
+ * has a goal date: Philip suggests it, the owner can move it, and the pace follows.
  */
-export default function GoalSheet() {
+export default function GoalSheet({ manual = false }: { manual?: boolean }) {
   const { closeSheet } = useUI();
   const toast = useToast();
   const state = useGoalState();
@@ -50,10 +55,14 @@ export default function GoalSheet() {
   const today = todayYmd();
 
   const cycle = state?.cycle ?? null;
-  const open = state?.open ?? null;
-  const prompt = state?.pending ?? (open ? { cycle: open.cycle, kind: open.event, reason: open.reason } : null);
-  const kind = prompt?.kind ?? 'reached';
-  const reason = prompt?.reason ?? 'weight';
+  const open = (manual ? state?.openManual : state?.open) ?? null;
+  const prompt: { cycle: number; kind: PlanChange['event']; reason: PlanChange['reason'] } | null = manual
+    ? cycle
+      ? { cycle: cycle.index, kind: 'manual', reason: 'manual' }
+      : null
+    : (state?.pending ?? (open ? { cycle: open.cycle, kind: open.event, reason: open.reason } : null));
+  const kind = manual ? 'manual' : (prompt?.kind ?? 'reached');
+  const reason = manual ? 'manual' : (prompt?.reason ?? 'weight');
   const unit = profile?.unitPrefs.weight ?? 'kg';
 
   const nowKg = useMemo(() => {
@@ -68,7 +77,15 @@ export default function GoalSheet() {
   const rec = prev ? recommendNextPhase(prev, bf, profile?.targetBodyFatPct ?? null) : null;
 
   const defaultMode: Mode = kind === 'reached' ? 'repeat' : reason === 'bfCeiling' ? 'philip' : 'keep';
-  const [mode, setMode] = useState<Mode>(defaultMode);
+  const [deadlineStr, setDeadlineStr] = useState<string | null>(null);
+  // The default follows the event once the data is in; a pick by the owner wins from then on.
+  const [modePick, setModePick] = useState<Mode | null>(null);
+  const mode = modePick ?? defaultMode;
+  // A new mode brings Philip's date back (the date belongs to the goal it was picked for).
+  const setMode = (m: Mode) => {
+    setModePick(m);
+    setDeadlineStr(null);
+  };
   const [phase, setPhase] = useState<Phase | null>(null);
   const [endW, setEndW] = useState('');
   const [bfT, setBfT] = useState('');
@@ -87,20 +104,44 @@ export default function GoalSheet() {
     if (open?.status === 'waiting' && open.id !== undefined && open.jobId) void resumeWaiting(open.id).then((o) => setOutcome(o));
   }, [open?.id, open?.status, open?.jobId]);
 
+  // The goal date: Philip's suggestion unless the owner moved it (not for Keep: that goal keeps its date).
+  const ownEnd = parseDecimal(endW);
+  const ownEndKg = ownEnd !== null && Number.isFinite(ownEnd) && ownEnd > 0 ? fromDisplay(ownEnd, unit) : null;
+  const suggested = useMemo(() => {
+    if (!prev || nowKg === null) return { weeks: GOAL_WEEKS, date: addDays(today, GOAL_WEEKS * 7) };
+    if (mode === 'repeat') {
+      const w = prev.goal.weeks ?? GOAL_WEEKS;
+      return { weeks: w, date: addDays(today, Math.round(w * 7)) };
+    }
+    if (mode === 'own' && ownEndKg !== null) return suggestDeadline(pickPhase, nowKg, ownEndKg, today);
+    return { weeks: GOAL_WEEKS, date: addDays(today, GOAL_WEEKS * 7) };
+  }, [prev, nowKg, mode, ownEndKg, pickPhase, today]);
+  const goalDate = clampDeadline(today, deadlineStr && isValidYmd(deadlineStr) ? deadlineStr : suggested.date);
+  const goalWeeksPicked = Math.max(0.5, weeksUntil(today, goalDate));
+
   const choice: (GoalChoice & { issues?: GoalIssue[] }) | null = useMemo(() => {
     if (!cycle || !prev || nowKg === null) return null;
-    if (mode === 'repeat') return repeatGoal(prev, nowKg, bf);
-    if (mode === 'philip') return philipNextGoal(prev, nowKg, bf, pickPhase, daysIn);
+    if (mode === 'repeat') return { ...repeatGoal(prev, nowKg, bf, goalWeeksPicked), deadline: goalDate };
+    if (mode === 'philip') return { ...philipNextGoal(prev, nowKg, bf, pickPhase, daysIn, goalWeeksPicked), deadline: goalDate };
     if (mode === 'keep') {
-      const left = Math.max(7, 28 - daysIn);
+      const left = cycle.goal.deadline ? Math.max(7, daysBetween(today, cycle.goal.deadline)) : Math.max(7, 28 - daysIn);
       const rate = Math.round((((cycle.goal.endWeightKg - nowKg) / nowKg / (left / 7)) * 100) * 100) / 100;
-      return { phase: cycle.phase, startWeightKg: Math.round(nowKg * 10) / 10, startBfPct: bf, endWeightKg: cycle.goal.endWeightKg, weeklyRatePct: rate, bfLinePct: cycle.goal.bfLinePct, source: cycle.goal.source };
+      return {
+        phase: cycle.phase,
+        startWeightKg: Math.round(nowKg * 10) / 10,
+        startBfPct: bf,
+        endWeightKg: cycle.goal.endWeightKg,
+        weeklyRatePct: rate,
+        bfLinePct: cycle.goal.bfLinePct,
+        source: cycle.goal.source,
+        weeks: Math.round((left / 7) * 100) / 100,
+        deadline: cycle.goal.deadline ?? addDays(today, left),
+      };
     }
-    const e = parseDecimal(endW);
-    if (e === null || !Number.isFinite(e) || e <= 0) return null;
+    if (ownEndKg === null) return null;
     const b = parseDecimal(bfT);
-    return ownGoal(nowKg, bf, pickPhase, fromDisplay(e, unit), b !== null && Number.isFinite(b) ? b : null);
-  }, [cycle, prev, nowKg, mode, bf, pickPhase, daysIn, endW, bfT, unit]);
+    return { ...ownGoal(nowKg, bf, pickPhase, ownEndKg, b !== null && Number.isFinite(b) ? b : null, goalWeeksPicked), deadline: goalDate };
+  }, [cycle, prev, nowKg, mode, bf, pickPhase, daysIn, ownEndKg, bfT, goalWeeksPicked, goalDate, today]);
   const blocked = choice?.issues?.some((i) => i.level === 'error') ?? false;
   const restart = kind === 'reached' || mode !== 'keep';
 
@@ -114,7 +155,7 @@ export default function GoalSheet() {
 
   const nextIndex = nextCycleIndex(cycles, sessions);
   const proposal = open?.status === 'ready' ? open.proposal : null;
-  const lineKey: GoalKey = kind === 'reached' ? 'goal.line.reached' : (`goal.line.offtrack.${reason}` as GoalKey);
+  const lineKey: GoalKey = kind === 'manual' ? 'goal.line.manual' : kind === 'reached' ? 'goal.line.reached' : (`goal.line.offtrack.${reason}` as GoalKey);
 
   const ask = async () => {
     if (!choice || blocked) return;
@@ -219,7 +260,7 @@ export default function GoalSheet() {
 
   return (
     <Sheet
-      title={tg(kind === 'reached' ? 'goal.title.reached' : 'goal.title.offtrack')}
+      title={tg(kind === 'manual' ? 'goal.title.manual' : kind === 'reached' ? 'goal.title.reached' : 'goal.title.offtrack')}
       onClose={closeSheet}
       full
       footer={
@@ -236,7 +277,7 @@ export default function GoalSheet() {
       }
     >
       <div className="stack goal-sheet">
-        <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose={kind === 'reached' ? 'point-up' : 'cross-smug'} framing="bust" scale={2} className="pm-dialog-portrait" />}>
+        <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose={kind === 'reached' || kind === 'manual' ? 'point-up' : 'cross-smug'} framing="bust" scale={2} className="pm-dialog-portrait" />}>
           {proposal ? proposal.message : tg(lineKey)}
         </DialogBar>
 
@@ -254,6 +295,11 @@ export default function GoalSheet() {
             </p>
           )}
           {bf !== null && <p className="small num">{tg('goal.bf', { bf: fmtNum(bf, 1) })}</p>}
+          {manual && state.recentPlan && !proposal && (
+            <p className="small" role="note">
+              {tg('goal.recentNote')}
+            </p>
+          )}
           {!bfFresh && !proposal && (
             <div className="stack-sm">
               <p className="small muted">{tg('goal.bfStale')}</p>
@@ -308,6 +354,29 @@ export default function GoalSheet() {
                 {issueText(i, choice.phase)}
               </p>
             ))}
+            {mode !== 'keep' && (
+              <div className="stack-sm">
+                <label className="field">
+                  <span className="field-label">{tg('goal.dateLabel')}</span>
+                  <input
+                    className="input input-date num"
+                    type="date"
+                    min={addDays(today, 14)}
+                    max={addDays(today, 182)}
+                    value={goalDate}
+                    disabled={waiting}
+                    onChange={(e) => isValidYmd(e.target.value) && setDeadlineStr(e.target.value)}
+                  />
+                </label>
+                <p className="small num">{tg(deadlineStr === null ? 'goal.dateSuggested' : 'goal.dateOwn', { date: fmtDate(goalDate, 'short'), weeks: fmtNum(Math.round(goalWeeksPicked * 10) / 10, 1) })}</p>
+                {deadlineStr !== null && (
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={waiting} onClick={() => setDeadlineStr(null)}>
+                    {tg('goal.dateReset')}
+                  </button>
+                )}
+              </div>
+            )}
+            {mode === 'keep' && choice?.deadline && <p className="small num">{tg('goal.dateKept', { date: fmtDate(choice.deadline, 'short') })}</p>}
             <p className="small muted">
               {restart
                 ? tg('goal.restartNote', { old: cycle.index, next: nextIndex, block: blockForCycle(nextIndex) })
@@ -364,6 +433,7 @@ export default function GoalSheet() {
               <div className="goal-row">
                 <span className="goal-row-label">{tg('goal.row.goal')}</span>
                 <GoalLine choice={open.choice} unit={unit} repeat={null} />
+                {open.choice.deadline && <span className="small num">{tg('goal.dateKept', { date: fmtDate(open.choice.deadline, 'short') })}</span>}
               </div>
               {proposal.kcal !== null && (
                 <Row id="kcal" off={off} setOff={setOff} label={tg('goal.row.kcal')} from={plan ? tg('goal.kcal', { n: plan.calories }) : '–'} to={tg('goal.kcal', { n: proposal.kcal })} why={proposal.why.kcal} />
@@ -447,17 +517,19 @@ function Row({
 }
 
 function GoalLine({ choice, unit, repeat }: { choice: GoalChoice; unit: 'kg' | 'lb'; repeat: number | null }) {
+  const weeks = fmtNum(Math.round((choice.weeks ?? 4) * 10) / 10, 1);
   const bfKey: GoalKey = choice.phase === 'gain' ? 'goal.bfLine.gain' : choice.phase === 'lose' ? 'goal.bfLine.lose' : 'goal.bfLine.maintain';
   return (
     <span className="stack-xs">
       <span className="num">
         {repeat !== null
-          ? tg('goal.repeatLine', { change: `${repeat >= 0 ? '+' : '−'}${fmtIn(Math.abs(repeat), unit)}`, end: fmtIn(choice.endWeightKg, unit) })
+          ? tg('goal.repeatLine', { change: `${repeat >= 0 ? '+' : '−'}${fmtIn(Math.abs(repeat), unit)}`, end: fmtIn(choice.endWeightKg, unit), weeks })
           : tg('goal.goalLine', {
               phase: tg(`goal.phase.${choice.phase}` as GoalKey),
               start: fmtIn(choice.startWeightKg, unit),
               end: fmtIn(choice.endWeightKg, unit),
               rate: fmtNum(choice.weeklyRatePct, 2),
+              weeks,
             })}
       </span>
       {choice.bfLinePct !== null && <span className="small num">{tg(bfKey, { bf: fmtNum(choice.bfLinePct, 1) })}</span>}
@@ -484,7 +556,9 @@ function noteFor(pc: PlanChange, nowKg: number | null, today: string, unit: 'kg'
   const head =
     pc.event === 'reached'
       ? `Reached the cycle ${pc.cycle} goal${nowKg !== null ? ` at ${fmtIn(nowKg, unit)}` : ''} on ${fmtDate(today, 'short')}`
-      : `Off track in cycle ${pc.cycle} (${pc.reason}) on ${fmtDate(today, 'short')}`;
-  const next = `next goal ${fmtIn(c.endWeightKg, unit)} in 4 weeks${c.bfLinePct !== null ? `, BF line ${fmtNum(c.bfLinePct, 1)}%` : ''}`;
+      : pc.event === 'manual'
+        ? `Asked for a fresh plan in cycle ${pc.cycle} on ${fmtDate(today, 'short')}`
+        : `Off track in cycle ${pc.cycle} (${pc.reason}) on ${fmtDate(today, 'short')}`;
+  const next = `${pc.event === 'manual' && !pc.restart ? 'goal' : 'next goal'} ${fmtIn(c.endWeightKg, unit)} ${c.deadline ? `by ${fmtDate(c.deadline, 'short')}` : 'in 4 weeks'}${c.bfLinePct !== null ? `, BF line ${fmtNum(c.bfLinePct, 1)}%` : ''}`;
   return `${head}; ${next}.`.slice(0, 140);
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CycleRecord, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
+import { tg } from '../../i18n/goal';
 import { exerciseFor, type ExerciseId } from '../../lib/training/exercises';
 import { blockForCycle, DAY_LIFT, DELOAD_WEEK, LIFTS, tmIncrement, type Day, type LiftId, type Week } from '../../lib/training/program';
 import { tmsForCycle } from '../../lib/training/progress';
@@ -8,6 +9,7 @@ import { buildSession } from '../../lib/training/session';
 import { lastSetsFor } from '../../lib/training/sessionLog';
 import { fmtIn } from './units';
 import { infoFor } from '../../lib/training/sessionLog';
+import ReplanButton from '../goal/ReplanButton';
 
 const DAYS: Day[] = [1, 2, 3, 4];
 const WEEKS: Week[] = [1, 2, 3, 4];
@@ -42,6 +44,9 @@ export function PlanView({
 
   return (
     <div className="stack plan">
+      <section className="card stack-sm plan-replan" aria-label={tg('replan.button')}>
+        <ReplanButton line />
+      </section>
       <section className="card stack-sm" aria-labelledby="plan-h">
         <h2 id="plan-h">{t('brief.title', { n: cycle.index, block: cycle.block })}</h2>
         <p className="small">{t(`plan.focus.${cycle.block}` as StringKey)}</p>
@@ -84,6 +89,7 @@ export function PlanView({
               lastSets: (id) => lastSetsFor(sessions, id),
               bar: program.bar,
               weightUnit: unit,
+              ...(program.availability ? { budgetMin: program.availability.strengthMin } : {}),
             })
           : null;
         return (

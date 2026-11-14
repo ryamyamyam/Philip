@@ -478,6 +478,7 @@ function previewFor(
     bar: program.bar,
     weightUnit: program.weightUnit,
     restBonusSec: cycle.restBonusSec ?? 0,
+    ...(program.availability ? { budgetMin: program.availability.strengthMin } : {}),
   });
   const top = plan.exercises[0]?.prescription.at(-1);
   return {

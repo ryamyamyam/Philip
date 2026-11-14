@@ -5,9 +5,10 @@ import { addTargetPlan, addTm, startCycle, updateProfile } from '../../db/repo';
 import type { CycleRecord, Profile, TmRecord, WeightEntry, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
 import { todayYmd } from '../../lib/date';
-import { fmtKcal, fmtNum } from '../../lib/format';
+import { fmtDate, fmtKcal, fmtNum } from '../../lib/format';
 import { parseDecimal } from '../../lib/numbers';
 import { calculateTargets } from '../../lib/targets';
+import { continuation } from '../../lib/goal/deadline';
 import {
   calcInputsForGoal,
   checkUserGoal,
@@ -38,7 +39,10 @@ export function StartCycleView({
   cycles,
   sessions,
   tmHistory,
+  trainingDays,
 }: {
+  /** Story 12: training days a week when the owner set his time (else Story 5's four). */
+  trainingDays?: number;
   profile: Profile;
   weights: readonly WeightEntry[];
   cycles: readonly CycleRecord[];
@@ -67,7 +71,9 @@ export function StartCycleView({
     return { phase: last.phase, plannedRatePct: last.goal.weeklyRatePct, actualRatePct, bfDelta };
   }, [last, weight, profile.bodyFatPct]);
 
-  const philip = weight === null ? null : philipGoal(weight, profile.bodyFatPct, phase, lastInfo);
+  // Story 12: a goal with a date that is still ahead carries on into this cycle (same weight, same date).
+  const carried = weight !== null && last ? continuation(last, weight, profile.bodyFatPct, phase, today) : null;
+  const philip: CycleGoal | null = weight === null ? null : (carried ?? philipGoal(weight, profile.bodyFatPct, phase, lastInfo));
   const userEnd = parseDecimal(endW);
   const userBf = parseDecimal(bfT);
   const userEndKg = userEnd !== null && Number.isFinite(userEnd) && userEnd > 0 ? fromDisplay(userEnd, unit) : null;
@@ -90,9 +96,9 @@ export function StartCycleView({
 
   const calc = useMemo(() => {
     if (!goal) return null;
-    const inputs = calcInputsForGoal(profile, phase, goal, today);
+    const inputs = calcInputsForGoal(profile, phase, goal, today, trainingDays);
     return inputs ? { inputs, res: calculateTargets(inputs) } : null;
-  }, [goal, profile, phase, today]);
+  }, [goal, profile, phase, today, trainingDays]);
 
   const confirm = async () => {
     if (!goal) return;
@@ -103,7 +109,7 @@ export function StartCycleView({
     await updateProfile({
       goal: phase,
       targetWeightKg: phase === 'maintain' ? profile.targetWeightKg : Math.round(goal.endWeightKg * 10) / 10,
-      weeklyRateKg: Math.round(((goal.endWeightKg - goal.startWeightKg) / 4) * 100) / 100,
+      weeklyRateKg: Math.round(((goal.endWeightKg - goal.startWeightKg) / (goal.weeks ?? 4)) * 100) / 100,
       ...(goal.source === 'user' && goal.bfLinePct !== null ? { targetBodyFatPct: goal.bfLinePct } : {}),
     });
     let targetPlanId: number | null = null;
@@ -177,7 +183,11 @@ export function StartCycleView({
           </div>
           {mode === 'philip' && philip && (
             <>
-              <p className="num pm-display brief-goal">{t('brief.goal', { weight: fmtIn(philip.endWeightKg, unit), rate: fmtNum(philip.weeklyRatePct, 2) })}</p>
+              <p className="num pm-display brief-goal">
+                {carried
+                  ? t('brief.goalBy', { weight: fmtIn(philip.endWeightKg, unit), rate: fmtNum(philip.weeklyRatePct, 2), date: fmtDate(carried.deadline, 'short') })
+                  : t('brief.goal', { weight: fmtIn(philip.endWeightKg, unit), rate: fmtNum(philip.weeklyRatePct, 2) })}
+              </p>
               {philip.bfLinePct !== null && <p className="num">{t(bfKey(phase), { bf: fmtNum(philip.bfLinePct, 1) })}</p>}
             </>
           )}

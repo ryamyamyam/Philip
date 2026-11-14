@@ -25,7 +25,7 @@ export type SheetState =
     }
   | { kind: 'suggest'; date: YMD }
   /** Story 11: goal reached / off the plan → next goal → Philip's plan. */
-  | { kind: 'goal' };
+  | { kind: 'goal'; /** Story 12: the owner asked for a fresh plan (Re-plan with Philip). */ manual?: boolean };
 
 export interface UI {
   date: YMD;

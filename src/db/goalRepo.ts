@@ -17,6 +17,7 @@
 import { db, type PhilipDB } from './db';
 import type { CycleRecord, GoalPlanItems, GoalPlanUndo, PlanChange, TargetPlan, YMD } from './types';
 import { planForDate } from '../lib/nutrition';
+import { goalWeeks } from '../lib/goal/deadline';
 import { macrosFor } from '../lib/goal/proposal';
 import { blockForCycle } from '../lib/training/program';
 import { slotKey } from '../lib/training/exercises';
@@ -64,6 +65,7 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
     if (!current || current.index !== pc.cycle) throw new GoalApplyError('stale');
     const now = Date.now();
     const c = pc.choice;
+    const weeks = goalWeeks(c);
     const plans = await database.targetPlans.toArray();
     const before = planForDate(plans, today);
 
@@ -94,14 +96,14 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
             goal: c.phase,
             weightKg: c.startWeightKg,
             targetWeightKg: c.phase === 'maintain' ? null : c.endWeightKg,
-            weeklyRateKg: Math.round((Math.abs(c.endWeightKg - c.startWeightKg) / 4) * 100) / 100,
+            weeklyRateKg: Math.round((Math.abs(c.endWeightKg - c.startWeightKg) / weeks) * 100) / 100,
           },
           weekdayOverrides: null,
           createdAt: now,
         })) as number;
       }
     }
-    const goal = { startWeightKg: c.startWeightKg, startBfPct: c.startBfPct, endWeightKg: c.endWeightKg, weeklyRatePct: c.weeklyRatePct, bfLinePct: c.bfLinePct, source: c.source === 'philip' ? ('philip' as const) : ('user' as const), targetPlanId };
+    const goal = { startWeightKg: c.startWeightKg, startBfPct: c.startBfPct, endWeightKg: c.endWeightKg, weeklyRatePct: c.weeklyRatePct, bfLinePct: c.bfLinePct, source: c.source === 'philip' ? ('philip' as const) : ('user' as const), targetPlanId, ...(c.weeks !== undefined ? { weeks: c.weeks } : {}), ...(c.deadline !== undefined ? { deadline: c.deadline } : {}) };
 
     let block = blockForCycle(current.index);
     let newIndex: number | null = null;
@@ -140,7 +142,7 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
       ...profile,
       goal: c.phase,
       targetWeightKg: c.phase === 'maintain' ? profile.targetWeightKg : r1(c.endWeightKg),
-      weeklyRateKg: Math.round(((c.endWeightKg - c.startWeightKg) / 4) * 100) / 100,
+      weeklyRateKg: Math.round(((c.endWeightKg - c.startWeightKg) / weeks) * 100) / 100,
       ...(c.source === 'user' && c.bfLinePct !== null ? { targetBodyFatPct: c.bfLinePct } : {}),
     });
     const notes = [note, ...(pc.proposal?.remember ?? [])].filter((x): x is string => !!x);

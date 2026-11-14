@@ -1,9 +1,9 @@
 /**
  * The cardio finisher (Story 7, OBS-93A8C0). Pure.
  *
- * Cardio was left out of the 45-minute lifting budget on purpose (Story 5 §4.6), not because of the
+ * Cardio was left out of the lifting budget (60 minutes since Story 12) on purpose (Story 5 §4.6), not because of the
  * phase. The owner's default is an incline (ramp) treadmill walk, 15 minutes or more, after the lifts,
- * every session. It is never counted in the 45 minutes.
+ * every session. It is never counted in the lifting minutes.
  *
  * Minutes per phase are Philip's coaching defaults (a hypothesis, not evidence): low-intensity
  * walking adds energy expenditure with little cost to recovery, so a cut gets a longer walk. Tune here.

@@ -22,7 +22,7 @@ import { createSession, infoFor, lastSessionIdFor, lastSetsFor, summarize, swapI
 import { fmtDate } from '../../lib/format';
 import { applyOrder, orderOf } from '../../lib/training/order';
 import { ReorderList } from './ReorderList';
-import { plannedCardio } from '../../lib/training/cardio';
+import { CARDIO_MINUTES, plannedCardio } from '../../lib/training/cardio';
 import { CardioCard, cardioValue } from './CardioCard';
 import { CoachReport } from './CoachReport';
 import { startingWeight } from '../../lib/training/cycleGoal';
@@ -101,6 +101,7 @@ function planFor(
       weightUnit: program.weightUnit,
       restBonusSec: cycle.restBonusSec ?? 0,
       bodyWeightKg,
+      ...(program.availability ? { budgetMin: program.availability.strengthMin } : {}),
       // Story 7: a next-time order from an applied report, until the exercise is logged again.
       override: (id) => {
         const o = program.nextOverrides?.find((x) => x.exerciseId === id);
@@ -125,7 +126,9 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
   if (!ref) return <p>{t('session.cycleDone')}</p>;
   if (missing) return <Calibration lift={missing} cycle={cycle.index} unit={program.weightUnit} />;
   if (!plan) return null;
-  const opts = { cardioMin: cycle.cardioMin ?? null, order: program.dayOrder?.[String(plan.day)] ?? null, speedUnit: program.treadmill?.scale ?? (program.weightUnit === 'lb' ? ('mph' as const) : ('kmh' as const)) };
+  // Story 12: his cardio minutes are a ceiling for the planned walk.
+  const cardioPlan = program.availability ? Math.min(cycle.cardioMin ?? CARDIO_MINUTES[cycle.phase], program.availability.cardioMin) : (cycle.cardioMin ?? null);
+  const opts = { cardioMin: cardioPlan, order: program.dayOrder?.[String(plan.day)] ?? null, speedUnit: program.treadmill?.scale ?? (program.weightUnit === 'lb' ? ('mph' as const) : ('kmh' as const)) };
   const start = () => void saveWorkoutSession(createSession(plan, newId(), todayYmd(), Date.now(), opts));
   const skipDay = () => {
     const s = createSession(plan, newId(), todayYmd(), Date.now(), opts);
@@ -135,7 +138,7 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
   return (
     <div className="stack">
       <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose={deload ? 'cross-smug' : 'point-down-smirk'} framing="bust" scale={2} className="pm-dialog-portrait" />}>
-        {t(deload ? 'session.startDeload' : 'session.startLine', { lift: t(LIFT_KEY[plan.lift]) })}
+        {t(deload ? 'session.startDeload' : 'session.startLine', { lift: t(LIFT_KEY[plan.lift]), min: program.availability?.strengthMin ?? SESSION_BUDGET_MIN })}
       </DialogBar>
       <section className="card stack-sm" aria-labelledby="start-h">
         <h2 id="start-h">{t('home.workout.dayTitle', { day: plan.day, lift: t(LIFT_KEY[plan.lift]) })}</h2>
@@ -146,7 +149,7 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
           {applyOrder(plan.exercises, opts.order).map((e) => (
             <PreviewRow key={e.slot} e={e} day={plan.day} block={plan.block} choices={choices} />
           ))}
-          <li className="num">{t('cardio.preview', { n: plannedCardio(plan.phase, 'mph', cycle.cardioMin).planMin })}</li>
+          <li className="num">{t('cardio.preview', { n: plannedCardio(plan.phase, 'mph', cardioPlan).planMin, min: program.availability?.strengthMin ?? SESSION_BUDGET_MIN })}</li>
         </ul>
         <p className="small muted">{t('session.checkHint')}</p>
       </section>
@@ -402,7 +405,7 @@ function LiveSession({
   const elapsedMin = Math.floor((now - session.startedAt) / 60000);
   const [restDur, setRestDur] = useState(0);
   const lift = DAY_LIFT[session.day];
-  const over = !session.editing && elapsedMin >= SESSION_BUDGET_MIN;
+  const over = !session.editing && elapsedMin >= (program.availability?.strengthMin ?? SESSION_BUDGET_MIN);
 
   // Story 6 §8: rest end → "Time's up" banner (8 s), a beep, and a push alert scheduled at rest start.
   const soundOff = useMeta<boolean>(META.restSound) === false;
@@ -652,7 +655,7 @@ function LiveSession({
           onReorder={canReorder ? () => setReordering(true) : undefined}
         />
       ))}
-      <CardioCard cardio={cardio} cut={cycle.phase === 'lose'} treadmill={program.treadmill} onChange={(next) => save({ ...session, cardio: next })} />
+      <CardioCard cardio={cardio} cut={cycle.phase === 'lose'} treadmill={program.treadmill} budgetMin={program.availability?.strengthMin ?? SESSION_BUDGET_MIN} onChange={(next) => save({ ...session, cardio: next })} />
       <button type="button" className="btn btn-primary btn-block" onClick={() => setChecking(true)}>
         {t(session.editing ? 'session.finishEdit' : 'session.finish')}
       </button>

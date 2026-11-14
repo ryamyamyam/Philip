@@ -62,7 +62,7 @@ export default function WorkoutView({ plan = false }: { plan?: boolean }) {
     const choiceMap = Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>;
     if (!program || state.kind === 'setup') body = <SetupView />;
     else if (state.kind === 'briefing' || state.kind === 'cycleDone' || !cycle || (briefingOpen && state.kind === 'doneToday' && state.cycleDone)) {
-      body = <StartCycleView profile={profile} weights={weights} cycles={cycles} sessions={sessions} tmHistory={tmHistory} />;
+      body = <StartCycleView profile={profile} weights={weights} cycles={cycles} sessions={sessions} tmHistory={tmHistory} {...(program.trainingDays ? { trainingDays: program.trainingDays.length } : {})} />;
     } else if (!inSession && !(editRequested && state.kind === 'resume')) {
       body = (
         <WorkoutCalendar

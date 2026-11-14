@@ -7,6 +7,7 @@ import { tg } from '../../i18n/goal';
 import { addDays, daysBetween, todayYmd, toYmd } from '../../lib/date';
 import { fmtDate } from '../../lib/format';
 import { fmtIn } from '../workout/units';
+import ReplanButton from './ReplanButton';
 
 /**
  * Story 11 §6.5: each cycle's goal, planned vs what happened (reached, early, in progress), newest
@@ -27,7 +28,7 @@ export function GoalHistory({ unit }: { unit: 'kg' | 'lb' }) {
       <ol className="goal-history">
         {[...cycles].reverse().map((c) => {
           const start = toYmd(new Date(c.startedAt));
-          const planned = addDays(start, 28);
+          const planned = c.goal.deadline ?? addDays(start, 28);
           const status = c.reachedAt
             ? `${tg('goal.history.reached', { date: fmtDate(c.reachedAt, 'short') })}${daysBetween(c.reachedAt, planned) > 0 ? ` · ${tg('goal.history.early', { days: daysBetween(c.reachedAt, planned) })}` : ''}`
             : c.endedEarly
@@ -37,12 +38,13 @@ export function GoalHistory({ unit }: { unit: 'kg' | 'lb' }) {
                 : '';
           return (
             <li key={c.index} className="stack-xs">
-              <span className="num">{tg('goal.history.row', { n: c.index, start: fmtIn(c.goal.startWeightKg, unit), end: fmtIn(c.goal.endWeightKg, unit) })}</span>
+              <span className="num">{tg('goal.history.row', { n: c.index, start: fmtIn(c.goal.startWeightKg, unit), end: fmtIn(c.goal.endWeightKg, unit) })}{c.goal.deadline ? ` ${tg('goal.history.by', { date: fmtDate(c.goal.deadline, 'short') })}` : ''}</span>
               {status && <span className="small muted">{status}</span>}
             </li>
           );
         })}
       </ol>
+      <ReplanButton />
       {undoable?.id !== undefined && (
         <button
           type="button"

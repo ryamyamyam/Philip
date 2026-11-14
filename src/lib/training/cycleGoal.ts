@@ -84,6 +84,9 @@ export interface CycleGoal {
   /** Bulk: ceiling. Cut: target. Maintain: hold. null when BF% isn't measured. */
   bfLinePct: number | null;
   source: 'philip' | 'user';
+  /** Story 12: planned length (weeks) and goal date, when the goal has one. */
+  weeks?: number;
+  deadline?: string;
 }
 
 /** Philip's default goal for the next 4 weeks. Example: 73 kg, 15%, bulk → 74.0 kg, BF ceiling 16%. */
@@ -92,9 +95,10 @@ export function philipGoal(
   bfPct: number | null,
   phase: Phase,
   last: LastCycle | null = null,
+  weeks: number = CYCLE_WEEKS,
 ): CycleGoal {
   const rate = defaultRatePct(phase, last);
-  const end = roundTo(weightKg * (1 + (rate / 100) * CYCLE_WEEKS), 0.5);
+  const end = roundTo(weightKg * (1 + (rate / 100) * weeks), 0.5);
   const bfLine = bfPct === null ? null : phase === 'gain' ? bfPct + 1 : phase === 'lose' ? bfPct - 1 : bfPct;
   return { startWeightKg: weightKg, startBfPct: bfPct, endWeightKg: end, weeklyRatePct: rate, bfLinePct: bfLine, source: 'philip' };
 }
@@ -111,8 +115,10 @@ export function checkUserGoal(
   phase: Phase,
   endWeightKg: number,
   bfTargetPct: number | null,
+  /** Story 12: planned length (the goal date). Default: the 4-week cycle. */
+  weeks: number = CYCLE_WEEKS,
 ): { ratePct: number; issues: GoalIssue[] } {
-  const ratePct = Math.round((((endWeightKg - weightKg) / weightKg / CYCLE_WEEKS) * 100) * 100) / 100;
+  const ratePct = Math.round((((endWeightKg - weightKg) / weightKg / weeks) * 100) * 100) / 100;
   const issues: GoalIssue[] = [];
   const range = RATE_PCT[phase];
   if ((phase === 'gain' && ratePct < 0) || (phase === 'lose' && ratePct > 0)) {
@@ -152,19 +158,21 @@ export interface ProfileForCalc {
 export function calcInputsForGoal(
   p: ProfileForCalc,
   phase: Phase,
-  goal: Pick<CycleGoal, 'startWeightKg' | 'endWeightKg'>,
+  goal: Pick<CycleGoal, 'startWeightKg' | 'endWeightKg'> & { weeks?: number },
   today: string,
+  /** Story 12: training days a week (his weekdays, 3–5). Default: Story 5's four. */
+  trainingDays?: number,
 ): CalcInputs | null {
   if (!p.sex || !p.birthDate || !p.heightCm || !p.activityLevel) return null;
-  const rateKg = Math.abs(goal.endWeightKg - goal.startWeightKg) / CYCLE_WEEKS;
+  const rateKg = Math.abs(goal.endWeightKg - goal.startWeightKg) / (goal.weeks ?? CYCLE_WEEKS);
   return {
     sex: p.sex,
     ageYears: ageOn(p.birthDate, today),
     heightCm: p.heightCm,
     weightKg: goal.startWeightKg,
     activityLevel: p.activityLevel,
-    // Story 5: four training days a week.
-    trainingDaysPerWeek: Math.max(4, p.trainingDaysPerWeek ?? 0),
+    // Story 5: four training days a week; Story 12: the owner's availability (3–5) when set.
+    trainingDaysPerWeek: trainingDays ?? Math.max(4, p.trainingDaysPerWeek ?? 0),
     goal: phase,
     targetWeightKg: phase === 'maintain' ? null : goal.endWeightKg,
     weeklyRateKg: phase === 'maintain' ? null : Math.round(rateKg * 100) / 100,

@@ -87,14 +87,14 @@ test('OBS-F52773: move A2 above A1; the order is remembered for the day and can 
   await noHorizontalScroll(page);
 });
 
-test('OBS-93A8C0: incline walk after the lifts, outside the 45; logged on the summary; no key → plain report note', async ({ page }) => {
+test('OBS-93A8C0: incline walk after the lifts, outside the lifting minutes; logged on the summary; no key → plain report note', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
   await fresh(page);
   await setUpAndOpenDay1(page);
-  await expect(main(page).locator('.start-list')).toContainText('+ Cardio: incline walk 15 min (outside the 45)');
+  await expect(main(page).locator('.start-list')).toContainText('+ Cardio: incline walk 15 min (outside the 60)');
   await main(page).getByRole('button', { name: 'Start workout' }).click();
   const cardio = main(page).getByRole('region', { name: 'Cardio: incline walk' });
-  await expect(cardio).toContainText('15 min or more on the ramp. Not counted in the 45.');
+  await expect(cardio).toContainText('15 min or more on the ramp. Not counted in the 60.');
   const doneBtn = cardio.getByRole('button', { name: 'Done' });
   await expect(doneBtn).toBeDisabled();
   await cardio.getByRole('textbox', { name: 'Minutes' }).fill('18');

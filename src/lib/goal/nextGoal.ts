@@ -13,15 +13,15 @@ import type { Phase } from '../training/program';
 
 export interface PrevGoal {
   phase: Phase;
-  goal: Pick<CycleGoalSnapshot, 'startWeightKg' | 'endWeightKg' | 'bfLinePct' | 'weeklyRatePct' | 'startBfPct'>;
+  goal: Pick<CycleGoalSnapshot, 'startWeightKg' | 'endWeightKg' | 'bfLinePct' | 'weeklyRatePct' | 'startBfPct'> & { weeks?: number };
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-export function repeatGoal(prev: PrevGoal, nowKg: number, bfPct: number | null): GoalChoice & { issues: GoalIssue[] } {
+export function repeatGoal(prev: PrevGoal, nowKg: number, bfPct: number | null, weeks: number = prev.goal.weeks ?? CYCLE_WEEKS): GoalChoice & { issues: GoalIssue[] } {
   const delta = prev.goal.endWeightKg - prev.goal.startWeightKg;
   const end = r1(nowKg + delta);
-  const { ratePct, issues } = checkUserGoal(nowKg, prev.phase, end, prev.goal.bfLinePct);
+  const { ratePct, issues } = checkUserGoal(nowKg, prev.phase, end, prev.goal.bfLinePct, weeks);
   return {
     phase: prev.phase,
     startWeightKg: r1(nowKg),
@@ -30,6 +30,7 @@ export function repeatGoal(prev: PrevGoal, nowKg: number, bfPct: number | null):
     weeklyRatePct: ratePct,
     bfLinePct: prev.goal.bfLinePct,
     source: 'repeat',
+    weeks,
     issues,
   };
 }
@@ -45,18 +46,18 @@ export function recommendNextPhase(prev: PrevGoal, bfPct: number | null, longTer
   return { phase: p, why: 'same' };
 }
 
-export function philipNextGoal(prev: PrevGoal, nowKg: number, bfPct: number | null, phase: Phase, daysTaken: number): GoalChoice {
-  const weeks = Math.max(1, daysTaken / 7);
-  const actualRatePct = ((nowKg - prev.goal.startWeightKg) / prev.goal.startWeightKg / weeks) * 100;
+export function philipNextGoal(prev: PrevGoal, nowKg: number, bfPct: number | null, phase: Phase, daysTaken: number, weeks: number = CYCLE_WEEKS): GoalChoice {
+  const taken = Math.max(1, daysTaken / 7);
+  const actualRatePct = ((nowKg - prev.goal.startWeightKg) / prev.goal.startWeightKg / taken) * 100;
   const bfDelta = bfPct !== null && prev.goal.startBfPct !== null ? bfPct - prev.goal.startBfPct : null;
   const last: LastCycle = { phase: prev.phase, plannedRatePct: prev.goal.weeklyRatePct, actualRatePct, bfDelta };
-  const g = philipGoal(r1(nowKg), bfPct, phase, last);
-  return { phase, startWeightKg: g.startWeightKg, startBfPct: g.startBfPct, endWeightKg: g.endWeightKg, weeklyRatePct: g.weeklyRatePct, bfLinePct: g.bfLinePct, source: 'philip' };
+  const g = philipGoal(r1(nowKg), bfPct, phase, last, weeks);
+  return { phase, startWeightKg: g.startWeightKg, startBfPct: g.startBfPct, endWeightKg: g.endWeightKg, weeklyRatePct: g.weeklyRatePct, bfLinePct: g.bfLinePct, source: 'philip', weeks };
 }
 
-export function ownGoal(nowKg: number, bfPct: number | null, phase: Phase, endKg: number, bfLine: number | null): (GoalChoice & { issues: GoalIssue[] }) {
-  const { ratePct, issues } = checkUserGoal(nowKg, phase, endKg, bfLine);
-  return { phase, startWeightKg: r1(nowKg), startBfPct: bfPct, endWeightKg: r1(endKg), weeklyRatePct: ratePct, bfLinePct: bfLine, source: 'user', issues };
+export function ownGoal(nowKg: number, bfPct: number | null, phase: Phase, endKg: number, bfLine: number | null, weeks: number = CYCLE_WEEKS): (GoalChoice & { issues: GoalIssue[] }) {
+  const { ratePct, issues } = checkUserGoal(nowKg, phase, endKg, bfLine, weeks);
+  return { phase, startWeightKg: r1(nowKg), startBfPct: bfPct, endWeightKg: r1(endKg), weeklyRatePct: ratePct, bfLinePct: bfLine, source: 'user', weeks, issues };
 }
 
 /** Planned length of a goal (= a cycle). */

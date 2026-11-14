@@ -5,7 +5,8 @@ import { useToast } from '../components/Toast';
 import { newId } from '../db/db';
 import { addTm, META, resetTrainingProgram, setMeta, saveWorkoutSession, setSlotChoice, setTrainingDays, updateTrainingProgram } from '../db/repo';
 import type { IsoWeekday, TrainingProgram, WorkoutSession } from '../db/types';
-import { DEFAULT_TRAINING_DAYS, squatRdlTooClose, TRAINING_DAYS_PER_WEEK, trainingDaysOrDefault } from '../lib/training/schedule';
+import { defaultDaysFor, squatRdlTooClose, trainingDaysOrDefault } from '../lib/training/schedule';
+import { YourTime } from './goal/YourTime';
 import { useMeta, useSlotChoices, useTrainingProgram, useWorkoutSessions } from '../hooks/useData';
 import { isStandalone } from '../lib/pwa';
 import { pushConfig, pushSupported, scheduleRestAlert, subscribeRestAlerts, unsubscribeRestAlerts, type StoredSubscription } from '../services/restPush';
@@ -39,7 +40,8 @@ export function TrainingSettings() {
         </button>
       ) : (
         <>
-          <TrainingDays program={program} />
+          <YourTime program={program} />
+          <TrainingDays key={trainingDaysOrDefault(program.trainingDays).join()} program={program} />
           <RestSettings />
           <Retest program={program} />
           <BarSettings program={program} />
@@ -118,17 +120,19 @@ function RestSettings() {
   );
 }
 
-/** Story 6 §3.1: the weekdays Philip plans workout dates on. Exactly 4; Philip's pick is the default. */
+/** Story 6 §3.1: the weekdays Philip plans workout dates on. As many as "Your time" says (Story 12: 3–5, default 4). */
 function TrainingDays({ program }: { program: TrainingProgram }) {
   const toast = useToast();
   const [days, setDays] = useState<IsoWeekday[]>(() => trainingDaysOrDefault(program.trainingDays));
-  const isPick = (d: readonly IsoWeekday[]) => d.length === DEFAULT_TRAINING_DAYS.length && d.every((x) => DEFAULT_TRAINING_DAYS.includes(x));
+  const count = trainingDaysOrDefault(program.trainingDays).length;
+  const pick = defaultDaysFor(count);
+  const isPick = (d: readonly IsoWeekday[]) => d.length === pick.length && d.every((x) => pick.includes(x));
   const toggle = (d: IsoWeekday) => setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort((a, b) => a - b)));
-  const ok = days.length === TRAINING_DAYS_PER_WEEK;
+  const ok = days.length === count;
   return (
     <div className="stack-sm" role="group" aria-labelledby="days-h">
       <h3 id="days-h">{t('training.days')}</h3>
-      <p className="small muted">{t('training.daysHint')}</p>
+      <p className="small muted">{t('training.daysHint', { n: count })}</p>
       <div className="days-row">
         {([1, 2, 3, 4, 5, 6, 7] as const).map((d) => (
           <button key={d} type="button" className="btn btn-sm btn-secondary day-toggle" aria-pressed={days.includes(d)} onClick={() => toggle(d)}>
@@ -137,7 +141,7 @@ function TrainingDays({ program }: { program: TrainingProgram }) {
         ))}
       </div>
       <p className="small num" aria-live="polite">
-        {isPick(days) ? t('training.daysPick') : t('training.daysCount', { n: days.length })}
+        {isPick(days) ? t('training.daysPick') : t('training.daysCount', { n: days.length, of: count })}
       </p>
       {ok && squatRdlTooClose(days) && <p className="small">{t('training.daysClose')}</p>}
       <div className="ex-actions">
@@ -145,12 +149,12 @@ function TrainingDays({ program }: { program: TrainingProgram }) {
           type="button"
           className="btn btn-secondary"
           disabled={!ok}
-          onClick={() => ok && void setTrainingDays(isPick(days) ? null : days).then(() => toast(t('training.daysSaved')))}
+          onClick={() => ok && void setTrainingDays(isPick(days) && count === 4 ? null : days).then(() => toast(t('training.daysSaved')))}
         >
           {t('training.daysSave')}
         </button>
         {!isPick(days) && (
-          <button type="button" className="btn btn-ghost" onClick={() => setDays([...DEFAULT_TRAINING_DAYS])}>
+          <button type="button" className="btn btn-ghost" onClick={() => setDays(pick)}>
             {t('training.daysUsePick')}
           </button>
         )}

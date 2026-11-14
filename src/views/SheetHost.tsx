@@ -39,7 +39,7 @@ export function SheetHost({ sheet }: { sheet: SheetState }) {
     case 'goal':
       return (
         <Suspense fallback={null}>
-          <GoalSheet />
+          <GoalSheet manual={sheet.manual === true} />
         </Suspense>
       );
   }

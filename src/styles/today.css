@@ -249,7 +249,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 144px;
+  width: 216px;
   display: flex;
 }
 .swipe-actions[hidden] {
@@ -272,6 +272,9 @@
 .swipe-action svg {
   width: 22px;
   height: 22px;
+}
+.swipe-action-copy {
+  background: var(--color-action);
 }
 .swipe-action-move {
   background: var(--color-text-2);

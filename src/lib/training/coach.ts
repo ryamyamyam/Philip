@@ -13,6 +13,7 @@ import { blockForCycle, DAY_LIFT, LIFTS, loadDropPct, roundTo, type Day, type Li
 import { incrementKg as stepOf, roundToStep, type PlateUnit } from './plates';
 import { MAX_REST_BONUS_SEC } from './checkin';
 import { normalizeOrder } from './order';
+import { SESSION_BUDGET_MIN } from './session';
 import { parseRemember, REMEMBER_RULE } from '../coach/memory';
 
 /** Bounds for proposals (Philip's coaching defaults; a hypothesis, not evidence). */
@@ -36,6 +37,8 @@ export interface CoachContext {
   /** Current TMs (kg) for this cycle. */
   tms: Readonly<Record<LiftId, number | null>>;
   trainingDays: readonly IsoWeekday[];
+  /** Story 12: the owner's lifting minutes per session (default 60). */
+  budgetMin?: number;
   /** Owner's sticky swaps by slot key. */
   choices: Readonly<Record<string, string>>;
   unit: PlateUnit;
@@ -79,7 +82,7 @@ export function contextText(c: CoachContext): string {
     const cd = s.cardio;
     lines.push(`Cardio: incline walk, planned ${cd.planMin} min; ${cd.skipped ? 'skipped' : cd.done ? `did ${cd.minutes ?? '?'} min${cd.inclinePct !== null ? ` at ${cd.inclinePct}% incline` : ''}${cd.speed !== null ? `, speed setting ${cd.speed} (${cd.speedUnit})${cd.speedMph !== undefined ? ` ≈ ${cd.speedMph} mph` : ''}` : ''}` : 'not logged'}.`);
   }
-  if (s.startedAt && s.finishedAt) lines.push(`Time taken: ${Math.round((s.finishedAt - s.startedAt) / 60000)} min (budget 45 min for lifting).`);
+  if (s.startedAt && s.finishedAt) lines.push(`Time taken: ${Math.round((s.finishedAt - s.startedAt) / 60000)} min (budget ${c.budgetMin ?? SESSION_BUDGET_MIN} min for lifting).`);
   lines.push('The whole plan: approved swaps per accessory slot for the rest of this block (slot: current | options), and each day\'s exercise order (main lift always first):');
   for (const day of [1, 2, 3, 4] as Day[]) {
     lines.push(`  day ${day} (${DAY_LIFT[day]} day) order: ${currentOrder(c, day).join(' > ')}`);
@@ -103,7 +106,7 @@ const RULES = [
   '{"kind":"rest","extraSec":15|30|45|60,"why":string} extra rest on every work set for the rest of the cycle;',
   '{"kind":"next","exerciseId":string,"kg":number|null,"reps":number|null,"sets":number|null,"why":string} the next time that accessory from today comes up: weight per hand for dumbbells (within 20% of today\'s order), target reps (inside its range), sets 2-5; null keeps Philip\'s rule;',
   '{"kind":"swap","day":1-4,"slot":"A1|A2|B","exerciseId":string,"why":string} only one of the approved options listed for that slot;',
-  '{"kind":"days","days":[four distinct weekdays 1-7],"why":string} training weekdays;',
+  '{"kind":"days","days":[the same number of distinct weekdays as now, 1-7],"why":string} training weekdays;',
   '{"kind":"order","day":1-4,"order":["A1"|"A2"|"B" in the new order],"why":string} the accessory order for that day from now on (the main lift always stays first).',
   'When the lifter names a weak point or a priority (for example "my upper chest is much weaker"), treat it as a request to restructure the plan, not to tweak rest: put the exercise that trains it first after the main lift (order), pick the approved option that trains it best (swap), and give it more work (next with sets up to 5), on every day where it fits. Use up to 4 changes and say in the message how the plan now prioritises it. If the menu cannot do what they ask, say so plainly.',
   'Use the brief (history, notes, earlier chats) to compare today with past sessions and to keep promises you made; never invent numbers it does not have.',
@@ -234,7 +237,7 @@ export function validateChange(raw: unknown, c: CoachContext): CoachChange | nul
     case 'days': {
       if (!Array.isArray(raw.days)) return null;
       const days = [...new Set(raw.days.filter((d): d is number => typeof d === 'number' && Number.isInteger(d) && d >= 1 && d <= 7))].sort((a, b) => a - b);
-      if (days.length !== 4) return null;
+      if (days.length !== c.trainingDays.length) return null;
       if (days.join() === [...c.trainingDays].sort((a, b) => a - b).join()) return null;
       return { kind: 'days', days: days as IsoWeekday[] };
     }

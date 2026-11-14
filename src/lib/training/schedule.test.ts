@@ -15,7 +15,8 @@ describe('schedule helpers', () => {
     expect(DEFAULT_TRAINING_DAYS).toEqual([1, 2, 4, 5]);
     expect(trainingDaysOrDefault(undefined)).toEqual([1, 2, 4, 5]);
     expect(trainingDaysOrDefault([5, 1, 3, 2])).toEqual([1, 2, 3, 5]);
-    expect(trainingDaysOrDefault([1, 2, 3])).toEqual([1, 2, 4, 5]); // not 4 days → default
+    expect(trainingDaysOrDefault([1, 2])).toEqual([1, 2, 4, 5]); // outside 3–5 days → default
+    expect(trainingDaysOrDefault([1, 3, 5])).toEqual([1, 3, 5]); // Story 12: 3–5 days are his own
   });
 
   it('flags squat and RDL only 2 days apart (three training days in a row), in any rotation', () => {

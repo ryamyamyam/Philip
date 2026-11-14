@@ -12,6 +12,7 @@ import { takeAskDraft } from '../lib/coach/askDraft';
 import { todayYmd } from '../lib/date';
 import { useUI } from '../ui';
 import { useCloudPaired } from '../hooks/useCoach';
+import ReplanButton from './goal/ReplanButton';
 
 /**
  * Ask Philip (Story 9, `#/ask`): a chat outside any workout. Every question goes to Gemini with
@@ -71,6 +72,7 @@ export default function AskView() {
         <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose="cross-smug" framing="bust" scale={2} className="pm-dialog-portrait" />}>
           {key ? t('ask.intro') : t('ask.noKey')}
         </DialogBar>
+        <ReplanButton />
         <section className="card stack-sm" aria-labelledby="ask-h">
           <h2 id="ask-h" className="visually-hidden">
             {t('ask.title')}

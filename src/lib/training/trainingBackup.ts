@@ -19,6 +19,7 @@ import type {
   SessionExercise,
   SlotChoice,
   TmRecord,
+  TrainingAvailability,
   TrainingProgram,
   Treadmill,
   WorkoutSession,
@@ -133,6 +134,7 @@ function program(x: unknown): TrainingProgram | null {
     createdAt: num(o, 'createdAt', p),
     updatedAt: num(o, 'updatedAt', p),
     ...(o.trainingDays != null ? { trainingDays: trainingDays(o.trainingDays, `${p}.trainingDays`) } : {}),
+    ...(o.availability != null ? { availability: availability(o.availability, `${p}.availability`) } : {}),
     ...(o.dayOrder != null ? { dayOrder: dayOrder(o.dayOrder, `${p}.dayOrder`) } : {}),
     ...(o.nextOverrides != null ? { nextOverrides: list(o.nextOverrides, `${p}.nextOverrides`).map((v, i) => override(v, `${p}.nextOverrides[${i}]`)) } : {}),
     ...(o.treadmill != null ? { treadmill: treadmill(o.treadmill, `${p}.treadmill`) } : {}),
@@ -300,6 +302,19 @@ function tmRecord(x: unknown, i: number): TmRecord {
   };
 }
 
+/** Story 12: optional planned length and goal date. Older backups have neither. */
+function goalLength(g: Record<string, unknown>, path: string): { weeks?: number; deadline?: string } {
+  return {
+    ...(g.weeks != null ? { weeks: num(g, 'weeks', path, 0.5, 60) } : {}),
+    ...(g.deadline != null ? { deadline: isValidYmd(g.deadline) ? g.deadline : fail(path, 'deadline') } : {}),
+  };
+}
+
+function availability(x: unknown, path: string): TrainingAvailability {
+  const o = obj(x, path);
+  return { strengthMin: num(o, 'strengthMin', path, 10, 240), cardioMin: num(o, 'cardioMin', path, 0, 240) };
+}
+
 function cycle(x: unknown, i: number): CycleRecord {
   const p = `cycles[${i}]`;
   const o = obj(x, p);
@@ -318,6 +333,7 @@ function cycle(x: unknown, i: number): CycleRecord {
       bfLinePct: numOrNull(g, 'bfLinePct', `${p}.goal`, 3, 60),
       source: oneOf(g, 'source', ['philip', 'user'], `${p}.goal`),
       targetPlanId: numOrNull(g, 'targetPlanId', `${p}.goal`),
+      ...goalLength(g, `${p}.goal`),
     },
     ...(o.restBonusSec != null ? { restBonusSec: num(o, 'restBonusSec', p, 0, 600) } : {}),
     ...(o.cardioMin != null ? { cardioMin: num(o, 'cardioMin', p, 1, 240) } : {}),
@@ -437,8 +453,8 @@ function planChange(x: unknown, i: number): PlanChange {
   return {
     at: num(o, 'at', p, 0),
     cycle: num(o, 'cycle', p, 0, 10000),
-    event: oneOf(o, 'event', ['reached', 'offtrack'], p),
-    reason: oneOf(o, 'reason', ['weight', 'bf', 'stalled', 'tooFast', 'bfCeiling'], p),
+    event: oneOf(o, 'event', ['reached', 'offtrack', 'manual'], p),
+    reason: oneOf(o, 'reason', ['weight', 'bf', 'stalled', 'tooFast', 'bfCeiling', 'manual'], p),
     restart: o.restart === true,
     choice: {
       phase: oneOf(ch, 'phase', PHASES, `${p}.choice`),
@@ -448,6 +464,7 @@ function planChange(x: unknown, i: number): PlanChange {
       weeklyRatePct: num(ch, 'weeklyRatePct', `${p}.choice`, -5, 5),
       bfLinePct: numOrNull(ch, 'bfLinePct', `${p}.choice`, 3, 60),
       source: oneOf(ch, 'source', ['philip', 'user', 'repeat'], `${p}.choice`),
+      ...goalLength(ch, `${p}.choice`),
     },
     status: status === 'waiting' || status === 'ready' ? 'dismissed' : status,
     prompt: typeof o.prompt === 'string' ? o.prompt.slice(0, 40000) : '',

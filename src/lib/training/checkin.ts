@@ -282,5 +282,5 @@ export function reviewSession(session: WorkoutSession): ReviewItem[] {
 /** New TM after a review cut, rounded to 0.5 kg. */
 export const adjustedTm = (tmKg: number, factor: number): number => roundTo(tmKg * factor, 0.5);
 
-/** Extra rest for the rest of a cycle is capped so sessions still fit (the 45-min trims still run). */
+/** Extra rest for the rest of a cycle is capped so sessions still fit (the time-budget trims still run). */
 export const MAX_REST_BONUS_SEC = 90;

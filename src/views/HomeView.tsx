@@ -104,7 +104,7 @@ export function HomeView() {
       />
       <div className="stack home-stack">
         <p className="home-goal num" data-tour="home-goal">
-          {goalLine(profile, cycle?.goal ?? null, cycle ? addDays(fmtYmd(cycle.startedAt), 28) : null, weights ?? [], today, unit)}
+          {goalLine(profile, cycle?.goal ?? null, cycle ? (cycle.goal.deadline ?? addDays(fmtYmd(cycle.startedAt), 28)) : null, weights ?? [], today, unit)}
           {cycle && weights && etaText(goalEta(cycle, weights, today))}
         </p>
 
@@ -147,7 +147,7 @@ export function HomeView() {
             <span className="pm-cart-label">{t('home.workout')}</span>
             {card?.kind === 'next' && card.week === DELOAD_WEEK && <span className="pm-pill home-deload">{t('home.deload')}</span>}
           </span>
-          <WorkoutCardBody state={card} tmHistory={tmHistory ?? []} cyclePhase={cycle?.phase ?? null} unit={unit} />
+          <WorkoutCardBody state={card} tmHistory={tmHistory ?? []} cyclePhase={cycle?.phase ?? null} unit={unit} budgetMin={program?.availability?.strengthMin} />
         </button>
 
         <DialogBar
@@ -198,7 +198,9 @@ function WorkoutCardBody({
   tmHistory,
   cyclePhase,
   unit,
+  budgetMin,
 }: {
+  budgetMin?: number | undefined;
   state: WorkoutCardState | null;
   tmHistory: Parameters<typeof tmsForCycle>[0];
   cyclePhase: 'lose' | 'maintain' | 'gain' | null;
@@ -260,6 +262,7 @@ function WorkoutCardBody({
             day: state.day,
             phase: cyclePhase ?? 'maintain',
             tms: { squat: tms.squat ?? 0, bench: tms.bench ?? 0, rdl: tms.rdl ?? 0, ohp: tms.ohp ?? 0 },
+            ...(budgetMin !== undefined ? { budgetMin } : {}),
           })
         : null;
       const top = plan?.exercises[0]?.prescription.at(-1);

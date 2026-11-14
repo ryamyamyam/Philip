@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, markBackedUp, openTargets, tab } from './helpers';
+import { fresh, markBackedUp, openTargets, tab, openSettings } from './helpers';
 
 /** QA batch, Nov 13 2026. */
 
 async function calculatedTargets(page: Page) {
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('radiogroup', { name: 'Body weight' }).getByRole('radio', { name: 'kg' }).click();
   await page.getByRole('radiogroup', { name: 'Height' }).getByRole('radio', { name: 'cm' }).click();
   await openTargets(page);

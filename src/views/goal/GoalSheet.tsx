@@ -78,7 +78,9 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
   const prev: PrevGoal | null = cycle ? { phase: cycle.phase, goal: cycle.goal } : null;
   const rec = prev ? recommendNextPhase(prev, bf, profile?.targetBodyFatPct ?? null) : null;
 
-  const defaultMode: Mode = kind === 'reached' ? 'repeat' : reason === 'bfCeiling' ? 'philip' : 'keep';
+  // OBS-FF441B: a maintain goal (about 0% a week) never comes back as the default; Philip's bulk or cut does.
+  const holding = cycle?.phase === 'maintain';
+  const defaultMode: Mode = holding ? 'philip' : kind === 'reached' ? 'repeat' : reason === 'bfCeiling' ? 'philip' : 'keep';
   const [deadlineStr, setDeadlineStr] = useState<string | null>(null);
   // The default follows the event once the data is in; a pick by the owner wins from then on.
   const [modePick, setModePick] = useState<Mode | null>(null);

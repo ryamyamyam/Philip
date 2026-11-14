@@ -8,6 +8,7 @@ import { TodayView } from './views/TodayView';
 import { HomeView } from './views/HomeView';
 import { SheetHost } from './views/SheetHost';
 import { OfflineBanner } from './components/OfflineBanner';
+import { QuickBar } from './components/QuickBar';
 import { QaFeedback } from './modules/qa-feedback';
 import { qaFeedbackConfig } from './qaFeedback.config';
 import { TutorialOverlay, type TourEnd } from './components/TutorialOverlay';
@@ -112,8 +113,9 @@ export function App() {
   return (
     <UICtx.Provider value={ui}>
       <ToastProvider>
-        <div className="app">
+        <div className="app has-quickbar">
           <OfflineBanner />
+          <QuickBar />
           <main>
             {tab === 'home' && <HomeView />}
             {tab === 'meals' && <TodayView />}

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, seedWeights, tab } from './helpers';
+import { fresh, noHorizontalScroll, seedWeights, tab, openSettings } from './helpers';
 
 const main = (page: Page) => page.getByRole('main');
 
@@ -163,9 +163,14 @@ test.describe('Workout T-014: briefing, plan, strength, settings', () => {
 
     await tab(page, 'Progress').click();
     await page.getByRole('tab', { name: 'Strength' }).click();
-    await expect(main(page)).toContainText('Back squat: latest e1RM');
+    // OBS-1F8106: red dot = the PR entered at setup, blue dot = this week's best estimate.
+    await expect(main(page)).toContainText('Back squat: PR entered');
+    await expect(main(page)).toContainText('Latest estimate');
+    const squat = main(page).getByRole('img', { name: /^Back squat:/ });
+    await expect(squat.locator('rect[data-dot="pr"]')).toHaveCount(1);
+    await expect(squat.locator('rect[data-dot="est"]')).toHaveCount(1);
 
-    await tab(page, 'Settings').click();
+    await openSettings(page);
     const training = main(page).getByRole('region', { name: 'Training' });
     await training.getByRole('radio', { name: 'Bench' }).click();
     await training.getByRole('textbox', { name: 'Weight (kg)' }).fill('90');
@@ -227,7 +232,7 @@ test.describe('Story 5 at 150% text (T-015)', () => {
       await tab(page, 'Progress').click();
       await page.getByRole('tab', { name: 'Strength' }).click();
       await check();
-      await tab(page, 'Settings').click();
+      await openSettings(page);
       await check();
     });
   }

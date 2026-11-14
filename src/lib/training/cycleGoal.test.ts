@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkUserGoal, defaultRatePct, kcalPerDayFor, philipGoal, recommendPhase, rollingWeight } from './cycleGoal';
+import { checkUserGoal, coachPhase, defaultRatePct, kcalPerDayFor, philipGoal, recommendPhase, rollingWeight } from './cycleGoal';
 
 describe('philipGoal', () => {
   it('spec example: 73 kg, 15%, bulk → 74.0 kg after 4 weeks, BF ceiling 16%', () => {
@@ -20,14 +20,34 @@ describe('defaultRatePct', () => {
     expect(defaultRatePct('gain', { phase: 'gain', plannedRatePct: 0.3, actualRatePct: 0, bfDelta: 0 })).toBe(0.4);
     expect(defaultRatePct('gain', { phase: 'gain', plannedRatePct: 0.5, actualRatePct: 0, bfDelta: 0 })).toBe(0.5);
   });
+  it('OBS-FF441B: speeds up a cut that lost too slowly; slows one that went past the range', () => {
+    expect(defaultRatePct('lose', { phase: 'lose', plannedRatePct: -0.6, actualRatePct: -0.2, bfDelta: null })).toBe(-0.7);
+    expect(defaultRatePct('lose', { phase: 'lose', plannedRatePct: -0.6, actualRatePct: -0.55, bfDelta: null })).toBe(-0.6);
+    expect(defaultRatePct('lose', { phase: 'lose', plannedRatePct: -1.0, actualRatePct: -1.4, bfDelta: null })).toBe(-0.9);
+  });
 });
 
-describe('recommendPhase', () => {
-  it('20% BF or more → cut; first cycle otherwise → bulk; keeps the last phase', () => {
+describe('recommendPhase (OBS-FF441B: bulk or cut, never 0%)', () => {
+  it('20% BF or more → cut; first cycle otherwise → bulk; keeps a running bulk or cut', () => {
     expect(recommendPhase(21, null, 'gain')).toBe('lose');
     expect(recommendPhase(15, null, null)).toBe('gain');
-    expect(recommendPhase(15, null, 'maintain')).toBe('maintain');
-    expect(recommendPhase(12, 12, 'lose')).toBe('maintain');
+    expect(recommendPhase(17, null, 'gain')).toBe('gain');
+    expect(recommendPhase(17, null, 'lose')).toBe('lose');
+  });
+  it('a cut that reached the long-term target becomes a lean bulk', () => {
+    expect(coachPhase(12, 12, 'lose')).toEqual({ phase: 'gain', why: 'bfTarget' });
+  });
+  it('after a maintain phase (or none), BF decides: lean → bulk, over 15% or over target → cut', () => {
+    expect(coachPhase(15, null, 'maintain')).toEqual({ phase: 'gain', why: 'leanEnough' });
+    expect(coachPhase(16, null, 'maintain')).toEqual({ phase: 'lose', why: 'notLean' });
+    expect(coachPhase(14, 12, 'maintain')).toEqual({ phase: 'lose', why: 'aboveTarget' });
+    expect(coachPhase(13, 12, null)).toEqual({ phase: 'gain', why: 'leanEnough' });
+    expect(coachPhase(null, null, 'maintain')).toEqual({ phase: 'gain', why: 'noData' });
+  });
+  it('never recommends maintain', () => {
+    for (const bf of [null, 8, 12, 15, 16, 19, 25])
+      for (const t of [null, 10, 12, 15])
+        for (const last of [null, 'gain', 'lose', 'maintain'] as const) expect(recommendPhase(bf, t, last)).not.toBe('maintain');
   });
 });
 

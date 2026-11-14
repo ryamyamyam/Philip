@@ -397,7 +397,11 @@ function DayBox({
               </details>
               {s.status === 'done' && !locked && <CoachReport session={s} program={program} cycle={cycle} tmHistory={tmHistory} choices={choices} unit={unit} />}
               {locked ? (
-                <p className="small muted">{t('cal.lockedLine')}</p>
+                <>
+                  <p className="small muted">{t('cal.lockedLine')}</p>
+                  {/* OBS-59DEFD: no time limit on fixing a log; delete stays off for finished cycles. */}
+                  {editButton(s) && <div className="ex-actions">{editButton(s)}</div>}
+                </>
               ) : (
                 <div className="ex-actions">
                   {editButton(s)}
@@ -417,7 +421,7 @@ function DayBox({
           body={
             <>
               <p>{t('cal.editWhat', { day: editing.day, lift: liftName(DAY_LIFT[editing.day]), date: fmtDate(editing.date, 'weekday') })}</p>
-              <p>{t('cal.editUndo')}</p>
+              <p>{t(editing.cycle !== program.currentCycle ? 'cal.editPast' : 'cal.editUndo')}</p>
             </>
           }
           confirmLabel={t('cal.editConfirm')}

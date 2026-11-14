@@ -154,3 +154,17 @@ export async function seedWeights(page: Page, kgs: number[]) {
     db.close();
   }, kgs);
 }
+
+/** OBS-46BCAD: Settings groups are collapsible; open every one (on the Settings screen already shown). */
+export async function expandSettings(page: Page) {
+  await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+  const groups = page.locator('details.settings-group');
+  await expect(groups.first()).toBeVisible();
+  for (const g of await groups.all()) if (!(await g.evaluate((d) => (d as HTMLDetailsElement).open))) await g.locator('summary').click();
+}
+
+/** Opens Settings from the tab bar with every group expanded. */
+export async function openSettings(page: Page) {
+  await tab(page, 'Settings').click();
+  await expandSettings(page);
+}

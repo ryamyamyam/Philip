@@ -74,13 +74,13 @@ Settings shows `package.json`'s version. Scheme: `0.<story>.<build>` (Story 12's
 Implemented in `src/modules/qa-feedback` (unit tests in `qa-feedback.test.ts`, browser tests in `e2e/qa-feedback.spec.ts`). Data in the separate `qa-feedback` IndexedDB database, not in backups.
 
 ## Known issues
-- QA voice capture uses the Web Speech API; not yet tested on a real iPhone home-screen install.
+- QA voice capture is off in Philip (OBS-7E209B, D-036: `transcription: null`); the keyboard's dictation is the voice path. The module's Web Speech adapter remains for other apps.
 - WebKit e2e on the Mac (`9d8c052`, 2026-11-03): **51 passed, 3 skipped, 0 failed**. The webkit-iphone project runs with `serviceWorkers: 'block'` (WebKit's `page.route()` misses fetches from SW-controlled pages). Skipped on WebKit with reasons, to verify on a real iPhone: synthetic swipe (no `Touch` constructor), offline reload, clipboard assertions. Real-iPhone pass pending.
 - Swipe-left row actions and the bottom-sheet QA panel are tested with synthetic touch events in Chromium only; check on a real iPhone.
 - Gemini (`gemini-3.1-flash-lite`): owner confirmed "What should I eat?" works on the live app after the temperature fix (2026-11-03). Photo/text analysis, invalid key and rate limit with a live key still unchecked.
 - Today scrolls once several meals are logged; the card and the deck's Choose photo / Enter yourself buttons stay in view at 393×793 (e2e). Since D-022 there is no separate Take photo button (iOS offers the camera from Choose photo) — check on a real iPhone.
 - The iOS date-input fix on Targets (`.input-date`) passes in Playwright WebKit; check its look on a real iPhone.
-- QA observations captured from Settings record “Settings” as the screen (the floating button that captured the current screen is off).
+- QA observations captured from Settings record “Settings” as the screen. Since 0.12.4 the top-left bug icon (D-036) opens Capture from any screen and records that screen.
 - SW cache matching doesn't ignore `Vary`; if a host sends `Vary: Origin`, lazy chunks (Progress, Settings) can miss the cache offline. Today, the log sheet and the review sheet are bundled eagerly.
 - Export uses the Web Share sheet when available; if iOS rejects the share after the async DB read, it falls back to a download.
 - OBS-AFF348 (Progress date out of screen): fixed with `.input-date` on every date input plus a weigh-in grid that stacks below ~2×9.5rem. Chromium doesn't reproduce iOS's intrinsic date-input width, so the e2e guard (`e2e/obs-nov3.spec.ts`) passes on old and new code; confirm on WebKit and a real iPhone.

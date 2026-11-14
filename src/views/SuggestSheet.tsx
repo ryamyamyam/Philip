@@ -11,6 +11,7 @@ import { planForDate, sumMacros, targetForDate } from '../lib/nutrition';
 import { phaseFor, remainingAll, type Remaining } from '../lib/remaining';
 import { AnalysisError, suggestFoods, type AnalysisErrorCode, type AnalysisItem } from '../services/foodAnalysis';
 import { useUI } from '../ui';
+import { openSettingsGroup } from '../lib/settingsGroups';
 import { fromAnalysis } from './photo/reviewModel';
 
 type State =
@@ -121,6 +122,7 @@ export default function SuggestSheet({ date }: { date: YMD }) {
                 className="btn btn-secondary btn-block"
                 onClick={() => {
                   closeSheet();
+                  openSettingsGroup('settings-ai');
                   navigate('settings');
                 }}
               >

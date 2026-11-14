@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, markBackedUp, openAdd, openTargets, pageToday, tab, openMealLog } from './helpers';
+import { fresh, markBackedUp, openAdd, openTargets, pageToday, tab, openMealLog, openSettings } from './helpers';
 
 /**
  * QA round 2 + Story 3: navigation (Today · Progress · Settings), UX-1 heading, UX-2 Today reset,
@@ -240,7 +240,7 @@ test('F047E3: log weight (kg), one entry per date (overwrites), chart shows actu
   await fresh(page);
   await markBackedUp(page);
   // Kilograms; the calculator writes a plan with a starting weight → expected line.
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('radiogroup', { name: 'Body weight' }).getByRole('radio', { name: 'kg' }).click();
   await page.getByRole('radiogroup', { name: 'Height' }).getByRole('radio', { name: 'cm' }).click();
   await openTargets(page);

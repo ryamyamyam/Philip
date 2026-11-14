@@ -88,12 +88,15 @@ describe('next goal (§4)', () => {
     expect(g.issues.every((i) => i.level === 'warning')).toBe(true);
   });
 
-  it('Philip switches phase at the BF ceiling, at 20%+ or at the long-term target', () => {
-    expect(recommendNextPhase(prev, 15, null)).toEqual({ phase: 'maintain', why: 'bfCeiling' });
+  it('Philip switches phase at the BF ceiling, at 20%+ or at the long-term target (OBS-FF441B: never maintain)', () => {
+    expect(recommendNextPhase(prev, 15, null)).toEqual({ phase: 'lose', why: 'bfCeiling' });
     expect(recommendNextPhase(prev, 14, null)).toEqual({ phase: 'gain', why: 'same' });
     expect(recommendNextPhase(prev, 21, null).phase).toBe('lose');
     const cut = { phase: 'lose' as const, goal: { ...prev.goal, bfLinePct: 12 } };
-    expect(recommendNextPhase(cut, 12, 12)).toEqual({ phase: 'maintain', why: 'bfTarget' });
+    expect(recommendNextPhase(cut, 12, 12)).toEqual({ phase: 'gain', why: 'bfTarget' });
+    const hold = { phase: 'maintain' as const, goal: { ...prev.goal, bfLinePct: 15 } };
+    expect(recommendNextPhase(hold, 14, null)).toEqual({ phase: 'gain', why: 'leanEnough' });
+    expect(recommendNextPhase(hold, 17, null)).toEqual({ phase: 'lose', why: 'notLean' });
   });
 
   it('Philip’s pick uses the Story 5 default; own goals are checked', () => {

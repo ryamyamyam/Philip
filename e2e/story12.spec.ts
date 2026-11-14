@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addManualFood, fresh, noHorizontalScroll, seedWeights, tab } from './helpers';
+import { addManualFood, fresh, noHorizontalScroll, seedWeights, tab, openSettings } from './helpers';
 
 /**
  * Story 12: Re-plan with Philip on demand (manual mode of the goal sheet), the goal date, "Your time",
@@ -36,7 +36,7 @@ function mockGemini(page: Page, reply: object) {
 }
 
 async function setKey(page: Page) {
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
   await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Gemini settings saved.' })).toBeVisible();
@@ -210,8 +210,8 @@ test('your time: days a week and minutes re-plan on Confirm; the version line', 
   await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
   await fresh(page, { at: 'home' });
   await startCycleOne(page);
-  await tab(page, 'Settings').click();
-  await expect(main(page)).toContainText('Version 0.12.3');
+  await openSettings(page);
+  await expect(main(page)).toContainText('Version 0.12.4');
   const time = main(page).getByRole('group', { name: 'Your time' });
   await expect(time.getByRole('radio', { name: '4' })).toHaveAttribute('aria-checked', 'true');
   await expect(time.getByLabel('Lifting, min/session')).toHaveValue('60');

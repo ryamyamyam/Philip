@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Icon } from '../components/Icon';
 import { useToast } from '../components/Toast';
@@ -20,6 +20,7 @@ import { fmtDateTime, fmtG, fmtKcal } from '../lib/format';
 import { todayYmd } from '../lib/date';
 import { planForDate } from '../lib/nutrition';
 import { useUI } from '../ui';
+import { openSettingsGroups, type SettingsGroupId } from '../lib/settingsGroups';
 import { TrainingSettings } from './TrainingSettings';
 import { MemorySettings } from './MemorySettings';
 import { CloudSettings } from './goal/CloudSettings';
@@ -28,6 +29,12 @@ import { AnalysisError } from '../services/foodAnalysis';
 import { openQaFeedback } from '../modules/qa-feedback';
 import { DEFAULT_GEMINI_MODEL, listGeminiModels, normalizeModel, SUGGESTED_GEMINI_MODELS, testGeminiKey } from '../services/foodAnalysis/gemini';
 
+/**
+ * OBS-46BCAD: Settings in five blocks instead of ten. Targets stays open on top (the one used most); the
+ * rest are collapsible groups, closed until tapped: Training · Philip & AI (photo analysis, cloud,
+ * memory) · Units, help & feedback · Your data (backup, delete all). Open groups stay open while the
+ * app is running.
+ */
 export default function SettingsView() {
   return (
     <div className="view view-settings">
@@ -36,19 +43,58 @@ export default function SettingsView() {
       </header>
       <div className="stack">
         <TargetsLink />
-        <DataSection />
-        <GeminiSection />
-        <CloudSettings />
-        <MemorySettings />
-        <UnitsSection />
-        <TrainingSettings />
-        <HelpSection />
-        <QaSection />
-        <DangerSection />
+        <SettingsGroup id="settings-training" title={t('training.title')}>
+          <TrainingSettings />
+        </SettingsGroup>
+        <SettingsGroup id="settings-ai" title={t('settings.group.ai')}>
+          <GeminiSection />
+          <CloudSettings />
+          <MemorySettings />
+        </SettingsGroup>
+        <SettingsGroup id="settings-app" title={t('settings.group.app')}>
+          <UnitsSection />
+          <HelpSection />
+          <QaSection />
+        </SettingsGroup>
+        <SettingsGroup id="settings-data" title={t('settings.data')}>
+          <DataSection />
+          <DangerSection />
+        </SettingsGroup>
         <p className="subtle">{t('settings.about')}</p>
         <p className="subtle">{t('settings.version', { version: __APP_VERSION__ })}</p>
       </div>
     </div>
+  );
+}
+
+/**
+ * A collapsible Settings block (the design system's <details> panel). The content is a region named by
+ * the title. Something outside can open it by setting `open` on the element (e.g. the backup reminder).
+ */
+function SettingsGroup({ id, title, children }: { id: SettingsGroupId; title: string; children: ReactNode }) {
+  const headId = useId();
+  const [open, setOpen] = useState(() => openSettingsGroups.has(id));
+  return (
+    <details
+      id={id}
+      className="pm-panel settings-group"
+      open={open}
+      onToggle={(e) => {
+        const now = e.currentTarget.open;
+        setOpen(now);
+        if (now) openSettingsGroups.add(id);
+        else openSettingsGroups.delete(id);
+      }}
+    >
+      <summary className="pm-panel-head">
+        <h2 id={headId} className="pm-panel-title">
+          {title}
+        </h2>
+      </summary>
+      <section className="pm-panel-body stack" aria-labelledby={headId}>
+        {children}
+      </section>
+    </details>
   );
 }
 
@@ -149,8 +195,8 @@ function DataSection() {
   };
 
   return (
-    <section id="settings-data" className="card stack" aria-labelledby="data-h">
-      <h2 id="data-h">{t('settings.data')}</h2>
+    <section className="stack settings-sub" aria-labelledby="data-h">
+      <h3 id="data-h">{t('settings.backup')}</h3>
       <p className="small muted">{t('settings.dataNote')}</p>
       <p className="small">
         {lastBackup ? t('settings.lastBackup', { date: fmtDateTime(lastBackup) }) : t('settings.neverBackedUp')}
@@ -304,8 +350,8 @@ function GeminiSection() {
   };
 
   return (
-    <section className="card stack" aria-labelledby="gem-h">
-      <h2 id="gem-h">{t('settings.gemini')}</h2>
+    <section className="stack settings-sub" aria-labelledby="gem-h">
+      <h3 id="gem-h">{t('settings.gemini')}</h3>
       <div className="field">
         <label className="field-label" htmlFor={keyId}>
           {t('settings.geminiKey')}
@@ -381,8 +427,8 @@ function UnitsSection() {
   if (!profile) return null;
   const u = profile.unitPrefs;
   return (
-    <section className="card stack" aria-labelledby="units-h">
-      <h2 id="units-h">{t('settings.units')}</h2>
+    <section className="stack settings-sub" aria-labelledby="units-h">
+      <h3 id="units-h">{t('settings.units')}</h3>
       <div className="field">
         <span className="field-label">{t('settings.unitWeight')}</span>
         <div className="segmented" role="radiogroup" aria-label={t('settings.unitWeight')}>
@@ -418,8 +464,8 @@ function HelpSection() {
       .then(() => navigate('home'));
   };
   return (
-    <section className="card stack" aria-labelledby="help-h">
-      <h2 id="help-h">{t('settings.help')}</h2>
+    <section className="stack settings-sub" aria-labelledby="help-h">
+      <h3 id="help-h">{t('settings.help')}</h3>
       <ul className="list list-inset">
         <li className="list-item">
           <button type="button" className="list-button" onClick={replay} data-testid="replay-tutorial">
@@ -436,8 +482,8 @@ function HelpSection() {
 
 function QaSection() {
   return (
-    <section className="card stack" aria-labelledby="qa-h">
-      <h2 id="qa-h">{t('settings.qa')}</h2>
+    <section className="stack settings-sub" aria-labelledby="qa-h">
+      <h3 id="qa-h">{t('settings.qa')}</h3>
       <p className="small muted">{t('settings.qaNote')}</p>
       {/* One row per destination (iOS settings pattern) instead of three wrapping buttons. OBS-A09A21 adds Archived. */}
       <ul className="list list-inset">
@@ -469,8 +515,8 @@ function DangerSection() {
   const confirmWord = t('settings.deleteAllConfirmWord');
   const inputId = useId();
   return (
-    <section className="card stack" aria-labelledby="danger-h">
-      <h2 id="danger-h">{t('settings.danger')}</h2>
+    <section className="stack settings-sub" aria-labelledby="danger-h">
+      <h3 id="danger-h">{t('settings.danger')}</h3>
       <button type="button" className="btn btn-danger-ghost btn-block" onClick={() => setOpen(true)}>
         <Icon name="trash" /> {t('settings.deleteAll')}
       </button>

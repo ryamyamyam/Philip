@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addManualFood, addPanel, fresh, openAdd, pickMeal, tab, openMealLog } from './helpers';
+import { addManualFood, addPanel, fresh, openAdd, pickMeal, tab, openMealLog, openSettings } from './helpers';
 
 const PHOTO = 'public/icon-512.png';
 
 async function setKey(page: Page) {
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
   await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
   // Wait for the save to land before leaving Settings (the write is async; leaving early raced the first request).

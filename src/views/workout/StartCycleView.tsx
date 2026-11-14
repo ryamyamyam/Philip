@@ -4,6 +4,7 @@ import { GymCharacter } from '../../components/GymCharacter';
 import { addTargetPlan, addTm, startCycle, updateProfile } from '../../db/repo';
 import type { CycleRecord, IsoWeekday, Profile, TmRecord, WeightEntry, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
+import { tg, type GoalKey } from '../../i18n/goal';
 import { todayYmd } from '../../lib/date';
 import { fmtDate, fmtKcal, fmtNum } from '../../lib/format';
 import { parseDecimal } from '../../lib/numbers';
@@ -16,7 +17,7 @@ import {
   checkUserGoal,
   philipGoal,
   RATE_PCT,
-  recommendPhase,
+  coachPhase,
   startingWeight,
   type CycleGoal,
   type GoalIssue,
@@ -58,8 +59,10 @@ export function StartCycleView({
 }) {
   const index = nextCycleIndex(cycles, sessions);
   const last = cycles.find((c) => c.index === index - 1) ?? null;
-  const recommended = recommendPhase(profile.bodyFatPct, profile.targetBodyFatPct, last?.phase ?? profile.goal ?? null);
-  const [phase, setPhase] = useState<Phase>(profile.goal ?? recommended);
+  // OBS-FF441B: Philip coaches a direction (bulk or cut) and it is preselected; Maintain stays the owner's pick.
+  const rec = coachPhase(profile.bodyFatPct, profile.targetBodyFatPct, last?.phase ?? profile.goal ?? null);
+  const recommended = rec.phase;
+  const [phase, setPhase] = useState<Phase>(recommended);
   const [mode, setMode] = useState<'philip' | 'user'>('philip');
   const [endW, setEndW] = useState('');
   const [bfT, setBfT] = useState('');
@@ -176,6 +179,7 @@ export function StartCycleView({
           ))}
         </div>
         <p className="small muted">{t('brief.recommended', { phase: t(PHASE_KEY[recommended]) })}</p>
+        {rec.why !== 'same' && <p className="small">{tg(`goal.phaseWhy.${rec.why}` as GoalKey)}</p>}
       </section>
 
       {weight !== null && (

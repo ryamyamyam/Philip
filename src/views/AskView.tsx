@@ -11,6 +11,7 @@ import { askPrompt, parseAskReply } from '../lib/coach/memory';
 import { takeAskDraft } from '../lib/coach/askDraft';
 import { todayYmd } from '../lib/date';
 import { useUI } from '../ui';
+import { openSettingsGroup } from '../lib/settingsGroups';
 import { useCloudPaired } from '../hooks/useCoach';
 import ReplanButton from './goal/ReplanButton';
 
@@ -114,7 +115,10 @@ export default function AskView() {
               </button>
             </form>
           ) : (
-            <button type="button" className="btn btn-block" onClick={() => navigate('settings')}>
+            <button type="button" className="btn btn-block" onClick={() => {
+              openSettingsGroup('settings-ai');
+              navigate('settings');
+            }}>
               {t('ask.toSettings')}
             </button>
           )}
@@ -122,7 +126,10 @@ export default function AskView() {
         </section>
         <p className="small muted">{t('ask.memoryNote')}</p>
         <div className="ex-actions">
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => navigate('settings')}>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => {
+              openSettingsGroup('settings-ai');
+              navigate('settings');
+            }}>
             {t('ask.manageMemory')}
           </button>
           {messages && messages.length > 0 && (

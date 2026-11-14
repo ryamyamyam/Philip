@@ -168,9 +168,9 @@ export function QuickCapture() {
           </svg>
           <span>{listening ? 'Listening… tap to stop' : text ? 'Tap to keep talking' : 'Tap and describe what you noticed'}</span>
         </button>
-      ) : (
+      ) : transcription ? (
         <p className="qa-hint">Voice input isn’t available in this browser. Type below — on iPhone, the keyboard’s mic key dictates too.</p>
-      )}
+      ) : null /* `transcription: null`: the app turned voice off; the keyboard's own dictation still works. */}
       {speechError && (
         <p className="qa-banner qa-banner-warning" role="alert">
           {SPEECH_ERRORS[speechError]}

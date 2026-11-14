@@ -3,12 +3,12 @@
  *
  * - **Repeat** (preselected, owner 2026-11-13): the last goal's change over the same planned length
  *   (a cycle, 4 weeks) from where he is now, with the same BF line ("+2 kg more, hold 15%").
- * - **Philip's pick**: the Story 5 default for the recommended phase. Once a bulk hits its BF ceiling
- *   or a cut reaches the long-term BF target, Philip switches phase and says why.
+ * - **Philip's pick**: the Story 5 default for the recommended phase, always bulk or cut (OBS-FF441B).
+ *   A bulk at its BF ceiling gets a short cut; a cut at the long-term BF target gets a lean bulk.
  * - **Set my own**: checked by `checkUserGoal` (and the targets.ts safety rules behind it).
  */
 import type { CycleGoalSnapshot, GoalChoice } from '../../db/types';
-import { checkUserGoal, CUT_AT_BF, CYCLE_WEEKS, philipGoal, recommendPhase, type GoalIssue, type LastCycle } from '../training/cycleGoal';
+import { checkUserGoal, coachPhase, CUT_AT_BF, CYCLE_WEEKS, philipGoal, type GoalIssue, type LastCycle, type PhaseWhy } from '../training/cycleGoal';
 import type { Phase } from '../training/program';
 
 export interface PrevGoal {
@@ -35,15 +35,16 @@ export function repeatGoal(prev: PrevGoal, nowKg: number, bfPct: number | null, 
   };
 }
 
-export type PhaseWhy = 'bfCeiling' | 'bfTarget' | 'highBf' | 'same';
+export type { PhaseWhy };
 
-/** The phase Philip recommends next, and why. */
+/**
+ * The phase Philip recommends next, and why. OBS-FF441B: always a direction (bulk or cut); a bulk that
+ * reached its BF ceiling gets a short cut, not a 0% maintain cycle.
+ */
 export function recommendNextPhase(prev: PrevGoal, bfPct: number | null, longTermBfPct: number | null): { phase: Phase; why: PhaseWhy } {
   if (bfPct !== null && bfPct >= CUT_AT_BF && prev.phase !== 'lose') return { phase: 'lose', why: 'highBf' };
-  if (prev.phase === 'gain' && bfPct !== null && prev.goal.bfLinePct !== null && bfPct >= prev.goal.bfLinePct) return { phase: 'maintain', why: 'bfCeiling' };
-  const p = recommendPhase(bfPct, longTermBfPct, prev.phase);
-  if (p !== prev.phase) return { phase: p, why: p === 'lose' ? 'highBf' : 'bfTarget' };
-  return { phase: p, why: 'same' };
+  if (prev.phase === 'gain' && bfPct !== null && prev.goal.bfLinePct !== null && bfPct >= prev.goal.bfLinePct) return { phase: 'lose', why: 'bfCeiling' };
+  return coachPhase(bfPct, longTermBfPct, prev.phase);
 }
 
 export function philipNextGoal(prev: PrevGoal, nowKg: number, bfPct: number | null, phase: Phase, daysTaken: number, weeks: number = CYCLE_WEEKS): GoalChoice {

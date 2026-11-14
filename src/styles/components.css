@@ -1129,3 +1129,75 @@ details.pm-panel > summary.pm-panel-head:focus-visible {
   flex-direction: column;
   gap: var(--space-2);
 }
+
+/* ---------- OBS-C856D1: top-left quick bar (kg ⇄ lb, feedback) ---------- */
+/* A sticky strip that reserves its own room at rest; the strip itself is click-through, only the buttons
+   catch taps. Visually small; each hit area stays 44px. */
+.pm-quickbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: calc(var(--safe-top) + var(--touch));
+  padding: var(--safe-top) var(--space-2) 0 calc(var(--safe-left) + var(--space-2));
+  pointer-events: none;
+}
+.pm-quick-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch);
+  min-height: var(--touch);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-on-deck);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+}
+.pm-quick-btn > svg,
+.pm-quick-btn > span {
+  background: var(--color-deck);
+  border: var(--border-frame) solid var(--color-ink);
+}
+.pm-quick-btn > svg {
+  width: calc(var(--space-6) + var(--space-1));
+  height: calc(var(--space-6) + var(--space-1));
+  padding: var(--space-1);
+}
+.pm-quick-unit > span {
+  padding: 0 var(--space-1);
+  line-height: calc(var(--space-6) + var(--space-1) - 2 * var(--border-frame));
+  text-transform: uppercase;
+}
+.pm-quick-unit > span + span {
+  border-left: none;
+}
+.pm-quick-unit > span.is-on {
+  background: var(--color-on-deck);
+  color: var(--color-deck);
+}
+.pm-quick-btn:focus-visible {
+  outline: var(--border-thick) solid var(--color-focus);
+  outline-offset: calc(-1 * var(--border-thick));
+}
+/* The strip takes the safe area; views no longer add it again. */
+.app.has-quickbar .view {
+  padding-top: var(--space-1);
+}
+/* OBS-46BCAD: merged Settings groups — sub-sections divided by a hairline */
+.settings-group .settings-sub + .settings-sub {
+  border-top: var(--border-hair) solid var(--color-border-strong);
+  padding-top: var(--space-4);
+}
+.settings-group .settings-sub > h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  text-transform: uppercase;
+  letter-spacing: var(--display-tracking);
+}

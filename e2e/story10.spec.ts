@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, seedWeights, tab } from './helpers';
+import { fresh, noHorizontalScroll, seedWeights, tab, openSettings } from './helpers';
 
 /** Story 10: QA batch of 2026-11-11 (OBS-4E1000, E19B38, DD5F16, 7BAD75, 9F203A, 5042CD, 2C086C, 097D6D). */
 const main = (page: Page) => page.getByRole('main');
@@ -114,7 +114,7 @@ test('OBS-7BAD75: Finish reads back the log; No goes back, Yes completes; the lo
 });
 
 test('OBS-E19B38: a km/h treadmill shows the mph next to the setting', async ({ page }) => {
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   const scale = page.getByRole('radiogroup', { name: 'The speed number is' });
   await scale.getByRole('radio', { name: 'km/h' }).click();
   await expect(page.getByText('Setting 5 = about 3.1 mph')).toBeVisible();

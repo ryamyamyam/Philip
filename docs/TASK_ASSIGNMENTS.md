@@ -29,6 +29,12 @@ Base branch for new work: `main`.
 
 ---
 
+### T-031 — QA batch 2026-11-13 #2 (D-036), 0.12.4
+- **Role:** Core + Feature + QA (one session). **Base:** `main` @ `76353bc`. **Status:** Built, awaiting WebKit on the Mac and owner review.
+- **Observations:** OBS-FF441B (bulk/cut, never 0%), OBS-59DEFD (edit any log), OBS-1F8106 (red PR / blue weekly e1RM dots), OBS-7E209B (no voice box), OBS-C856D1 (top-left kg ⇄ lb + bug icon), OBS-46BCAD (Settings groups).
+- **Files:** new `src/components/QuickBar.tsx`, `src/lib/settingsGroups.ts`, `src/lib/training/strengthDots.test.ts`, `e2e/qa-batch-nov13b.spec.ts`; changed `src/lib/training/{cycleGoal,progress}.ts` (+ tests), `src/lib/goal/nextGoal.ts` (+ test), `src/db/repo.ts`, `src/db/story10.test.ts`, `src/views/{SettingsView,StrengthPanel,TrainingSettings,MemorySettings,AskView,SuggestSheet}.tsx`, `src/views/goal/{GoalSheet,CloudSettings}.tsx`, `src/views/workout/{SessionView,StartCycleView,WorkoutCalendar}.tsx`, `src/components/{BackupReminder,Icon}.tsx`, `src/App.tsx`, `src/qaFeedback.config.ts`, `src/modules/qa-feedback/ui/QuickCapture.tsx`, `src/i18n/{en,goal}.ts`, `src/styles/{components,workout}.css`, `scripts/size-budget.mjs`, e2e helpers and specs, `package.json`/`package-lock.json` (0.12.4), docs.
+- **Log:** 2026-11-13 (cloud clone): tsc clean, unit 469/469 (was 461), build, size 176.6/177 KB, Chromium e2e 121/121. WebKit not run.
+
 ### T-029 — Story 12: Re-plan with Philip, goal dates, your time (D-035)
 - **Role:** Core + Feature + QA (one session). **Branch:** `feat/T-029-replan` on `main` @ `4a0a042`. **Status:** Built, awaiting WebKit on the Mac and merge.
 - **Spec:** `docs/stories/STORY_12_REPLAN.md`.

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, seedWeights, tab } from './helpers';
+import { fresh, noHorizontalScroll, seedWeights, tab, openSettings } from './helpers';
 
 /** Story 6 (T-020): training calendar, done stamp, delete log, goal day, training days. */
 const main = (page: Page) => page.getByRole('main');
@@ -112,7 +112,7 @@ test.describe('Training calendar (Story 6, T-020)', () => {
     await atMonday(page);
     await fresh(page);
     await setUpAndStart(page);
-    await tab(page, 'Settings').click();
+    await openSettings(page);
     const days = main(page).getByRole('group', { name: 'Training days' });
     await expect(days).toContainText('Philip’s pick');
     await days.getByRole('button', { name: 'Fri' }).click();
@@ -125,7 +125,7 @@ test.describe('Training calendar (Story 6, T-020)', () => {
     await openWorkout(page);
     // Mon/Tue/Wed/Thu now: Day 3 (RDL) is planned on Wed 4 Nov.
     await expect(main(page).getByRole('grid').getByRole('gridcell', { name: /November 4.*planned: Day 3, Romanian deadlift/ })).toContainText('RDL');
-    await tab(page, 'Settings').click();
+    await openSettings(page);
     await main(page).getByRole('group', { name: 'Training days' }).getByRole('button', { name: 'Use Philip’s pick' }).click();
     await expect(main(page).getByRole('group', { name: 'Training days' })).toContainText('Philip’s pick');
   });

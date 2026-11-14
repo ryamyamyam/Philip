@@ -652,9 +652,13 @@ export async function deleteWorkoutSession(id: string, database: PhilipDB = db):
 }
 
 /**
- * Story 10 (OBS-7BAD75): reopen a finished log of the current cycle to fix it. Undoes what its review
- * and report applied (exactly as delete does), clears the report so Philip reviews the fixed log, and
- * marks it `editing`. Throws LockedSessionError for past cycles; refuses while another workout is open.
+ * Story 10 (OBS-7BAD75): reopen a finished log to fix it, and mark it `editing`; refuses while another
+ * workout is open.
+ * - Current cycle: undoes what its review and report applied (exactly as delete does) and clears the
+ *   report, so Philip reviews the fixed log.
+ * - OBS-59DEFD (no time limit): a log from a finished cycle reopens too. Its review already set the
+ *   next cycle's training maxes, so nothing is undone and its review and report stay as they were; only
+ *   the logged sets change (history, e1RM, PRs and Philip's memory read them from the log).
  */
 export async function reopenWorkoutSession(id: string, database: PhilipDB = db): Promise<void> {
   await database.transaction('rw', [database.workoutSessions, database.tmHistory, database.cycles, database.trainingProgram, database.slotChoices], async () => {
@@ -662,6 +666,11 @@ export async function reopenWorkoutSession(id: string, database: PhilipDB = db):
     if (!session || session.status !== 'done') return;
     const open = await database.workoutSessions.where('status').equals('in_progress').count();
     if (open > 0) throw new OpenSessionError();
+    const program = await database.trainingProgram.get('me');
+    if (isPastCycleLog(session, program)) {
+      await database.workoutSessions.put({ ...session, status: 'in_progress', editing: true });
+      return;
+    }
     await undoSessionChanges(session, database);
     const next: WorkoutSession = { ...session, status: 'in_progress', editing: true };
     delete next.reviewed;
@@ -669,6 +678,11 @@ export async function reopenWorkoutSession(id: string, database: PhilipDB = db):
     delete next.coach;
     await database.workoutSessions.put(next);
   });
+}
+
+/** OBS-59DEFD: a log from a cycle that is no longer the current one (its results already set the TMs). */
+export function isPastCycleLog(session: Pick<WorkoutSession, 'cycle'>, program: Pick<TrainingProgram, 'currentCycle'> | null | undefined): boolean {
+  return !!program && session.cycle !== program.currentCycle;
 }
 
 /** Another workout is still open (one at a time). */

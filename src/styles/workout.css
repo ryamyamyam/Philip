@@ -226,6 +226,29 @@
 .strength-chart {
   width: 100%;
 }
+/* OBS-1F8106: red = PR entered, blue = weekly estimated 1RM */
+.strength-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+.strength-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.strength-dot {
+  display: inline-block;
+  width: var(--space-2);
+  height: var(--space-2);
+  border: 1px solid var(--color-ink);
+}
+.strength-dot-pr {
+  background: var(--color-notable);
+}
+.strength-dot-est {
+  background: var(--cat-sky);
+}
 .menu-options {
   display: flex;
   flex-direction: column;

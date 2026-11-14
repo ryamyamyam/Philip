@@ -4,6 +4,7 @@ import { getMeta, META, setMeta } from '../db/repo';
 import { t } from '../i18n';
 import { backupFileName } from '../lib/backupName';
 import { useUI } from '../ui';
+import { openSettingsGroup } from '../lib/settingsGroups';
 import { Icon } from './Icon';
 
 const REMIND_AFTER_MS = 7 * 86_400_000;
@@ -93,8 +94,16 @@ export function BackupReminder() {
             className="btn btn-primary"
             onClick={() => {
               close();
+              openSettingsGroup('settings-data');
               navigate('settings');
-              window.setTimeout(() => document.getElementById('settings-data')?.scrollIntoView({ block: 'start' }), 50);
+              // OBS-46BCAD: Settings loads lazily and the data group opens on arrival; scroll once it's there.
+              const scroll = (tries: number) => {
+                const el = document.getElementById('settings-data');
+                if (el instanceof HTMLDetailsElement) el.open = true;
+                if (el) window.requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
+                else if (tries > 0) window.setTimeout(() => scroll(tries - 1), 50);
+              };
+              window.setTimeout(() => scroll(20), 50);
             }}
           >
             {t('backup.reminderAction')}

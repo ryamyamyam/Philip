@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { fresh, noHorizontalScroll, tab, openMealLog } from './helpers';
+import { fresh, noHorizontalScroll, tab, openMealLog, openSettings, expandSettings } from './helpers';
 
 const SHOT = 'public/icon-512.png';
 const SHOT2 = 'public/icon-192.png';
@@ -17,7 +17,7 @@ async function resetQa(page: Page) {
 
 /** Story 3: QA & Feedback opens from Settings only (no floating button). */
 async function openQa(page: Page) {
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('button', { name: 'Write feedback' }).click();
 }
 
@@ -52,7 +52,7 @@ async function capture(page: Page, text: string, opts: { type?: string; feature?
 }
 
 async function setGeminiKey(page: Page) {
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
   await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
   await openMealLog(page);
@@ -117,7 +117,7 @@ test('quick capture without AI: save, screenshots, persistence, edit keeps origi
 
   // Persists across reload; reachable from Settings.
   await page.reload();
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('button', { name: 'Feedback list' }).click();
   const inbox = page.getByRole('dialog', { name: 'QA & Feedback' });
   const item = inbox.getByRole('list', { name: 'Observations' }).getByRole('listitem');
@@ -338,73 +338,21 @@ test('AI analysis (detail screen) and AI prompt help are optional and failures n
   await expect(ai).toHaveValue(/Ring overlaps date/);
 });
 
-test('voice capture uses the speech adapter and keeps the raw transcript', async ({ page }) => {
+test('OBS-7E209B: no voice box in Philip, even where the browser has speech recognition; typing works', async ({ page }) => {
   await page.addInitScript(() => {
     class FakeRecognition {
-      lang = '';
-      continuous = false;
-      interimResults = false;
-      onresult: ((e: unknown) => void) | null = null;
-      onerror: ((e: unknown) => void) | null = null;
-      onend: (() => void) | null = null;
-      start() {
-        setTimeout(() => {
-          const r = Object.assign([{ transcript: 'the save button is hidden behind the keyboard' }], { isFinal: true });
-          this.onresult?.({ resultIndex: 0, results: [r] });
-        }, 50);
-      }
-      stop() {
-        setTimeout(() => this.onend?.(), 10);
-      }
-      abort() {
-        this.onend?.();
-      }
+      start() {}
+      stop() {}
+      abort() {}
     }
-    // Chromium ships a native SpeechRecognition; replace both names.
     Object.assign(window, { SpeechRecognition: FakeRecognition, webkitSpeechRecognition: FakeRecognition });
   });
   await page.reload();
   const panel = await openCapture(page);
-  await panel.getByRole('button', { name: 'Tap and describe what you noticed' }).click();
-  await expect(panel.getByRole('button', { name: 'Listening… tap to stop' })).toBeVisible();
-  await expect(panel.getByLabel('What did you notice?')).toHaveValue('the save button is hidden behind the keyboard');
-  await panel.getByRole('button', { name: 'Listening… tap to stop' }).click();
-  // User fixes the transcript before saving.
-  await panel.getByLabel('What did you notice?').fill('The Save button is hidden behind the keyboard on Targets.');
-  await panel.getByRole('button', { name: 'Save observation' }).click();
-  await panel.getByRole('button', { name: /^Inbox/ }).click();
-  await panel.getByRole('button', { name: /The Save button is hidden/ }).click();
-  await expect(panel.getByText(/Captured .* by voice/)).toBeVisible();
-  await panel.getByText('Raw voice transcript').click();
-  await expect(panel.locator('blockquote').nth(1)).toHaveText('the save button is hidden behind the keyboard');
-});
-
-test('denied microphone shows guidance and typing still works', async ({ page }) => {
-  await page.addInitScript(() => {
-    class Denied {
-      onerror: ((e: unknown) => void) | null = null;
-      onend: (() => void) | null = null;
-      onresult = null;
-      lang = '';
-      continuous = false;
-      interimResults = false;
-      start() {
-        setTimeout(() => {
-          this.onerror?.({ error: 'not-allowed' });
-          this.onend?.();
-        }, 20);
-      }
-      stop() {}
-      abort() {}
-    }
-    Object.assign(window, { SpeechRecognition: Denied, webkitSpeechRecognition: Denied });
-  });
-  await page.reload();
-  const panel = await openCapture(page);
-  await panel.getByRole('button', { name: 'Tap and describe what you noticed' }).click();
-  await expect(panel.getByRole('alert')).toContainText('Microphone access is blocked');
-  await expect(panel.getByRole('button', { name: 'Tap and describe what you noticed' })).toBeVisible();
-  await capture(page, 'Typed instead');
+  await expect(panel.getByRole('button', { name: 'Tap and describe what you noticed' })).toHaveCount(0);
+  await expect(panel.getByText('Voice input isn’t available')).toHaveCount(0);
+  await expect(panel.getByLabel('What did you notice?')).toBeVisible();
+  await capture(page, 'Dictated with the keyboard mic');
 });
 
 test('OBS-591E6F: the panel is a bottom sheet with the app visible above it', async ({ page }) => {
@@ -427,42 +375,12 @@ test('OBS-591E6F: the panel is a bottom sheet with the app visible above it', as
   await page.screenshot({ path: 'e2e/screenshots/375-qa-inbox-types.png' });
 });
 
-test('OBS-748382: a recognizer that never starts or ends can still be stopped', async ({ page }) => {
-  // What iOS does after "Don't Allow": start() is accepted but no events ever arrive.
-  await page.addInitScript(() => {
-    class Stuck {
-      onerror = null;
-      onend = null;
-      onresult = null;
-      onstart = null;
-      lang = '';
-      continuous = false;
-      interimResults = false;
-      start() {}
-      stop() {}
-      abort() {}
-    }
-    Object.assign(window, { SpeechRecognition: Stuck, webkitSpeechRecognition: Stuck });
-  });
-  await page.reload();
-  const panel = await openCapture(page);
-  await panel.getByRole('button', { name: 'Tap and describe what you noticed' }).click();
-  await panel.getByRole('button', { name: 'Listening… tap to stop' }).click();
-  // Stop always works: the session is ended even though the recognizer never confirms.
-  await expect(panel.getByRole('button', { name: 'Tap and describe what you noticed' })).toBeVisible({ timeout: 3000 });
-  await expect(panel.getByLabel('What did you notice?')).not.toHaveAttribute('readonly');
-  // Left alone, the start watchdog ends it with guidance instead of "listening" forever.
-  await panel.getByRole('button', { name: 'Tap and describe what you noticed' }).click();
-  await expect(panel.getByRole('alert')).toContainText('The microphone didn’t start', { timeout: 9000 });
-  await expect(panel.getByRole('button', { name: 'Tap and describe what you noticed' })).toBeVisible();
-  await capture(page, 'Typed after mic failure');
-});
-
 test('Story 3: no floating button; QA & Feedback opens from Settings and the app keeps working', async ({ page }) => {
   for (const where of ['Home', 'Progress', 'Settings'] as const) {
     await tab(page, where).click();
     await expect(page.getByRole('button', { name: 'Capture feedback' })).toHaveCount(0);
   }
+  await expandSettings(page);
   await page.getByRole('button', { name: 'Write feedback' }).click();
   const panel = page.getByRole('dialog', { name: 'QA & Feedback' });
   await expect(panel).toBeVisible();
@@ -590,7 +508,7 @@ test('OBS-A09A21 / OBS-97D767: archive feedback already turned into a prompt; co
 
   // Settings has a direct way to the archived suggestions; they survive a reload.
   await page.reload();
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('button', { name: 'Archived', exact: true }).click();
   const qa = page.getByRole('dialog', { name: 'QA & Feedback' });
   await expect(qa.getByRole('tab', { name: 'Archived · 2' })).toHaveAttribute('aria-selected', 'true');

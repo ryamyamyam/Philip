@@ -76,7 +76,7 @@ The old orange tokens (`--color-brand`, `-soft`) remain only for legacy fills. `
 | `.pm-cart` (CSS, Home) | button with `pm-cat-*` | Story 5 "cartridge": a big chamfered white screen with a category stripe on the left, label row (`.pm-cart-head`), big line (`.pm-cart-big`), small lines (`.pm-cart-sub`), optional meter. Meal log = coral, Workout = sky |
 | `Icon` | `name, label?` | pixel icons on a 12×12 grid (keep sizes at multiples of 12px). Story 5 adds `home` and `dumbbell` |
 
-Settings and Targets cards get the panel look through `.view-settings .card` / `.view-targets .card`: their first `h2` becomes the header bar. New screens should use `StatPanel` instead.
+Settings and Targets cards get the panel look through `.view-settings .card` / `.view-targets .card`: their first `h2` becomes the header bar. New screens should use `StatPanel` instead. Settings groups (D-036) are `details.pm-panel.settings-group` with the summary as the header bar; merged sub-sections inside use `h3` and a hairline. The top-left quick bar (`QuickBar`, `.pm-quickbar`) is on every screen: a sticky, click-through strip with small deck-coloured buttons on 44 px hit areas; views no longer add the safe-area top padding themselves.
 
 The QA & Feedback module is themed only by re-mapping its `--qa-*` variables in `src/styles/qa-theme.css`. Never style `qa-` classes from Philip code. Its pill-shaped chips and white button text are hard-coded in the module, so they stay as they are.
 

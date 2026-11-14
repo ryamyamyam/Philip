@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, seedWeights, tab } from './helpers';
+import { fresh, noHorizontalScroll, seedWeights, tab, openSettings } from './helpers';
 
 /** Story 7: gym QA batch (OBS-C94181, OBS-F52773, OBS-93A8C0, OBS-3DB146). */
 const main = (page: Page) => page.getByRole('main');
@@ -9,7 +9,7 @@ const SHOTS = process.env.STORY7_SHOTS;
 test.use({ serviceWorkers: 'block', viewport: { width: 393, height: 793 } });
 
 async function setKey(page: Page) {
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
   await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Gemini settings saved.' })).toBeVisible();

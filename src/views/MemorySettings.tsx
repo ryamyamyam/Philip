@@ -15,8 +15,8 @@ export function MemorySettings() {
   const share = useMeta<boolean>(META.coachShareBody) !== false;
   const [forgetting, setForgetting] = useState(false);
   return (
-    <section id="settings-memory" className="card stack" aria-labelledby="memory-h">
-      <h2 id="memory-h">{t('memory.title')}</h2>
+    <section id="settings-memory" className="stack settings-sub" aria-labelledby="memory-h">
+      <h3 id="memory-h">{t('memory.title')}</h3>
       <p className="small muted">{t('memory.note')}</p>
       <label className="checkbox-row small">
         <input type="checkbox" checked={share} onChange={(e) => void setMeta(META.coachShareBody, e.target.checked)} />

@@ -32,8 +32,8 @@ export function TrainingSettings() {
   const { navigate } = useUI();
   if (program === undefined || !sessions || !choices) return null;
   return (
-    <section className="card stack" aria-labelledby="training-h">
-      <h2 id="training-h">{t('training.title')}</h2>
+    // OBS-46BCAD: the Settings group around it is the "Training" region and header.
+    <div className="stack">
       {!program ? (
         <button type="button" className="btn btn-secondary btn-block" onClick={() => navigate('workout')}>
           {t('training.setUp')}
@@ -50,7 +50,7 @@ export function TrainingSettings() {
           <Danger program={program} sessions={sessions} />
         </>
       )}
-    </section>
+    </div>
   );
 }
 

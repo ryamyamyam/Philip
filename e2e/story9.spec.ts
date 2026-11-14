@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, seedWeights, tab } from './helpers';
+import { fresh, noHorizontalScroll, seedWeights, tab, openSettings } from './helpers';
 
 /** Story 9: Philip's memory — brief in every prompt, remembered notes, Ask Philip, Settings › Philip's memory. */
 const main = (page: Page) => page.getByRole('main');
@@ -9,7 +9,7 @@ const SHOTS = process.env.STORY9_SHOTS;
 test.use({ serviceWorkers: 'block', viewport: { width: 393, height: 793 } });
 
 async function setKey(page: Page) {
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
   await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Gemini settings saved.' })).toBeVisible();
@@ -124,6 +124,6 @@ test('the report reads the history and keeps a note; Ask Philip answers from it;
   await main(page).getByRole('button', { name: 'Clear this chat' }).click();
   await page.getByRole('alertdialog', { name: 'Clear this chat?' }).getByRole('button', { name: 'Clear chat' }).click();
   await expect(main(page)).toContainText('Nothing asked yet.');
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await expect(page.getByRole('region', { name: 'Philip’s memory' }).getByRole('listitem')).toHaveCount(1);
 });

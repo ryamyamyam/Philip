@@ -26,8 +26,8 @@ export function CloudSettings() {
   };
 
   return (
-    <section className="card stack-sm" aria-labelledby="cloud-h">
-      <h2 id="cloud-h">{tg('cloud.title')}</h2>
+    <section className="stack-sm settings-sub" aria-labelledby="cloud-h">
+      <h3 id="cloud-h">{tg('cloud.title')}</h3>
       <p className="small">{tg('cloud.note')}</p>
       {!url ? (
         <p className="small muted">{tg('cloud.none')}</p>

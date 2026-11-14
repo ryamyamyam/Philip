@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { addManualFood, fresh, skipTour, tab, openMealLog } from './helpers';
+import { addManualFood, fresh, skipTour, tab, openMealLog, openSettings } from './helpers';
 
 test('export, delete all, import round trip', async ({ page }, info) => {
   await fresh(page);
   await addManualFood(page, { name: 'Banana', grams: '118', calories: '105', protein: '1.3', fat: '0.4', carbs: '27' });
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.evaluate(() => {
     // Force the download path (Web Share isn't available in headless browsers).
     Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true });
@@ -34,7 +34,7 @@ test('export, delete all, import round trip', async ({ page }, info) => {
   // Invalid file is rejected without changes
   const bad = info.outputPath('bad.json');
   writeFileSync(bad, '{"format":"philip-backup","schemaVersion":7,"data":{}}');
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.locator('input[type=file][accept*=json]').setInputFiles(bad);
   await expect(page.getByRole('alert')).toContainText('format version 7');
 

@@ -4,7 +4,7 @@ import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
-import { addTm, allCoachNotes, applyCheckin, applyReview, deleteWorkoutSession, META, saveWorkoutSession, setDayOrder, setSlotChoice, type ReviewChange } from '../../db/repo';
+import { addTm, allCoachNotes, applyCheckin, applyReview, deleteWorkoutSession, isPastCycleLog, META, saveWorkoutSession, setDayOrder, setSlotChoice, type ReviewChange } from '../../db/repo';
 import { exerciseHistory } from '../../lib/coach/brief';
 import { useMeta, useProfile, useWeightEntries } from '../../hooks/useData';
 import { beep, cancelRestAlert, pushConfig, scheduleRestAlert, type StoredSubscription } from '../../services/restPush';
@@ -810,8 +810,15 @@ function Summary({
           ))}
         </dl>
       </section>
-      <Review session={session} cycle={cycle} tmHistory={tmHistory} unit={unit} />
-      <CoachReport session={session} program={program} cycle={cycle} tmHistory={tmHistory} choices={choices} unit={unit} auto />
+      {/* OBS-59DEFD: a fixed log from a finished cycle changes the record only; its TMs were set long ago. */}
+      {isPastCycleLog(session, program) ? (
+        <p className="small muted">{t('summary.pastCycle')}</p>
+      ) : (
+        <>
+          <Review session={session} cycle={cycle} tmHistory={tmHistory} unit={unit} />
+          <CoachReport session={session} program={program} cycle={cycle} tmHistory={tmHistory} choices={choices} unit={unit} auto />
+        </>
+      )}
       {onBack && (
         <button type="button" className="btn btn-primary btn-block" onClick={() => onBack(true)}>
           {t('summary.calendar')}

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, seedWeights, tab } from './helpers';
+import { fresh, seedWeights, tab, openSettings } from './helpers';
 
 /** Story 6 (T-021): Philip's numbers on every exercise, swap mid-workout, Time's up banner. */
 const main = (page: Page) => page.getByRole('main');
@@ -106,7 +106,7 @@ test.describe('Session fixes (Story 6, T-021)', () => {
   test('Settings › Training › Rest timer: beep toggle; rest alerts hidden without a Worker configured', async ({ page }) => {
     await fresh(page);
     await startDay1(page);
-    await tab(page, 'Settings').click();
+    await openSettings(page);
     const rest = main(page).getByRole('group', { name: 'Rest timer' });
     const beepBox = rest.getByRole('checkbox', { name: 'Beep when rest is over' });
     await expect(beepBox).toBeChecked();

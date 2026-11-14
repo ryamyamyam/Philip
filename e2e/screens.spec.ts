@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, openAdd, openTargets, tab, openMealLog } from './helpers';
+import { fresh, noHorizontalScroll, openAdd, openTargets, tab, openMealLog, openSettings } from './helpers';
 
 /** Seeds realistic data straight into IndexedDB (same schema Dexie uses). */
 async function seed(page: Page) {
@@ -64,7 +64,7 @@ for (const width of widths) {
       await tab(page, 'Progress').click();
       await page.getByRole('button', { name: 'Log weight' }).waitFor();
       await shot('progress');
-      await tab(page, 'Settings').click();
+      await openSettings(page);
       await shot('settings');
       await openTargets(page);
       await page.getByRole('button', { name: 'Calculate' }).waitFor();

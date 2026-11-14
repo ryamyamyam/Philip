@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, noHorizontalScroll, setManualTargets, skipTour, tab, tour, openMealLog } from './helpers';
+import { fresh, noHorizontalScroll, setManualTargets, skipTour, tab, tour, openMealLog, openSettings } from './helpers';
 
 /** The full current line (the visually hidden live region; the typed copy is aria-hidden). */
 const line = (page: Page) => tour(page).locator('[aria-live="polite"]');
@@ -109,7 +109,7 @@ test.describe('Philip’s tour (T-010, Story 5)', () => {
   test('with a target, the fuel and protein steps spotlight the panel; Settings › Replay starts again from line 1', async ({ page }) => {
     await fresh(page);
     await setManualTargets(page, { calories: '2400', protein: '150', fat: '70', carbs: '280' });
-    await tab(page, 'Settings').click();
+    await openSettings(page);
     await page.getByRole('button', { name: 'Replay tutorial' }).click();
     await expect(tour(page)).toBeVisible();
     expect(await step(page)).toBe('hello');

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fresh, seedWeights, tab } from './helpers';
+import { fresh, seedWeights, tab, openSettings } from './helpers';
 
 /** Story 11: goal reached → next goal → Philip's plan → Apply / Undo; Claude paste; Home reminder. */
 const main = (page: Page) => page.getByRole('main');
@@ -33,7 +33,7 @@ function mockGemini(page: Page, reply: object) {
 }
 
 async function setKey(page: Page) {
-  await tab(page, 'Settings').click();
+  await openSettings(page);
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
   await page.getByRole('region', { name: 'Photo & text analysis (Gemini)' }).getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Gemini settings saved.' })).toBeVisible();

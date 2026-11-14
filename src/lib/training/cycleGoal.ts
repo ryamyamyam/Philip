@@ -57,11 +57,37 @@ export interface LastCycle {
   bfDelta: number | null;
 }
 
-/** BF ≥ 20% → cut; reached the long-term target → maintain; otherwise keep the last phase (first cycle: bulk). */
+/**
+ * Starting a bulk above this BF% mostly adds fat; Philip cuts first (OBS-FF441B). Coaching default for
+ * men (common lean-bulk guidance starts around 10–15%), not a hard rule from one study.
+ */
+export const LEAN_BULK_MAX_BF = 15;
+
+/** Why Philip picked a phase (shown under his pick). */
+export type PhaseWhy = 'bfCeiling' | 'bfTarget' | 'highBf' | 'aboveTarget' | 'notLean' | 'leanEnough' | 'noData' | 'same';
+
+/**
+ * OBS-FF441B: Philip coaches a direction, bulk or cut, never "maintain" (a 0% a week plan). The owner
+ * can still pick Maintain himself.
+ * - BF ≥ 20% → cut.
+ * - A cut that reached the long-term BF target → lean bulk.
+ * - Mid-bulk or mid-cut → keep going.
+ * - After a maintain phase, or with no phase yet: BF more than 1 point over the long-term target, or
+ *   over LEAN_BULK_MAX_BF → cut; lean enough → bulk; BF unknown → bulk (the first-cycle default).
+ */
+export function coachPhase(bfPct: number | null, longTermBfPct: number | null, lastPhase: Phase | null): { phase: Phase; why: PhaseWhy } {
+  if (bfPct !== null && bfPct >= CUT_AT_BF) return { phase: 'lose', why: 'highBf' };
+  if (lastPhase === 'lose' && bfPct !== null && longTermBfPct !== null && bfPct <= longTermBfPct) return { phase: 'gain', why: 'bfTarget' };
+  if (lastPhase === 'gain' || lastPhase === 'lose') return { phase: lastPhase, why: 'same' };
+  if (bfPct === null) return { phase: 'gain', why: 'noData' };
+  if (longTermBfPct !== null && bfPct > longTermBfPct + 1) return { phase: 'lose', why: 'aboveTarget' };
+  if (bfPct > LEAN_BULK_MAX_BF) return { phase: 'lose', why: 'notLean' };
+  return { phase: 'gain', why: 'leanEnough' };
+}
+
+/** Philip's phase pick (bulk or cut); see coachPhase. */
 export function recommendPhase(bfPct: number | null, longTermBfPct: number | null, lastPhase: Phase | null): Phase {
-  if (bfPct !== null && bfPct >= CUT_AT_BF) return 'lose';
-  if (bfPct !== null && longTermBfPct !== null && lastPhase === 'lose' && bfPct <= longTermBfPct) return 'maintain';
-  return lastPhase ?? 'gain';
+  return coachPhase(bfPct, longTermBfPct, lastPhase).phase;
 }
 
 /** Default weekly rate, nudged by what happened last cycle (bulk only), kept inside the phase range. */
@@ -72,6 +98,13 @@ export function defaultRatePct(phase: Phase, last: LastCycle | null): number {
     rate = last.plannedRatePct;
     if (last.actualRatePct > last.plannedRatePct && last.bfDelta !== null && last.bfDelta > 1) rate -= 0.1;
     else if (last.actualRatePct <= 0.05) rate += 0.1;
+  }
+  // OBS-FF441B: a cut learns from last cycle too. Losing 0.2%+ a week slower than planned → a bit faster;
+  // faster than the range allows → a bit slower.
+  if (last && last.phase === phase && phase === 'lose') {
+    rate = last.plannedRatePct;
+    if (last.actualRatePct > last.plannedRatePct + 0.2) rate -= 0.1;
+    else if (last.actualRatePct < r.min) rate += 0.1;
   }
   return Math.min(r.max, Math.max(r.min, Math.round(rate * 100) / 100));
 }

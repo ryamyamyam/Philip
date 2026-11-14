@@ -30,6 +30,8 @@ export const qaFeedbackConfig: QaFeedbackConfig = {
       return { apiKey: p.geminiKey, model: normalizeModel(p.geminiModel ?? DEFAULT_GEMINI_MODEL) };
     },
   }),
+  // OBS-7E209B: no "Tap and describe" voice box; the iPhone keyboard's mic key dictates into the text box.
+  transcription: null,
   // Story 3: no floating button over the nutrition screens. QA opens from Settings → QA & Feedback.
   floatingButton: false,
   getContext: () => {

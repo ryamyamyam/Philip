@@ -4,6 +4,7 @@
  * or skipped. Missing a calendar day never skips or resets anything.
  */
 import type { IsoWeekday, TmRecord, WorkoutSession, YMD } from '../../db/types';
+import { daysBetween, startOfWeek, toYmd } from '../date';
 import { planDates } from './schedule';
 import {
   cycleOutcome,
@@ -17,6 +18,7 @@ import {
   type LiftId,
   type LoggedMainSet,
   type Week,
+  TM_SHARE,
 } from './program';
 
 /** TM per lift for a cycle: the latest record (by createdAt) with effectiveCycle ≤ cycle. Missing lift → null. */
@@ -87,6 +89,52 @@ export function e1rmPoints(sessions: readonly WorkoutSession[], liftOf: (exercis
     }
   }
   return pts.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* ---------------- Strength chart dots (OBS-1F8106) ---------------- */
+
+export interface PrPoint {
+  date: YMD;
+  lift: LiftId;
+  oneRmKg: number;
+}
+
+/**
+ * Red dots: the 1RMs the owner entered — at setup, a first-session calibration or Settings › Re-test.
+ * Only the TM is stored (90% of the 1RM, rounded to 0.5 kg), so the 1RM is TM ÷ 0.9 (within ~0.3 kg).
+ */
+export function enteredPrPoints(records: readonly TmRecord[]): PrPoint[] {
+  return records
+    .filter((r) => r.reason === 'setup' || r.reason === 'retest')
+    .map((r) => ({ date: toYmd(new Date(r.createdAt)), lift: r.lift, oneRmKg: Math.round((r.tmKg / TM_SHARE) * 10) / 10 }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export interface WeeklyE1rm extends E1rmPoint {
+  /** Monday of the week. */
+  week: YMD;
+}
+
+/**
+ * Blue dots: per lift, the best estimated 1RM of each Monday–Sunday week from the main-lift sets logged
+ * that week (e1rmPoints: Epley, kg × (1 + reps ÷ 30), top and + sets of 10 reps or fewer). Dated at the
+ * session that set it.
+ */
+export function weeklyE1rm(points: readonly E1rmPoint[]): WeeklyE1rm[] {
+  const best = new Map<string, WeeklyE1rm>();
+  for (const p of points) {
+    const week = startOfWeek(p.date);
+    const key = `${p.lift}|${week}`;
+    const cur = best.get(key);
+    if (!cur || p.e1rmKg > cur.e1rmKg) best.set(key, { ...p, week });
+  }
+  return [...best.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** x position (0–1) of a date between the first and last date shown; a single date sits in the middle. */
+export function datePosition(date: YMD, first: YMD, last: YMD): number {
+  const span = daysBetween(first, last);
+  return span <= 0 ? 0.5 : daysBetween(first, date) / span;
 }
 
 /* ---------------- Home card (T-011) ---------------- */

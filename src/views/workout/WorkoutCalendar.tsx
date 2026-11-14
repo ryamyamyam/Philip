@@ -18,6 +18,7 @@ import { isoWeekday, planDates, trainingDaysOrDefault, type PlannedDay } from '.
 import { buildSession } from '../../lib/training/session';
 import { fmtIn } from './units';
 import { infoFor } from '../../lib/training/sessionLog';
+import { useCycles } from '../../hooks/useData';
 import { cardioValue } from './CardioCard';
 import { CoachReport } from './CoachReport';
 
@@ -88,6 +89,9 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
     [today, program.trainingDays, program.currentCycle, sessions, cycle],
   );
   const plannedByDate = useMemo(() => new Map(planned.map((p) => [p.date, p])), [planned]);
+  // Story 11: the day a goal was reached keeps a flower.
+  const allCycles = useCycles();
+  const reached = useMemo(() => new Set((allCycles ?? []).map((c) => c.reachedAt).filter((d): d is string => !!d)), [allCycles]);
   const grid = monthGrid(month);
 
   const mark = (date: string): WorkoutSession['status'] | null => {
@@ -102,6 +106,7 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
     const parts = [fmtDate(date, 'long')];
     const m = mark(date);
     if (m) parts.push(t(m === 'done' ? 'cal.aria.done' : STATUS_KEY[m]));
+    if (reached.has(date)) parts.push(t('cal.aria.reached'));
     const p = plannedByDate.get(date);
     if (p && m !== 'done') {
       parts.push(t('cal.aria.planned', { day: p.day, lift: liftName(p.lift) }));
@@ -143,7 +148,7 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
                 <span className="num cal-num">{Number(date.slice(8))}</span>
                 {m === 'done' ? (
                   <PixelStamp kind="done" className={`cal-stamp${justFinished && date === today ? ' is-pressing' : ''}`} />
-                ) : p?.isGoalDay ? (
+                ) : reached.has(date) || p?.isGoalDay ? (
                   <PixelStamp kind="goal" className="cal-stamp cal-flower" />
                 ) : p ? (
                   <span className="cal-tag" aria-hidden="true">

@@ -50,6 +50,31 @@ A tiny Cloudflare Worker that sends the "Time's up." notification when a rest ti
 
    The Pages build passes them to Vite (wired in T-021). Until they're set, Settings › Training › Rest alerts stays hidden.
 
+## Philip in the cloud (Story 11, D-034)
+
+The same Worker can hold your Gemini key and answer Philip's coaching requests, so the phone needs only a pairing token. When every free model is rate limited, a goal-plan request is queued (a `CoachQueue` Durable Object), retried by alarm (5, 15, 30 minutes, then hourly, up to 24 hours) and you get a push ("Philip has your plan.") when it's ready.
+
+| Method | Path | Body | Effect |
+|---|---|---|---|
+| `POST` | `/coach` | `{ prompt, queue, subscription }` | Tries `GEMINI_MODELS` in order. 200 `{text, model}`; 202 `{jobId}` when queued; 429 when limited and not queued. |
+| `GET` | `/coach/job?id=` | — | `{status: waiting \| done \| failed}`. A finished answer is handed over once, then deleted. |
+| `GET` | `/coach/ping` | — | Checks the token (no Gemini call). |
+
+**Guards:** `Authorization: Bearer <COACH_TOKEN>` on every `/coach` route (constant-time check), the same Origin check, prompts ≤ 40,000 characters, 60 coach requests an hour. Prompts and replies are **never logged**; a queued one is deleted when fetched, after 48 hours at most. On Gemini's free tier, Google may use prompts to improve its products.
+
+**One-time setup (owner):**
+1. Make a pairing token (any 32+ random characters), for example `openssl rand -hex 24`.
+2. From this folder:
+   ```sh
+   npx wrangler@4 secret put GEMINI_API_KEY   # paste your Gemini key
+   npx wrangler@4 secret put COACH_TOKEN      # paste the token
+   npx wrangler@4 deploy                      # adds the CoachQueue object (migration v2)
+   ```
+3. Check `GEMINI_MODELS` in `wrangler.toml` against the models your free key can call (the app lists them in Settings › Gemini) and redeploy if you change it.
+4. In the app: Settings › **Philip in the cloud** › paste the token › **Pair**. Turn on Rest alerts (Settings › Training) if you want the "plan is ready" push.
+
+Unpair in the same place. The key saved on the phone (Settings › Gemini) still works as a backup.
+
 ## Rotating the keys
 
 Run `npm run keys` again. Put the new pair as Worker secrets, update `VITE_PUSH_VAPID_KEY`, and redeploy Pages. Old subscriptions stop working, so turn Rest alerts off and on again in the app.

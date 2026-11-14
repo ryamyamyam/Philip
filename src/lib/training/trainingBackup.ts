@@ -15,6 +15,7 @@ import type {
   ReviewApplied,
   ActualSet,
   CycleRecord,
+  PlanChange,
   SessionExercise,
   SlotChoice,
   TmRecord,
@@ -34,6 +35,8 @@ export interface TrainingBackup {
   /** Story 9: Philip's notes and the Ask Philip chat. Absent in older backups (restores as empty). */
   coachNotes?: CoachNote[];
   coachMessages?: CoachChatMessage[];
+  /** Story 11: goal events and the plans applied for them (history only; Undo doesn't survive a restore). */
+  planChanges?: PlanChange[];
 }
 
 export const emptyTraining = (): TrainingBackup => ({ program: null, tmHistory: [], cycles: [], sessions: [], slotChoices: [] });
@@ -47,6 +50,7 @@ export async function exportTraining(database: PhilipDB): Promise<TrainingBackup
     slotChoices: await database.slotChoices.toArray(),
     coachNotes: await database.coachNotes.orderBy('createdAt').toArray(),
     coachMessages: await database.coachMessages.orderBy('at').toArray(),
+    planChanges: await database.planChanges.orderBy('at').toArray(),
   };
 }
 
@@ -316,6 +320,11 @@ function cycle(x: unknown, i: number): CycleRecord {
       targetPlanId: numOrNull(g, 'targetPlanId', `${p}.goal`),
     },
     ...(o.restBonusSec != null ? { restBonusSec: num(o, 'restBonusSec', p, 0, 600) } : {}),
+    ...(o.cardioMin != null ? { cardioMin: num(o, 'cardioMin', p, 1, 240) } : {}),
+    ...(o.reachedAt != null ? { reachedAt: isValidYmd(o.reachedAt) ? o.reachedAt : fail(p, 'reachedAt') } : {}),
+    ...(o.endedEarly != null
+      ? { endedEarly: { at: num(obj(o.endedEarly, `${p}.endedEarly`), 'at', p), reason: oneOf(obj(o.endedEarly, `${p}.endedEarly`), 'reason', ['goal-reached', 'restart'], p) } }
+      : {}),
   };
 }
 
@@ -412,6 +421,42 @@ export function parseTraining(raw: unknown): TrainingBackup {
     slotChoices: list(o.slotChoices, 'slotChoices').map(choice),
     coachNotes: list(o.coachNotes, 'coachNotes').map(coachNote),
     coachMessages: list(o.coachMessages, 'coachMessages').map(coachMessage),
+    planChanges: list(o.planChanges, 'planChanges').map(planChange),
+  };
+}
+
+/**
+ * Story 11: kept as history. Structural check of what Goal history reads; the nested plan is kept as
+ * is (only shown, never applied). Undo data is dropped and unfinished requests become dismissed.
+ */
+function planChange(x: unknown, i: number): PlanChange {
+  const p = `planChanges[${i}]`;
+  const o = obj(x, p);
+  const ch = obj(o.choice, `${p}.choice`);
+  const status = oneOf(o, 'status', ['waiting', 'ready', 'applied', 'undone', 'dismissed'], p);
+  return {
+    at: num(o, 'at', p, 0),
+    cycle: num(o, 'cycle', p, 0, 10000),
+    event: oneOf(o, 'event', ['reached', 'offtrack'], p),
+    reason: oneOf(o, 'reason', ['weight', 'bf', 'stalled', 'tooFast', 'bfCeiling'], p),
+    restart: o.restart === true,
+    choice: {
+      phase: oneOf(ch, 'phase', PHASES, `${p}.choice`),
+      startWeightKg: num(ch, 'startWeightKg', `${p}.choice`, 20, 400),
+      startBfPct: numOrNull(ch, 'startBfPct', `${p}.choice`, 3, 60),
+      endWeightKg: num(ch, 'endWeightKg', `${p}.choice`, 20, 400),
+      weeklyRatePct: num(ch, 'weeklyRatePct', `${p}.choice`, -5, 5),
+      bfLinePct: numOrNull(ch, 'bfLinePct', `${p}.choice`, 3, 60),
+      source: oneOf(ch, 'source', ['philip', 'user', 'repeat'], `${p}.choice`),
+    },
+    status: status === 'waiting' || status === 'ready' ? 'dismissed' : status,
+    prompt: typeof o.prompt === 'string' ? o.prompt.slice(0, 40000) : '',
+    jobId: null,
+    ranges: isObj(o.ranges) ? (o.ranges as unknown as PlanChange['ranges']) : null,
+    proposal: isObj(o.proposal) ? (o.proposal as unknown as PlanChange['proposal']) : null,
+    accepted: isObj(o.accepted) ? (o.accepted as unknown as PlanChange['accepted']) : null,
+    undo: null,
+    appliedAt: o.appliedAt == null ? null : num(o, 'appliedAt', p, 0),
   };
 }
 
@@ -429,7 +474,7 @@ function coachMessage(x: unknown, i: number): CoachChatMessage {
   return { from, text: str(o, 'text', p, 2000), at: num(o, 'at', p, 0) };
 }
 
-export const TRAINING_TABLES = ['trainingProgram', 'tmHistory', 'cycles', 'workoutSessions', 'slotChoices', 'coachNotes', 'coachMessages'] as const;
+export const TRAINING_TABLES = ['trainingProgram', 'tmHistory', 'cycles', 'workoutSessions', 'slotChoices', 'coachNotes', 'coachMessages', 'planChanges'] as const;
 
 /**
  * Restores the training block inside the caller's transaction.
@@ -472,6 +517,14 @@ export async function restoreTraining(database: PhilipDB, t: TrainingBackup, mod
 
 /** Story 9: notes and the Ask chat. Replace clears them; merge adds notes and lines this device doesn't have. */
 async function restoreMemory(database: PhilipDB, t: TrainingBackup, mode: 'merge' | 'replace'): Promise<void> {
+  const changes = (t.planChanges ?? []).map(({ id: _id, ...c }) => c);
+  if (mode === 'replace') {
+    await database.planChanges.clear();
+    await database.planChanges.bulkAdd(changes);
+  } else {
+    const have = new Set((await database.planChanges.toArray()).map((c) => `${c.at}|${c.cycle}`));
+    await database.planChanges.bulkAdd(changes.filter((c) => !have.has(`${c.at}|${c.cycle}`)));
+  }
   const notes = (t.coachNotes ?? []).map(({ id: _id, ...n }) => n);
   const msgs = (t.coachMessages ?? []).map(({ id: _id, ...m }) => m);
   if (mode === 'replace') {

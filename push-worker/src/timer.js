@@ -53,8 +53,8 @@ export function cors(origin, allowed) {
   const ok = origin && allowed && origin === allowed;
   return {
     ...(ok ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {}),
-    'Access-Control-Allow-Methods': 'PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
   };
 }

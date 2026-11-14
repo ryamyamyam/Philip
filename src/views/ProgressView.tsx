@@ -20,6 +20,7 @@ import { KG_PER_LB, validateNumber, type FieldError } from '../lib/numbers';
 import { goalDate, weightPlanLine, weightProgress, WEIGHT_LOG_RANGE, type WeightStatus } from '../lib/weight';
 import { useUI } from '../ui';
 import { StrengthPanel } from './StrengthPanel';
+import { GoalHistory } from './goal/GoalHistory';
 
 const STATUS_KEY: Record<WeightStatus, StringKey> = {
   onTrack: 'progress.status.onTrack',
@@ -142,6 +143,7 @@ export default function ProgressView() {
         {justLogged && latest && (
           <WeighInTake plans={plans} profile={profile} entries={entries} today={today} unit={unit} toUnit={toUnit} latestKg={latest.weightKg} onDone={() => setJustLogged(false)} />
         )}
+        <GoalHistory unit={unit === 'lb' ? 'lb' : 'kg'} />
         {entries.length > 0 && <WeightHistory entries={entries} fmtW={fmtW} unit={unit} />}
       </div>
       )}

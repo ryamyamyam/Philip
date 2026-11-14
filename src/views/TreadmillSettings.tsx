@@ -6,6 +6,7 @@ import { useProfile } from '../hooks/useData';
 import { t, type StringKey } from '../i18n';
 import { parseDecimal } from '../lib/numbers';
 import { defaultTreadmill, parseTreadmillEstimate, settingToMph, TREADMILL_LIMITS, treadmillPrompt, validTreadmill } from '../lib/training/treadmill';
+import { useCloudPaired } from '../hooks/useCoach';
 
 const SCALES: Treadmill['scale'][] = ['mph', 'kmh', 'level'];
 const SCALE_KEY: Record<Treadmill['scale'], StringKey> = { mph: 'treadmill.scale.mph', kmh: 'treadmill.scale.kmh', level: 'treadmill.scale.level' };
@@ -18,6 +19,7 @@ const SCALE_KEY: Record<Treadmill['scale'], StringKey> = { mph: 'treadmill.scale
 export function TreadmillSettings({ program }: { program: TrainingProgram }) {
   const toast = useToast();
   const profile = useProfile();
+  const cloud = useCloudPaired();
   const saved = program.treadmill ?? defaultTreadmill(program.weightUnit === 'lb' ? 'mph' : 'kmh');
   const [name, setName] = useState(saved.name);
   const [scale, setScale] = useState<Treadmill['scale']>(saved.scale);
@@ -44,12 +46,12 @@ export function TreadmillSettings({ program }: { program: TrainingProgram }) {
   const example = scale === 'mph' ? null : settingToMph(5, draft);
 
   const ask = async () => {
-    if (!profile?.geminiKey || !name.trim()) return;
+    if (!(profile?.geminiKey || cloud) || !name.trim()) return;
     setAsking(true);
     setNote(null);
     try {
-      const { coachCheckinWithGemini, DEFAULT_GEMINI_MODEL, normalizeModel } = await import('../services/foodAnalysis/gemini');
-      const raw = await coachCheckinWithGemini({ apiKey: profile.geminiKey, model: normalizeModel(profile.geminiModel ?? DEFAULT_GEMINI_MODEL), text: treadmillPrompt(name) });
+      const { coachJson } = await import('../services/coachAi');
+      const { raw } = await coachJson(treadmillPrompt(name), { apiKey: profile?.geminiKey ?? null, model: profile?.geminiModel ?? null });
       const est = parseTreadmillEstimate(raw, name);
       if (!est) {
         setNote(t('treadmill.askFailed'));
@@ -76,7 +78,7 @@ export function TreadmillSettings({ program }: { program: TrainingProgram }) {
         <span className="field-label">{t('treadmill.name')}</span>
         <input className="input" value={name} maxLength={TREADMILL_LIMITS.nameChars} placeholder={t('treadmill.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
       </label>
-      {profile?.geminiKey ? (
+      {profile?.geminiKey || cloud ? (
         <button type="button" className="btn btn-secondary btn-block" disabled={!name.trim() || asking} onClick={() => void ask()}>
           {asking ? t('checkin.thinking') : t('treadmill.ask')}
         </button>

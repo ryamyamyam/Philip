@@ -35,6 +35,8 @@ export interface CreateOptions {
   order?: readonly string[] | null;
   /** Treadmill speed unit for the cardio log. */
   speedUnit?: 'mph' | 'kmh' | 'level';
+  /** Story 11: the cycle's cardio minutes (absent = the phase default). */
+  cardioMin?: number | null;
 }
 
 /** A new in-progress session from Philip's plan for the day, with the cardio finisher (Story 7). */
@@ -51,7 +53,7 @@ export function createSession(plan: PlannedSession, id: string, date: string, no
     startedAt: now,
     finishedAt: null,
     exercises: applyOrder(plan.exercises.map(toSessionExercise), opts.order),
-    cardio: plannedCardio(plan.phase, opts.speedUnit),
+    cardio: plannedCardio(plan.phase, opts.speedUnit, opts.cardioMin),
   };
 }
 

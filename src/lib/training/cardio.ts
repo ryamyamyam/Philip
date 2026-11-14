@@ -13,8 +13,9 @@ import type { Phase } from './program';
 
 export const CARDIO_MINUTES: Readonly<Record<Phase, number>> = { gain: 15, maintain: 15, lose: 25 };
 
-export function plannedCardio(phase: Phase, speedUnit: CardioLog['speedUnit'] = 'mph'): CardioLog {
-  return { kind: 'incline-walk', planMin: CARDIO_MINUTES[phase], minutes: null, inclinePct: null, speed: null, speedUnit, done: false, skipped: false };
+/** `planMin` overrides the phase default (Story 11: Philip's minutes for the cycle). */
+export function plannedCardio(phase: Phase, speedUnit: CardioLog['speedUnit'] = 'mph', planMin?: number | null): CardioLog {
+  return { kind: 'incline-walk', planMin: planMin ?? CARDIO_MINUTES[phase], minutes: null, inclinePct: null, speed: null, speedUnit, done: false, skipped: false };
 }
 
 /** Done needs minutes walked (incline and speed are optional). */

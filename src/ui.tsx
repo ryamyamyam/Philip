@@ -23,7 +23,9 @@ export type SheetState =
       /** Sheet title override (e.g. the saved meal's name). */
       title?: string | null;
     }
-  | { kind: 'suggest'; date: YMD };
+  | { kind: 'suggest'; date: YMD }
+  /** Story 11: goal reached / off the plan → next goal → Philip's plan. */
+  | { kind: 'goal' };
 
 export interface UI {
   date: YMD;

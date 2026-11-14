@@ -27,6 +27,7 @@ import { slotKey } from '../lib/training/exercises';
 import { adjustedTm, MAX_REST_BONUS_SEC } from '../lib/training/checkin';
 import { tmsForCycle } from '../lib/training/progress';
 import { roundMacros } from '../lib/nutrition';
+import { todayYmd } from '../lib/date';
 
 export type NewFoodEntry = Omit<FoodEntry, 'id' | 'createdAt' | 'updatedAt'>;
 
@@ -127,7 +128,9 @@ export async function getProfile(database: PhilipDB = db): Promise<Profile> {
 
 export async function updateProfile(changes: Partial<Omit<Profile, 'id'>>, database: PhilipDB = db): Promise<void> {
   const current = await getProfile(database);
-  await database.profile.put({ ...current, ...changes, id: 'me' });
+  // Story 11: body fat has no history, so remember the day it last changed (a goal check needs its age).
+  const bfChanged = 'bodyFatPct' in changes && changes.bodyFatPct != null && changes.bodyFatPct !== current.bodyFatPct && !('bodyFatDate' in changes);
+  await database.profile.put({ ...current, ...changes, ...(bfChanged ? { bodyFatDate: todayYmd() } : {}), id: 'me' });
 }
 
 /* ---------- Weight log ---------- */
@@ -337,6 +340,10 @@ export const META = {
   restAlertSub: 'restAlertSub',
   /** Story 9: body (weight, body fat, age) and food data go into Philip's brief (absent = yes). Not in backups. */
   coachShareBody: 'coachShareBody',
+  /** Story 11: goal events already shown ({cycle, kind, reason}[]), so each fires once. In backups via planChanges only. */
+  goalPrompts: 'goalPrompts',
+  /** Story 11: this device's pairing token for Philip in the cloud (the Worker). Device-only, never in backups. */
+  coachCloudToken: 'coachCloudToken',
 } as const;
 
 /* ---------------- Training (Story 5, T-012) ---------------- */

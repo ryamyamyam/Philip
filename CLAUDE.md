@@ -38,9 +38,9 @@ Story 4 (tour, D-024) and Story 5 (Home hub + workouts, D-025) are built on stac
 
 ## Stack & constraints
 - React 19 + TypeScript (strict) + Vite 7, plain CSS with tokens, Dexie 4 (IndexedDB) + `useLiveQuery`
-- No backend, no auth, no paid services. Single user, single device. GitHub Pages hosting. Zero added cost.
+- No backend, no auth, no paid services. Single user, single device. GitHub Pages hosting. Zero added cost. One exception (D-028, D-034): the owner's own free Cloudflare Worker in `push-worker/` (rest alerts + Philip in the cloud).
 - Gemini is optional; the app must stay fully usable without it.
-- Never commit API keys. The Gemini key lives only in IndexedDB (`profile.geminiKey`).
+- Never commit API keys. The Gemini key lives only in IndexedDB (`profile.geminiKey`) or as a Worker secret (`GEMINI_API_KEY`, Story 11).
 - Never hardcode or seed the owner's body stats.
 
 ## Owner approval required (ask Ryan first)
@@ -51,7 +51,7 @@ Story 4 (tour, D-024) and Story 5 (Home hub + workouts, D-025) are built on stac
 - Reversing anything in docs/DECISIONS.md.
 
 ## Conventions
-- All UI strings in `src/i18n/en.ts`, accessed with `t('key', vars)`. Dates/numbers via `src/lib/format.ts` (Intl).
+- All UI strings in `src/i18n/en.ts`, accessed with `t('key', vars)` (Story 11's lazy screens use the pack `src/i18n/goal.ts` with `tg()`, D-034). Dates/numbers via `src/lib/format.ts` (Intl).
 - Dates are local `YYYY-MM-DD` strings (`src/lib/date.ts`). Never use `toISOString()` for dates.
 - Nutrition is metric internally (g, kcal). Daily totals are computed from entries, never stored.
 - Target plans are append-only: every change inserts a new plan; `planForDate` picks the latest `effectiveFrom <= date`.

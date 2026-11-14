@@ -3,6 +3,7 @@ import type { Prescribed, SessionSlot } from '../lib/training/session';
 import type { Block, Day, LiftId, Phase, TmReason, Week } from '../lib/training/program';
 import type { CheckinFlag } from '../lib/training/checkin';
 import type { PlateUnit } from '../lib/training/plates';
+import type { LeverRanges } from '../lib/goal/proposal';
 
 export type Meal = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export const MEALS: readonly Meal[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -48,6 +49,8 @@ export interface Profile {
   geminiKey: string | null;
   geminiModel: string | null;
   adherenceEnabled: boolean;
+  /** Story 11: the day body fat was last entered (BF has no history; a goal check needs its age). Optional. */
+  bodyFatDate?: YMD | null;
 }
 
 export type TargetMethod = 'calculated' | 'manual';
@@ -212,6 +215,12 @@ export interface CycleRecord {
   goal: CycleGoalSnapshot;
   /** Extra rest (s) for the rest of this cycle, accepted in a review. */
   restBonusSec?: number;
+  /** Story 11: the cardio finisher's planned minutes Philip set for this cycle (absent = the phase default). */
+  cardioMin?: number;
+  /** Story 11: the day (local YYYY-MM-DD) the goal was reached. */
+  reachedAt?: YMD;
+  /** Story 11: the cycle closed before its 16 sessions because the goal was reached (or a restart). */
+  endedEarly?: { at: number; reason: 'goal-reached' | 'restart' };
 }
 
 /** What the owner actually did on one set. Never derived from the order unless he taps "As ordered". */
@@ -370,4 +379,78 @@ export interface CoachChatMessage {
   from: 'me' | 'philip';
   text: string;
   at: number;
+}
+
+/* ---------------- Goal reached → next goal (Story 11, DB v6) ---------------- */
+
+/** One accepted lever in a goal plan, with what it replaced (for Undo). */
+export interface GoalPlanItems {
+  kcal: number | null;
+  proteinG: number | null;
+  cardioMin: number | null;
+  days: IsoWeekday[] | null;
+  swaps: { day: Day; slot: 'A1' | 'A2' | 'B'; exerciseId: string }[];
+}
+
+/** What Philip proposed for a goal (validated and clamped by lib/goal/proposal.ts). */
+export interface GoalProposalRecord extends GoalPlanItems {
+  message: string;
+  why: Partial<Record<'kcal' | 'proteinG' | 'cardioMin' | 'days' | 'swaps', string>>;
+  /** Values Philip asked for outside the safe range, and what was used instead. */
+  clamps: { lever: 'kcal' | 'proteinG' | 'cardioMin'; asked: number; used: number }[];
+  remember: string[];
+  source: { kind: 'gemini-cloud' | 'gemini-device' | 'claude-paste'; model: string | null };
+  at: number;
+}
+
+/** The goal the owner picked in step 2 (the next cycle's goal, or the revised one when off track). */
+export interface GoalChoice {
+  phase: Phase;
+  startWeightKg: number;
+  startBfPct: number | null;
+  endWeightKg: number;
+  weeklyRatePct: number;
+  bfLinePct: number | null;
+  source: 'philip' | 'user' | 'repeat';
+}
+
+/** Undo data for an applied goal plan. Every field holds the value before Apply. */
+export interface GoalPlanUndo {
+  restart: { oldCycle: number; newCycle: number; tmIds: number[] } | null;
+  /** Off track without a restart: the current cycle's goal and cardio before. */
+  cycleBefore: { index: number; goal: CycleGoalSnapshot; cardioMin: number | null } | null;
+  profile: Pick<Profile, 'goal' | 'targetWeightKg' | 'weeklyRateKg' | 'targetBodyFatPct'>;
+  /** Plan in force before; Undo appends a copy of it (target plans are append-only). Null = none. */
+  targetPlanBefore: Omit<TargetPlan, 'id' | 'createdAt'> | null;
+  trainingDays: IsoWeekday[] | null;
+  swaps: { slotKey: string; from: string | null }[];
+  noteIds: number[];
+}
+
+/**
+ * A goal event and Philip's plan for it (Story 11). `waiting` = sent to Philip (cloud queue or
+ * offline); `ready` = his proposal is in, waiting for the owner; `applied` / `undone` / `dismissed`.
+ */
+export interface PlanChange {
+  id?: number;
+  at: number;
+  cycle: number;
+  event: 'reached' | 'offtrack';
+  reason: 'weight' | 'bf' | 'stalled' | 'tooFast' | 'bfCeiling';
+  restart: boolean;
+  choice: GoalChoice;
+  status: 'waiting' | 'ready' | 'applied' | 'undone' | 'dismissed';
+  /** The prompt sent (kept so a queued or offline request can be re-sent and pasted into Claude). */
+  prompt: string;
+  /** Cloud queue job id, when the Worker queued it. */
+  jobId: string | null;
+  /** The engine's ranges the reply is validated against (kept for a late or pasted reply). */
+  ranges: LeverRanges | null;
+  /** The last try failed (cloud gave up, bad reply): the sheet offers Try again and Claude. */
+  failed?: boolean;
+  proposal: GoalProposalRecord | null;
+  /** Levers the owner kept on in the review. */
+  accepted: GoalPlanItems | null;
+  undo: GoalPlanUndo | null;
+  appliedAt: number | null;
 }

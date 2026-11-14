@@ -10,3 +10,10 @@ describe('D-023 no emoji in copy', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe('D-023 no emoji in the Story 11 goal pack', async () => {
+  const { goalStrings } = await import('./goal');
+  it('has no emoji in any string', () => {
+    expect(Object.entries(goalStrings).filter(([, v]) => EMOJI.test(v))).toEqual([]);
+  });
+});

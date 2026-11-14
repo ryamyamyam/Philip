@@ -8,6 +8,7 @@ const HandoffSheet = lazy(() => import('./photo/HandoffSheet'));
 // Eager: manual and saved-meal logging go through the review sheet and must work offline on first tap.
 import ReviewSheet from './photo/ReviewSheet';
 const SuggestSheet = lazy(() => import('./SuggestSheet'));
+const GoalSheet = lazy(() => import('./goal/GoalSheet'));
 
 export function SheetHost({ sheet }: { sheet: SheetState }) {
   switch (sheet.kind) {
@@ -35,5 +36,11 @@ export function SheetHost({ sheet }: { sheet: SheetState }) {
       );
     case 'review':
       return <ReviewSheet {...sheet} />;
+    case 'goal':
+      return (
+        <Suspense fallback={null}>
+          <GoalSheet />
+        </Suspense>
+      );
   }
 }

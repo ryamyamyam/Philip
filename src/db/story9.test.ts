@@ -260,7 +260,7 @@ describe('memory in the database', () => {
     v4.close();
     const db = new PhilipDB(dbName);
     await db.open();
-    expect(db.verno).toBe(5);
+    expect(db.verno).toBe(6);
     expect(await db.workoutSessions.get('keep')).toBeTruthy();
     expect(await db.weightEntries.count()).toBe(1);
     expect(await db.coachNotes.count()).toBe(0);

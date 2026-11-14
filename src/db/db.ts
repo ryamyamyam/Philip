@@ -5,6 +5,7 @@ import type {
   CycleRecord,
   FoodEntry,
   MetaRow,
+  PlanChange,
   Profile,
   SavedFood,
   SavedMeal,
@@ -31,6 +32,7 @@ export class PhilipDB extends Dexie {
   slotChoices!: EntityTable<SlotChoice, 'slotKey'>;
   coachNotes!: EntityTable<CoachNote, 'id'>;
   coachMessages!: EntityTable<CoachChatMessage, 'id'>;
+  planChanges!: EntityTable<PlanChange, 'id'>;
 
   constructor(name = 'philip') {
     super(name);
@@ -75,6 +77,8 @@ export class PhilipDB extends Dexie {
       });
     // v5 (Story 9): Philip's memory — durable notes and the Ask Philip chat. Purely additive.
     this.version(5).stores({ coachNotes: '++id, createdAt', coachMessages: '++id, at' });
+    // v6 (Story 11): goal events and Philip's plans for them (waiting → ready → applied / undone). Additive.
+    this.version(6).stores({ planChanges: '++id, at, status, cycle' });
   }
 }
 

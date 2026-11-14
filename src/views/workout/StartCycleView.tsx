@@ -18,8 +18,9 @@ import {
   type CycleGoal,
   type GoalIssue,
 } from '../../lib/training/cycleGoal';
-import { blockForCycle, LIFTS, nextTm, type LiftId, type Phase } from '../../lib/training/program';
-import { cycleOutcomes, nextCycleIndex, tmsForCycle } from '../../lib/training/progress';
+import { blockForCycle, type Phase } from '../../lib/training/program';
+import { nextCycleIndex } from '../../lib/training/progress';
+import { progressionFor } from '../../lib/training/nextCycle';
 import { fmtIn, fromDisplay } from './units';
 
 const PHASES: Phase[] = ['lose', 'maintain', 'gain'];
@@ -97,19 +98,8 @@ export function StartCycleView({
     if (!goal) return;
     setBusy(true);
     // Progression from the last cycle (§4.5): applied once, when the next cycle starts.
-    const tmsBefore = tmsForCycle(tmHistory, index - 1);
-    const snapshot = Object.fromEntries(LIFTS.map((l) => [l, tmsBefore[l] ?? 0])) as Record<LiftId, number>;
-    if (last) {
-      const now = cycleOutcomes(sessions, last.index);
-      const before = cycleOutcomes(sessions, last.index - 1);
-      for (const lift of LIFTS) {
-        const tm = tmsBefore[lift];
-        if (tm === null) continue;
-        const next = nextTm(tm, lift, last.phase, now[lift], before[lift] === 'miss');
-        await addTm({ lift, tmKg: next.tmKg, effectiveCycle: index, reason: next.reason });
-        snapshot[lift] = next.tmKg;
-      }
-    }
+    const { rows, snapshot } = progressionFor(tmHistory, sessions, last, index);
+    for (const r of rows) await addTm({ lift: r.lift, tmKg: r.tmKg, effectiveCycle: index, reason: r.reason });
     await updateProfile({
       goal: phase,
       targetWeightKg: phase === 'maintain' ? profile.targetWeightKg : Math.round(goal.endWeightKg * 10) / 10,

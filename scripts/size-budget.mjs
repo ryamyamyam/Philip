@@ -12,7 +12,7 @@ const DIST = new URL('../dist/', import.meta.url).pathname;
 
 /** KB. "initial" = what the first screen downloads: index.html + entry JS + entry CSS. */
 export const BUDGET = {
-  initialJsGzKb: 174, // 172 → 174: D-033 (QA batch 2026-11-13)
+  initialJsGzKb: 176, // 172 → 174: D-033 (QA batch 2026-11-13); 174 → 176: D-034 (Story 11 goal check on Home)
   initialCssGzKb: 16,
   /** Largest lazy chunk (gzip). */
   lazyChunkGzKb: 30,

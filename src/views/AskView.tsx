@@ -11,6 +11,7 @@ import { askPrompt, parseAskReply } from '../lib/coach/memory';
 import { takeAskDraft } from '../lib/coach/askDraft';
 import { todayYmd } from '../lib/date';
 import { useUI } from '../ui';
+import { useCloudPaired } from '../hooks/useCoach';
 
 /**
  * Ask Philip (Story 9, `#/ask`): a chat outside any workout. Every question goes to Gemini with
@@ -21,7 +22,8 @@ export default function AskView() {
   const { navigate } = useUI();
   const profile = useProfile();
   const messages = useCoachMessages();
-  const key = profile?.geminiKey ?? null;
+  const cloud = useCloudPaired();
+  const key = profile?.geminiKey ?? (cloud ? 'cloud' : null);
   // OBS-3037F2: a question handed over from another screen (e.g. after a weigh-in) pre-fills the box.
   const [text, setText] = useState(() => takeAskDraft() ?? '');
   const [busy, setBusy] = useState(false);
@@ -44,8 +46,8 @@ export default function AskView() {
     try {
       // This chat goes in as its own history, so the brief leaves it out.
       const brief = await loadBrief(todayYmd(), { excludeAsk: true });
-      const { coachCheckinWithGemini, DEFAULT_GEMINI_MODEL, normalizeModel } = await import('../services/foodAnalysis/gemini');
-      const raw = await coachCheckinWithGemini({ apiKey: key, model: normalizeModel(profile?.geminiModel ?? DEFAULT_GEMINI_MODEL), text: askPrompt(brief, history, q) });
+      const { coachJson } = await import('../services/coachAi');
+      const { raw } = await coachJson(askPrompt(brief, history, q), { apiKey: profile?.geminiKey ?? null, model: profile?.geminiModel ?? null });
       const reply = parseAskReply(raw);
       if (!reply) throw new Error('bad reply');
       await addCoachMessage({ from: 'philip', text: reply.message, at: Date.now() });

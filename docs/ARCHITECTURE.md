@@ -59,7 +59,7 @@ Old routes redirect with `history.replaceState`: `#/history` and `#/meals` → `
 ### Logging flow (Story 3, updated Nov 2026)
 Today → Choose photo (camera or library; D-022) → analyzing (PhotoSheet) → **Review** → Save to {meal}. **Enter yourself** reveals an inline panel on Today (`AddPanel` in `views/AddSheet.tsx`): an autofocused text box, saved meals, and “Type the numbers”. The Add food sheet (`AddSheet`, photo buttons + the same `AddPanel`) remains for Meals. The Log food button was removed (D-017). Every path ends in the Review sheet (meal picker, compact rows: name + grams, nutrition rescales with grams, “Edit nutrition” for direct macro edits, add/remove rows, optional “Also save as a meal”). Saving shows “N kcal logged to {meal}” with Undo. My Foods / recents / favorites and the Claude handoff button were removed from the log sheet (the handoff remains on photo-analysis errors); saved foods stay in the database and backups and still prefill typed text without a key.
 
-## Data model (IndexedDB `philip`, Dexie v5)
+## Data model (IndexedDB `philip`, Dexie v6)
 
 | Table | Key | Notes |
 |---|---|---|
@@ -77,8 +77,9 @@ Today → Choose photo (camera or library; D-022) → analyzing (PhotoSheet) →
 | `slotChoices` (v4) | `slotKey` (`D2-A1-B`) | owner's sticky swap; only approved swaps are honoured |
 | `coachNotes` (v5, Story 9) | `++id`, index `createdAt` | `{text ≤140, source: report\|ask, sessionId, createdAt}`: durable facts Philip keeps (Gemini `remember`); deduped, newest 40 kept; survive log deletes; managed in Settings › Philip's memory |
 | `coachMessages` (v5, Story 9) | `++id`, index `at` | Ask Philip chat `{from: me\|philip, text, at}`, newest 200 kept. Workout chats stay on `workoutSessions.coach` |
+| `planChanges` (v6, Story 11) | `++id`, indexes `at`, `status`, `cycle` | A goal event (reached / off track) and Philip's plan for it: chosen goal, prompt, engine ranges, proposal, accepted levers, Undo data; `status: waiting → ready → applied \| undone \| dismissed` (D-034) |
 
-Migrations: v1 → v2 adds `weightEntries` and sets `profile.bodyFatPct = null`; v2 → v3 adds the empty `savedMeals` table (no record changes); v3 → v4 adds the training tables; v4 → v5 adds the empty `coachNotes` and `coachMessages` tables (no record changes). Every record is kept (covered by `src/db/migration.test.ts`).
+Migrations: v1 → v2 adds `weightEntries` and sets `profile.bodyFatPct = null`; v2 → v3 adds the empty `savedMeals` table (no record changes); v3 → v4 adds the training tables; v4 → v5 adds the empty `coachNotes` and `coachMessages` tables (no record changes); v5 → v6 adds the empty `planChanges` table (no record changes). Every record is kept (covered by `src/db/migration.test.ts`).
 
 Rules:
 - Entry dates are local `YYYY-MM-DD`; a meal at 11:55 PM stays on that day.
@@ -230,3 +231,10 @@ These are the seams that keep parallel work safe. Changing any of them is an arc
 - **1-month target suggestion:** for Lose/Gain with a weight entered, `resolveRate(goal, weightKg, null)` (the default safe pace from `SAFETY`, unchanged) × 30/7 weeks → “🎯 1 month: X (rate/wk) · Use it”, which fills target weight and rate.
 - **Gemini:** `usesDefaultTemperature(model)` — Gemini 3+ requests omit `temperature` (Google advises the default 1.0; low values can loop and truncate JSON); older models keep 0.2. Suggestions use `generateWithRetry` (one retry on `invalidResponse`). SuggestSheet shows the raw error message under “What Gemini said”.
 - **Copy:** voice and emoji per D-020; decorative meal (🌅 🌞 🌙 🍿) and macro (🥩 🥑 🍚) symbols are `aria-hidden` spans so accessible names are unchanged.
+
+## Story 11: goal reached → next goal → Philip's plan (D-034)
+- **Pure:** `lib/goal/goalCheck.ts` (events, ETA), `nextGoal.ts` (Same again / Philip's pick / own), `window.ts` (what happened over the goal window, measured maintenance), `proposal.ts` (lever ranges, prompt, validation and caps), `lib/training/nextCycle.ts` (TM progression, shared with the cycle briefing).
+- **Data:** `db/goalRepo.ts` (Apply / Undo in one transaction), `db/goalPrompts.ts` (events already shown, `META.goalPrompts`).
+- **UI:** `hooks/useGoal.ts` (eager, small) feeds Home's line and the lazy `components/GoalWatcher.tsx`, which opens the `goal` sheet (`views/goal/GoalSheet.tsx`, lazy) and nudges waiting requests. `views/goal/request.ts` builds and sends the request; `GoalHistory` (Progress) and `CloudSettings` (Settings). Strings: lazy pack `i18n/goal.ts`.
+- **AI:** `services/coachCloud.ts` talks to the Worker's `/coach` routes (pairing token in `META.coachCloudToken`, device-only); `services/coachAi.ts` is the one way coaching screens ask for JSON (cloud first, then the device key). The Gemini REST details on the phone stay in `services/foodAnalysis/gemini.ts`; the Worker has its own copy in `push-worker/src/coach.js`.
+

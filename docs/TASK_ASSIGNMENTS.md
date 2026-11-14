@@ -11,6 +11,7 @@ Base branch for new work: `main`.
 
 | ID | Feature | Role | Status | Branch | Depends on |
 |---|---|---|---|---|---|
+| T-028 | Story 11 goal reached → next goal → Philip's plan; Philip in the cloud (D-034) | Core + Feature + QA | Ready for owner review | `feat/T-028-next-goal` | `main` @ `1130a6f` |
 | T-027 | Story 10 QA batch (8 observations, D-032) | Core + Feature + QA | Ready for owner review | `feat/T-027-qa-batch` | `main` @ `36b730b` |
 | T-026 | Story 9 Philip's memory: brief, notes, Ask Philip | Core + Feature + QA | Ready for owner review | `feat/T-026-philip-memory` | T-025 |
 | T-025 | Story 8 efficiency budgets + fixes | Core + QA | Ready for owner review | `feat/T-025-efficiency` | `c19a57d` |
@@ -27,6 +28,11 @@ Base branch for new work: `main`.
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-028 — Story 11: goal reached → next goal → Philip's plan (D-034)
+- **Spec:** `docs/stories/STORY_11_NEXT_GOAL.md`.
+- **Files:** new `src/lib/goal/{goalCheck,nextGoal,window,proposal}.ts` + `goal.test.ts`, `src/lib/training/nextCycle.ts`, `src/db/{goalRepo,goalPrompts}.ts` + `story11.test.ts`, `src/hooks/{useGoal,useCoach}.ts`, `src/components/GoalWatcher.tsx`, `src/views/goal/{GoalSheet,GoalHistory,CloudSettings,request}.ts(x)`, `src/services/{coachCloud,coachAi}.ts`, `src/i18n/goal.ts`, `push-worker/src/coach.js` + `test/coach.test.js`, `e2e/story11.spec.ts`; `src/db/{db,types,repo}.ts` (v6), `src/lib/{backup,training/trainingBackup,training/cardio,training/sessionLog}.ts`, `src/views/{HomeView,ProgressView,SettingsView,SheetHost,AskView,TreadmillSettings}.tsx`, `src/views/workout/{StartCycleView,SessionView,CoachReport,WorkoutCalendar}.tsx`, `src/{App,ui}.tsx`, `src/sw-template.js`, `src/i18n/en.ts`, `src/styles/workout.css`, `push-worker/{src/index.js,src/timer.js,wrangler.toml,README.md}`, `scripts/size-budget.mjs`, migration tests (verno 6), docs.
+- **Log:** 2026-11-13 (cloud clone): tsc clean, unit 432/432, build, size 174.5/176 KB, Worker tests 17/17, Chromium e2e 116/117 (the one failure, `food-logging` OBS-A0308B, fails the same on `main` @ `1130a6f`). WebKit + iPhone + live Worker pending.
 
 ### T-027 — Story 10: QA batch 2026-11-11 (D-032)
 - **Spec:** `docs/stories/STORY_10_GYM_QA_2.md`.

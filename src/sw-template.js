@@ -62,6 +62,19 @@ self.addEventListener('push', (event) => {
   } catch {
     data = {};
   }
+  // Story 11: "Philip has your plan." when a queued goal plan is ready (opens Home, which shows it).
+  if (data.type === 'coach') {
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'Philip has your plan.', {
+        body: data.body || '',
+        tag: 'coach',
+        icon: './icon-192.png',
+        badge: './icon-192.png',
+        data: { url: './#/home' },
+      }),
+    );
+    return;
+  }
   if (data.type !== 'rest') return;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {

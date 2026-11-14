@@ -46,6 +46,7 @@ import {
 } from '../../lib/training/checkin';
 import { UnitSwitch } from './SetupView';
 import { fmtBoth, fmtIn, fromDisplay, fmtRest } from './units';
+import { useCloudPaired } from '../../hooks/useCoach';
 
 const LIFT_KEY: Record<LiftId, StringKey> = { squat: 'exercise.squat', bench: 'exercise.bench', rdl: 'exercise.rdl', ohp: 'exercise.ohp' };
 
@@ -124,7 +125,7 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
   if (!ref) return <p>{t('session.cycleDone')}</p>;
   if (missing) return <Calibration lift={missing} cycle={cycle.index} unit={program.weightUnit} />;
   if (!plan) return null;
-  const opts = { order: program.dayOrder?.[String(plan.day)] ?? null, speedUnit: program.treadmill?.scale ?? (program.weightUnit === 'lb' ? ('mph' as const) : ('kmh' as const)) };
+  const opts = { cardioMin: cycle.cardioMin ?? null, order: program.dayOrder?.[String(plan.day)] ?? null, speedUnit: program.treadmill?.scale ?? (program.weightUnit === 'lb' ? ('mph' as const) : ('kmh' as const)) };
   const start = () => void saveWorkoutSession(createSession(plan, newId(), todayYmd(), Date.now(), opts));
   const skipDay = () => {
     const s = createSession(plan, newId(), todayYmd(), Date.now(), opts);
@@ -145,7 +146,7 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
           {applyOrder(plan.exercises, opts.order).map((e) => (
             <PreviewRow key={e.slot} e={e} day={plan.day} block={plan.block} choices={choices} />
           ))}
-          <li className="num">{t('cardio.preview', { n: plannedCardio(plan.phase).planMin })}</li>
+          <li className="num">{t('cardio.preview', { n: plannedCardio(plan.phase, 'mph', cycle.cardioMin).planMin })}</li>
         </ul>
         <p className="small muted">{t('session.checkHint')}</p>
       </section>
@@ -391,6 +392,7 @@ function LiveSession({
   const [discarding, setDiscarding] = useState(false);
   const [unit, setUnit] = useState(program.weightUnit);
   const profile = useProfile();
+  const cloud = useCloudPaired();
   const bodyWeightKg = useBodyWeightKg();
   const [pending, setPending] = useState<{ index: number; order: number; proposal: CheckinProposal } | null>(null);
   const [thinking, setThinking] = useState<number | null>(null);
@@ -502,16 +504,14 @@ function LiveSession({
       return; // Hurts: the exercise stops with plain text, no proposal.
     }
     if (flag) offer(index, order, updated, flag, t(`checkin.rule.${flag}${updated.slot === 'main' ? 'Main' : ''}` as StringKey));
-    if (!(ask && note && profile?.geminiKey)) return;
+    if (!(ask && note && (profile?.geminiKey || cloud))) return;
     setThinking(index);
     try {
-      const { coachCheckinWithGemini, DEFAULT_GEMINI_MODEL, normalizeModel } = await import('../../services/foodAnalysis/gemini');
+      const { coachJson } = await import('../../services/coachAi');
       const p = updated.prescription.find((x) => x.order === order);
       const a = logged.find((x) => x.order === order);
-      const raw = await coachCheckinWithGemini({
-        apiKey: profile.geminiKey,
-        model: normalizeModel(profile.geminiModel ?? DEFAULT_GEMINI_MODEL),
-        text: checkinPrompt({
+      const { raw } = await coachJson(
+        checkinPrompt({
           exercise: t(`exercise.${updated.exerciseId}` as StringKey),
           slot: updated.slot,
           setNumber: order + 1,
@@ -527,7 +527,8 @@ function LiveSession({
             ...(await allCoachNotes()).slice(-10).map((n, k) => (k === 0 ? 'Your notes about the lifter: ' : '') + n.text),
           ].join('\n'),
         }),
-      });
+        { apiKey: profile?.geminiKey ?? null, model: profile?.geminiModel ?? null },
+      );
       const reply = parseCoachReply(raw);
       if (reply?.stop) {
         save({ ...session, exercises: session.exercises.map((e, i) => (i === index ? { ...updated, actual: logged.map((x) => (x.order === order ? { ...x, pain: true } : x)) } : e)) });
@@ -578,7 +579,7 @@ function LiveSession({
   };
   const canReorder = session.exercises.filter((e) => e.slot !== 'main').length > 1;
   // Older in-progress sessions have no cardio yet: show the plan, store it on first edit.
-  const cardio = session.cardio ?? plannedCardio(cycle.phase, program.treadmill?.scale ?? (program.weightUnit === 'lb' ? 'mph' : 'kmh'));
+  const cardio = session.cardio ?? plannedCardio(cycle.phase, program.treadmill?.scale ?? (program.weightUnit === 'lb' ? 'mph' : 'kmh'), cycle.cardioMin);
 
   const finish = () => {
     cancelAlert();

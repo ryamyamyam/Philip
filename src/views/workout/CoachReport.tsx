@@ -13,6 +13,7 @@ import { tmsForCycle } from '../../lib/training/progress';
 import { trainingDaysOrDefault } from '../../lib/training/schedule';
 import { infoFor } from '../../lib/training/sessionLog';
 import { fmtIn } from './units';
+import { useCloudPaired } from '../../hooks/useCoach';
 
 const LIFT_KEY = { squat: 'exercise.squat', bench: 'exercise.bench', rdl: 'exercise.rdl', ohp: 'exercise.ohp' } as const;
 const WD: Record<number, StringKey> = { 1: 'cal.wd.mon', 2: 'cal.wd.tue', 3: 'cal.wd.wed', 4: 'cal.wd.thu', 5: 'cal.wd.fri', 6: 'cal.wd.sat', 7: 'cal.wd.sun' };
@@ -37,7 +38,8 @@ interface Props {
  */
 export function CoachReport({ session, program, cycle, tmHistory, choices, unit, auto }: Props) {
   const profile = useProfile();
-  const key = profile?.geminiKey ?? null;
+  const cloud = useCloudPaired();
+  const key = profile?.geminiKey ?? (cloud ? 'cloud' : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [comment, setComment] = useState('');
@@ -60,8 +62,8 @@ export function CoachReport({ session, program, cycle, tmHistory, choices, unit,
   };
 
   const ask = async (prompt: string): Promise<unknown> => {
-    const { coachCheckinWithGemini, DEFAULT_GEMINI_MODEL, normalizeModel } = await import('../../services/foodAnalysis/gemini');
-    return coachCheckinWithGemini({ apiKey: key ?? '', model: normalizeModel(profile?.geminiModel ?? DEFAULT_GEMINI_MODEL), text: prompt });
+    const { coachJson } = await import('../../services/coachAi');
+    return (await coachJson(prompt, { apiKey: profile?.geminiKey ?? null, model: profile?.geminiModel ?? null })).raw;
   };
 
   const report = async () => {

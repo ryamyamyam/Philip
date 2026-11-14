@@ -26,6 +26,8 @@ import { DAY_LIFT, DELOAD_WEEK, blockForCycle, type LiftId } from '../lib/traini
 import { tmsForCycle, workoutCardState, type WorkoutCardState } from '../lib/training/progress';
 import { buildSession } from '../lib/training/session';
 import { useUI } from '../ui';
+import { useGoalState, type GoalState } from '../hooks/useGoal';
+import { daysSinceWeighIn, goalEta } from '../lib/goal/goalCheck';
 
 const PHASE_KEY: Record<FoodPhase, StringKey> = { cut: 'home.phase.cut', maintain: 'home.phase.maintain', bulk: 'home.phase.bulk' };
 const KCAL_KEY: Record<Remaining['status'], StringKey> = {
@@ -57,7 +59,8 @@ function fmtWeight(kg: number, unit: 'kg' | 'lb'): string {
  * numbers, the phase chip, this cycle's goal, and one line from Philip.
  */
 export function HomeView() {
-  const { navigate, setDate } = useUI();
+  const { navigate, setDate, openSheet } = useUI();
+  const goal = useGoalState();
   const today = todayYmd();
   const profile = useProfile();
   const plans = useTargetPlans();
@@ -102,6 +105,7 @@ export function HomeView() {
       <div className="stack home-stack">
         <p className="home-goal num" data-tour="home-goal">
           {goalLine(profile, cycle?.goal ?? null, cycle ? addDays(fmtYmd(cycle.startedAt), 28) : null, weights ?? [], today, unit)}
+          {cycle && weights && etaText(goalEta(cycle, weights, today))}
         </p>
 
         <button type="button" className="pm-cart pm-cat-coral" data-tour="home-meals" onClick={goToMeals}>
@@ -150,9 +154,13 @@ export function HomeView() {
           speaker={t('coach.speaker')}
           portrait={<GymCharacter pose="cross-smug" framing="bust" scale={2} className="pm-dialog-portrait" />}
           className="home-dialog"
-          action={{ label: t('home.ask'), onClick: () => navigate('ask') }}
+          action={
+            goalAsk(goal)
+              ? { label: t(goal?.pending?.kind === 'offtrack' && goal.open?.status !== 'ready' ? 'home.goalActionOff' : 'home.goalAction'), onClick: () => openSheet({ kind: 'goal' }) }
+              : { label: t('home.ask'), onClick: () => navigate('ask') }
+          }
         >
-          {t(homeLine(card, rem))}
+          {t(goalLineKey(goal) ?? weighInLine(weights ?? [], today, card) ?? homeLine(card, rem))}
         </DialogBar>
       </div>
     </div>
@@ -276,6 +284,29 @@ function WorkoutCardBody({
       );
     }
   }
+}
+
+function etaText(eta: string | null): string {
+  return eta ? ` · ${t('home.goal.eta', { date: fmtDate(eta, 'short') })}` : '';
+}
+
+/** Story 11: the goal sheet is waiting for an answer (an event shown, or Philip's plan in). */
+function goalAsk(g: GoalState | null): boolean {
+  return !!g && !g.workoutOpen && (g.pending !== null || g.open !== null);
+}
+
+function goalLineKey(g: GoalState | null): StringKey | null {
+  if (!g || !goalAsk(g)) return null;
+  if (g.open?.status === 'ready') return 'home.line.goalReady';
+  if (g.open?.status === 'waiting' && !g.open.failed) return 'home.line.goalWaiting';
+  return g.pending?.kind === 'offtrack' ? 'home.line.goalOfftrack' : 'home.line.goalReached';
+}
+
+/** Story 11: a week without a weigh-in gets a nudge (never blocks anything). Not mid-workout. */
+function weighInLine(weights: readonly WeightEntry[], today: string, card: WorkoutCardState | null): StringKey | null {
+  if (card?.kind === 'resume' || card?.kind === 'setup') return null;
+  const d = daysSinceWeighIn(weights, today);
+  return d !== null && d >= 7 ? 'home.line.weighIn' : null;
 }
 
 function homeLine(card: WorkoutCardState | null, rem: ReturnType<typeof remainingAll> | null): StringKey {

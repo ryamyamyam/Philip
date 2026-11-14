@@ -22,6 +22,7 @@ import { planForDate } from '../lib/nutrition';
 import { useUI } from '../ui';
 import { TrainingSettings } from './TrainingSettings';
 import { MemorySettings } from './MemorySettings';
+import { CloudSettings } from './goal/CloudSettings';
 import { formatMb, isStandalone, storageUsedBytes, type PersistState } from '../lib/pwa';
 import { AnalysisError } from '../services/foodAnalysis';
 import { openQaFeedback } from '../modules/qa-feedback';
@@ -37,6 +38,7 @@ export default function SettingsView() {
         <TargetsLink />
         <DataSection />
         <GeminiSection />
+        <CloudSettings />
         <MemorySettings />
         <UnitsSection />
         <TrainingSettings />

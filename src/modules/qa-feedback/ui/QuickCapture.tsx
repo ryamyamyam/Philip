@@ -7,6 +7,7 @@ import { useQa } from './context';
 import { META_FAB_HIDDEN } from './QaFeedback';
 import { AddScreenshotButton, PendingScreenshots, imagesFromClipboard, screenFiles, toInputs, useLimits } from './Screenshots';
 import { SPEECH_ERRORS, TYPE_LABELS, fileErrorMessage } from './strings';
+import { canRedo, canUndo, checkpoint, editHistory, initHistory, redo, undo } from '../textHistory';
 
 /**
  * Tap → speak or type → save. Everything except the text is optional.
@@ -22,7 +23,12 @@ export function QuickCapture() {
   const voiceSupported = useMemo(() => !!transcription?.isSupported(), [transcription]);
   const textId = useId();
 
-  const [text, setText] = useState('');
+  // OBS-18D928: the text lives in an undo/redo history.
+  const [history, setHistory] = useState(() => initHistory(''));
+  const text = history.present;
+  const setText = (v: string) => setHistory((h) => editHistory(h, v, Date.now()));
+  const undoText = () => setHistory(undo);
+  const redoText = () => setHistory(redo);
   const [raw, setRaw] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [speechError, setSpeechError] = useState<TranscriptionErrorCode | null>(null);
@@ -52,18 +58,21 @@ export function QuickCapture() {
     if (!transcription) return;
     setSpeechError(null);
     base.current = text.trim();
+    setHistory(checkpoint); // one dictation run = one undo step
     setListening(true);
     let current = '';
     session.current = transcription.start(
       {
         onText: (t) => {
           current = t;
-          setText(base.current ? `${base.current} ${t}` : t);
+          const next = base.current ? `${base.current} ${t}` : t;
+          setHistory((h) => editHistory(h, next, Date.now(), true));
           // Raw recognizer output across all recordings, independent of later typing.
           setRaw([...rawParts.current, t].join(' ').trim() || null);
         },
         onError: (code) => code !== 'aborted' && setSpeechError(code),
         onEnd: () => {
+          setHistory(checkpoint);
           if (current) rawParts.current = [...rawParts.current, current];
           setListening(false);
           session.current = null;
@@ -81,7 +90,7 @@ export function QuickCapture() {
   };
 
   const reset = () => {
-    setText('');
+    setHistory(initHistory(''));
     setRaw(null);
     rawParts.current = [];
     setType(null);
@@ -182,9 +191,29 @@ export function QuickCapture() {
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void save();
+            // The browser's own undo doesn't know about React-set values; use the same history as the buttons.
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+              e.preventDefault();
+              if (e.shiftKey) redoText();
+              else undoText();
+            }
           }}
           readOnly={listening}
         />
+        <div className="qa-row qa-undo-row">
+          <button type="button" className="qa-btn qa-btn-secondary" onClick={undoText} disabled={listening || !canUndo(history)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" fill="none" stroke="currentColor" strokeWidth="2" />
+            </svg>
+            Undo
+          </button>
+          <button type="button" className="qa-btn qa-btn-secondary" onClick={redoText} disabled={listening || !canRedo(history)}>
+            Redo
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m15 14 5-5-5-5M20 9H10a6 6 0 0 0 0 12h3" fill="none" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          </button>
+        </div>
         {raw && <span className="qa-hint">Your words are saved exactly as shown when you tap Save.</span>}
       </div>
 

@@ -187,6 +187,14 @@ Pure modules, all tested: `program.ts` (blocks, waves, deload, RDL caps, TM prog
 - **Remember:** any coaching reply may carry `remember: string[]`; `parseRemember` keeps ≤ 2 clean lines (≤ 140 chars); `repo.addCoachNotes` dedupes and keeps the newest 40.
 - **Backup:** `training.coachNotes` / `training.coachMessages` (optional; `schemaVersion` stays 1). Delete all data clears them.
 
+## QA batch 2026-11-13 (D-033)
+
+- **Photo details:** `PhotoSheet` opens on a details step; `analyzeFoodPhoto(file, { details })` → `prompt.ts#foodPhotoPrompt(details)`. Handoff gets `details` through `SheetState.handoff`.
+- **Everyday meals:** `SavedMeal.everyday` (optional `Meal`), `repo.setSavedMealEveryday` (one per meal), `lib/meals.ts#everydayToOffer`; shown as "Your usual" on the meal log; toggled in the Review sheet.
+- **Weigh-in take:** `lib/weighIn.ts#reviewWeighIn` / `refreshPlan`; `ProgressView` `WeighInTake`. `lib/weight.ts#weightPlanLine` honours `inputsSnapshot.lineStartKg/lineStartDate`. `lib/coach/askDraft.ts` pre-fills Ask Philip (in memory only).
+- **Coach prompts:** `exercises.ts#loadKind` / `LOAD_RULE` in the report, chat, brief and Ask prompts. Report proposal `{ kind: 'order', day, order }` → `trainingProgram.dayOrder`, `ReviewApplied.orders` for undo.
+- **QA module:** `textHistory.ts` (capture undo/redo); `browser.ts#shareFiles` + "Share screenshots" in the prompt builder.
+
 ## Network
 
 Two destinations, both optional; the app works fully offline without them:

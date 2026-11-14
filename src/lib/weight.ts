@@ -30,13 +30,16 @@ export function weightPlanLine(plans: readonly TargetPlan[], profile: Pick<Profi
     .sort((a, b) => (a.effectiveFrom === b.effectiveFrom ? b.createdAt - a.createdAt : a.effectiveFrom < b.effectiveFrom ? 1 : -1))[0];
   if (!plan || !plan.inputsSnapshot) return null;
   const snap = plan.inputsSnapshot;
-  const startKg = snap.weightKg as number;
+  // OBS-3037F2: a plan refreshed after a weigh-in keeps the line it replaced, so the status stays honest.
+  const keepsLine = isNum(snap.lineStartKg) && typeof snap.lineStartDate === 'string';
+  const startKg = keepsLine ? (snap.lineStartKg as number) : (snap.weightKg as number);
+  const startDate = keepsLine ? (snap.lineStartDate as YMD) : plan.effectiveFrom;
   const goal: Goal = typeof snap.goal === 'string' && (GOALS as readonly string[]).includes(snap.goal) ? (snap.goal as Goal) : (profile.goal ?? 'maintain');
   const requested = profile.weeklyRateKg != null ? Math.abs(profile.weeklyRateKg) : isNum(snap.weeklyRateKg) ? snap.weeklyRateKg : null;
   const { rateKg } = resolveRate(goal, startKg, requested);
   const sign = goal === 'lose' ? -1 : goal === 'gain' ? 1 : 0;
   const targetKg = isNum(snap.targetWeightKg) ? snap.targetWeightKg : profile.targetWeightKg;
-  return { startDate: plan.effectiveFrom, startKg, rateKg: sign * rateKg, targetKg: goal === 'maintain' ? null : targetKg ?? null };
+  return { startDate, startKg, rateKg: sign * rateKg, targetKg: goal === 'maintain' ? null : targetKg ?? null };
 }
 
 /** Expected weight on a date. Flat before the start; never moves past the goal weight. */

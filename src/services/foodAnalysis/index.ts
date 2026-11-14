@@ -10,7 +10,7 @@ import { AnalysisError, type AnalysisResult } from './types';
 export { AnalysisError } from './types';
 export type { AnalysisResult, AnalysisItem, AnalysisErrorCode } from './types';
 export { parseAnalysisText } from './parse';
-export { claudeHandoffPrompt } from './prompt';
+export { claudeHandoffPrompt, PHOTO_DETAILS_MAX } from './prompt';
 
 export interface AnalyzeOptions {
   apiKey: string | null;
@@ -18,7 +18,8 @@ export interface AnalyzeOptions {
   signal?: AbortSignal;
 }
 
-export async function analyzeFoodPhoto(file: Blob, opts: AnalyzeOptions): Promise<AnalysisResult & { model: string }> {
+/** `details` is the owner's optional note about the photo ("I only ate half of the rice", OBS-D9A254). */
+export async function analyzeFoodPhoto(file: Blob, opts: AnalyzeOptions & { details?: string | null }): Promise<AnalysisResult & { model: string }> {
   if (!opts.apiKey) throw new AnalysisError('noKey');
   let image;
   try {
@@ -32,6 +33,7 @@ export async function analyzeFoodPhoto(file: Blob, opts: AnalyzeOptions): Promis
     model,
     imageBase64: image.base64,
     mimeType: image.mimeType,
+    details: opts.details,
     signal: opts.signal,
   });
   return { ...result, model };

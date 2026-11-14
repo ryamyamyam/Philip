@@ -131,6 +131,12 @@ export interface SavedMeal {
   lastUsedAt: number | null;
   createdAt: number;
   updatedAt: number;
+  /**
+   * OBS-A0308B: the meal this saved meal is "every day" for (e.g. breakfast). The meal log then offers
+   * it on any day that meal is still empty; logging still goes through the review sheet for small
+   * adjustments. Optional, non-indexed: no Dexie version bump; at most one per meal.
+   */
+  everyday?: Meal | null;
 }
 
 export interface MetaRow {
@@ -298,7 +304,9 @@ export type CoachChange =
   | { kind: 'rest'; extraSec: number }
   | { kind: 'swap'; day: Day; slot: 'A1' | 'A2' | 'B'; exerciseId: string }
   | { kind: 'next'; exerciseId: string; kg: number | null; reps: number | null; sets: number | null }
-  | { kind: 'days'; days: IsoWeekday[] };
+  | { kind: 'days'; days: IsoWeekday[] }
+  /** OBS-369BCA: a day's accessory order (the main lift always stays first). */
+  | { kind: 'order'; day: Day; order: ('A1' | 'A2' | 'B')[] };
 
 export interface CoachProposal {
   id: string;
@@ -329,6 +337,8 @@ export interface ReviewApplied {
   swaps?: { slotKey: string; from: string | null; to: string }[];
   /** Story 7: training days a report applied, with the days they replaced (null = Philip's pick). */
   days?: { from: IsoWeekday[] | null; to: IsoWeekday[] };
+  /** OBS-369BCA: day orders a report applied, with the order they replaced (null = default). */
+  orders?: { day: number; from: SessionSlot[] | null; to: SessionSlot[] }[];
 }
 
 /** The owner's sticky pick for a menu slot (one of Philip's approved swaps). */

@@ -179,3 +179,57 @@ test('OBS-3DB146: after Finish, Philip writes a report with proposals; apply one
   expect(choices.map((c) => [c.slotKey, c.exerciseId])).toEqual([['D1-A2-A', 'seated-leg-curl']]);
   expect(sessions[0]?.coach?.messages).toHaveLength(2);
 });
+
+test('OBS-369BCA: a stated priority in the chat restructures the plan — Philip reorders a day, applied in one tap', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
+  const prompts: string[] = [];
+  const replies = [
+    { message: 'Solid squat day.', changes: [] },
+    {
+      message: 'Weak link, top priority. On day 1 the leg curl goes first after squats while you are fresh.',
+      changes: [
+        { kind: 'order', day: 1, order: ['A2', 'A1', 'B'], why: 'Train the weak point fresh.' },
+        { kind: 'rest', extraSec: 45, why: 'Recover between sets.' },
+      ],
+    },
+  ];
+  await page.route('https://generativelanguage.googleapis.com/**', async (route) => {
+    const body = route.request().postDataJSON() as { contents: { parts: { text: string }[] }[] };
+    prompts.push(body.contents[0]?.parts[0]?.text ?? '');
+    const r = replies[Math.min(prompts.length - 1, replies.length - 1)];
+    await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: JSON.stringify(r) }] }, finishReason: 'STOP' }] } });
+  });
+  await fresh(page);
+  await setKey(page);
+  await setUpAndOpenDay1(page);
+  await main(page).getByRole('button', { name: 'Start workout' }).click();
+  await main(page).getByRole('region', { name: /Bulgarian split squat/ }).getByRole('button', { name: 'Set 1: as ordered' }).click();
+  await main(page).getByRole('button', { name: 'Finish workout' }).click();
+  await main(page).getByRole('button', { name: 'Yes, that is right' }).click();
+  const report = main(page).getByRole('region', { name: 'Philip’s report' });
+  await expect(report).toContainText('Solid squat day.');
+  // The whole plan, including each day's order, is in front of Philip.
+  expect(prompts[0]).toContain('day 1 (squat day) order: main > A1 > A2 > B');
+
+  await report.getByRole('textbox', { name: 'Talk to Philip about this workout' }).fill('My hamstrings are drastically weaker than my quads. Optimise the plan for this.');
+  await report.getByRole('button', { name: 'Send' }).click();
+  await expect(report).toContainText('Weak link, top priority.');
+  expect(prompts[1]).toContain('treat it as a request to restructure the plan');
+  const items = report.locator('.report-proposal');
+  await expect(items).toHaveCount(2);
+  await expect(items.first()).toContainText('Day 1 order: Lying leg curl > Bulgarian split squat > ');
+  await items.first().getByRole('button', { name: 'Apply' }).click();
+  await expect(items.first()).toContainText('Applied');
+  await noHorizontalScroll(page);
+  const order = await page.evaluate(
+    () =>
+      new Promise<unknown>((res) => {
+        const r = indexedDB.open('philip');
+        r.onsuccess = () => {
+          const g = r.result.transaction('trainingProgram').objectStore('trainingProgram').get('me');
+          g.onsuccess = () => res((g.result as { dayOrder?: unknown }).dayOrder);
+        };
+      }),
+  );
+  expect(order).toEqual({ '1': ['main', 'A2', 'A1', 'B'] });
+});

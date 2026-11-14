@@ -166,3 +166,52 @@ test('works offline after first load', async ({ page, context, browserName }) =>
   await context.setOffline(false);
   void tab;
 });
+
+test('OBS-A0308B: an everyday breakfast is offered while breakfast is empty, logged through review with tweaks', async ({ page }) => {
+  // Log breakfast once, saving it as a meal and marking it as the usual breakfast.
+  await openAdd(page);
+  await page.getByRole('button', { name: 'Type the numbers' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Review' });
+  await pickMeal(page, 'Breakfast');
+  const row = dlg.getByRole('listitem').first();
+  await row.getByLabel('Food name').fill('Oatmeal');
+  await row.getByLabel('Weight (g)').fill('50');
+  await row.getByLabel('Calories (kcal)').fill('190');
+  await row.getByLabel('Protein (g)').fill('6.5');
+  await row.getByLabel('Fat (g)').fill('3.5');
+  await row.getByLabel('Carbs (g)').fill('33');
+  await expect(dlg.getByLabel('My usual breakfast. Offer it every day.')).toHaveCount(0);
+  await dlg.getByLabel('Also save as a meal I can reuse').check();
+  await dlg.getByLabel('Meal name').fill('Oats');
+  await dlg.getByLabel('My usual breakfast. Offer it every day.').check();
+  await dlg.getByRole('button', { name: 'Save to Breakfast' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // Breakfast is logged today, so no offer.
+  const usual = page.getByRole('button', { name: 'Log my usual breakfast: Oats' });
+  await expect(usual).toHaveCount(0);
+  // Next day: offered; tweak the grams in review; once logged, the offer goes away.
+  await page.getByRole('button', { name: 'Next day' }).click();
+  await expect(usual).toBeVisible();
+  await noHorizontalScroll(page);
+  await page.screenshot({ path: 'e2e/screenshots/393-usual-breakfast.png' });
+  await usual.click();
+  const review = page.getByRole('dialog', { name: 'Oats' });
+  await expect(review.getByRole('radio', { name: 'Breakfast' })).toBeChecked();
+  await expect(review.getByLabel('My usual breakfast. Offer it every day.')).toBeChecked();
+  await review.getByRole('listitem', { name: 'Oatmeal' }).getByLabel('Weight (g)').fill('75');
+  await review.getByRole('button', { name: 'Save to Breakfast' }).click();
+  await expect(page.getByRole('region', { name: 'Breakfast' }).getByText('285 kcal')).toBeVisible();
+  await expect(usual).toHaveCount(0);
+
+  // The saved meal list shows the tag; unticking stops the offer.
+  await page.getByRole('button', { name: 'Next day' }).click();
+  await openAdd(page);
+  await expect(addPanel(page).getByText('Every day · Breakfast')).toBeVisible();
+  await usual.click();
+  await page.getByRole('dialog', { name: 'Oats' }).getByLabel('My usual breakfast. Offer it every day.').uncheck();
+  await page.getByRole('dialog', { name: 'Oats' }).getByRole('button', { name: 'Save to Breakfast' }).click();
+  await page.getByRole('button', { name: 'Next day' }).click();
+  await expect(page.getByRole('main').getByRole('region', { name: 'Breakfast' })).toHaveCount(0);
+  await expect(usual).toHaveCount(0);
+});

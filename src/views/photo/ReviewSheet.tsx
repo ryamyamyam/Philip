@@ -5,7 +5,8 @@ import { MealPicker } from '../../components/MealPicker';
 import { NumberField } from '../../components/NumberField';
 import { Sheet } from '../../components/Sheet';
 import { useToast } from '../../components/Toast';
-import { addFoodEntries, deleteFoodEntries, markSavedMealUsed, saveMeal } from '../../db/repo';
+import { addFoodEntries, deleteFoodEntries, markSavedMealUsed, saveMeal, setSavedMealEveryday } from '../../db/repo';
+import { useSavedMeals } from '../../hooks/useData';
 import type { Meal, YMD } from '../../db/types';
 import { t } from '../../i18n';
 import { todayYmd } from '../../lib/date';
@@ -63,6 +64,11 @@ export default function ReviewSheet(props: Props) {
   const mealNameId = useId();
   const textFood = useTextFood();
   const pastDay = props.date !== todayYmd();
+  // OBS-A0308B: "every day" for this meal. Untouched = whatever the saved meal already has.
+  const savedMeals = useSavedMeals();
+  const source = props.savedMealId ? savedMeals?.find((m) => m.id === props.savedMealId) : undefined;
+  const [everydayTouched, setEverydayTouched] = useState<boolean | null>(null);
+  const everyday = everydayTouched ?? (source?.everyday != null && source.everyday === meal);
 
   // Same text box as the log sheet: sending appends to this list.
   const onText = async (text: string) => {
@@ -91,8 +97,15 @@ export default function ReviewSheet(props: Props) {
     setSaving(true);
     try {
       const ids = await addFoodEntries(toEntries(items, { date: props.date, meal, provider: props.provider, model: props.model, analyzedAt: props.analyzedAt }));
-      if (props.savedMealId) await markSavedMealUsed(props.savedMealId);
-      if (asMeal) await saveMeal(mealName, toMealItems(items));
+      if (props.savedMealId) {
+        await markSavedMealUsed(props.savedMealId);
+        if (everydayTouched === true || (everydayTouched === null && everyday)) await setSavedMealEveryday(props.savedMealId, meal);
+        else if (everydayTouched === false) await setSavedMealEveryday(props.savedMealId, null);
+      }
+      if (asMeal) {
+        const id = await saveMeal(mealName, toMealItems(items));
+        if (everydayTouched === true) await setSavedMealEveryday(id, meal);
+      }
       closeSheet();
       toast(t('review.saved', { kcal: fmtKcal(totals.calories), meal: t(`meal.${meal}`) }), {
         label: t('common.undo'),
@@ -197,6 +210,12 @@ export default function ReviewSheet(props: Props) {
               />
               {mealNameError && <span className="field-error">{t('error.nameRequired')}</span>}
             </div>
+          )}
+          {(props.savedMealId || asMeal) && (
+            <label className="checkbox-row">
+              <input type="checkbox" checked={everyday} onChange={(e) => setEverydayTouched(e.target.checked)} />
+              <span>{t('meals.everyday', { meal: t(`meal.${meal}`).toLocaleLowerCase() })}</span>
+            </label>
           )}
         </div>
       </div>

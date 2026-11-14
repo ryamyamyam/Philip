@@ -121,7 +121,7 @@ function observationSection(o: Observation, shots: ScreenshotAttachment[], batch
 
   if (shots.length) {
     lines.push('');
-    lines.push(`**Screenshots (${shots.length}):** stored in the QA tool, not in the repository. Attach them to this conversation if visual detail matters.`);
+    lines.push(`**Screenshots (${shots.length}):** stored in the QA tool, not in the repository, and not part of this text. The person can send them with “Share screenshots” in the QA tool’s prompt builder; ask for them if visual detail matters.`);
     shots.forEach((a, i) => {
       const dims = a.width && a.height ? `, ${a.width}×${a.height}` : '';
       lines.push(`- Screenshot ${i + 1}: ${a.fileName ?? 'unnamed'} (${a.mimeType}, ${fmtBytes(a.size)}${dims})${a.description ? ` — user note: ${a.description}` : ''}`);

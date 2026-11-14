@@ -923,3 +923,8 @@
   text-align: left;
   margin: 0;
 }
+
+/* OBS-18D928: undo / redo under the capture text box. */
+.qa-undo-row {
+  justify-content: flex-end;
+}

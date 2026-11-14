@@ -72,6 +72,7 @@ export function AddPanel({ date, meal, autoFocus = false }: { date: YMD; meal: M
                   <span className="list-text">
                     <span className="list-title">{m.name}</span>
                     <span className="list-meta">{m.items.map((i) => i.name).join(', ')}</span>
+                    {m.everyday && <span className="list-meta everyday-tag">{t('meals.everydayTag', { meal: t(`meal.${m.everyday}`) })}</span>}
                     <SavedMealChip items={m.items} />
                   </span>
                   <span className="saved-meal-counter">

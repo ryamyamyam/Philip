@@ -11,6 +11,7 @@ import { ageOn, addDays, toYmd } from '../date';
 import { rollingWeight } from '../training/cycleGoal';
 import { blockForCycle, DAY_LIFT, epley, EPLEY_MAX_REPS, isKeySet, LIFTS, type LiftId } from '../training/program';
 import { tmsForCycle } from '../training/progress';
+import { loadKind } from '../training/exercises';
 import { infoFor, liftOf } from '../training/sessionLog';
 import { weeklyTrend } from '../weight';
 
@@ -191,7 +192,8 @@ function accessorySection(i: BriefInput): string[] {
       const best = sets.reduce((b, a) => ((a.kg ?? 0) > (b.kg ?? 0) || ((a.kg ?? 0) === (b.kg ?? 0) && (a.reps ?? 0) > (b.reps ?? 0)) ? a : b));
       const per = infoFor(e.exerciseId).pair ? ' per hand' : '';
       const load = best.kg === null || best.kg === 0 ? 'bodyweight' : `${r1(best.kg)} kg${per}`;
-      lines.push(`- ${i.name(e.exerciseId)}: ${md(s.date)}, ${sets.length} sets, best ${load} x ${best.reps ?? '?'}`);
+      // OBS-41CEBE: the equipment travels with the number, so a machine load is never read as a dumbbell one.
+      lines.push(`- ${i.name(e.exerciseId)} (${loadKind(e.exerciseId)}): ${md(s.date)}, ${sets.length} sets, best ${load} x ${best.reps ?? '?'}`);
     }
   }
   return lines.length ? ['Accessories, latest log each:', ...lines] : [];

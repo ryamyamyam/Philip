@@ -55,6 +55,7 @@ export function CoachReport({ session, program, cycle, tmHistory, choices, unit,
       choices,
       unit: program.weightUnit,
       name: exName,
+      dayOrder: program.dayOrder,
     };
   };
 
@@ -154,6 +155,11 @@ export function CoachReport({ session, program, cycle, tmHistory, choices, unit,
       }
       case 'days':
         return t('report.change.days', { days: c.days.map((d) => t(WD[d] ?? 'cal.wd.mon')).join(' ') });
+      case 'order': {
+        const block = blockForCycle(session.cycle);
+        const names = c.order.map((slot) => exName(exerciseFor(c.day, slot, block, choices as Record<string, ExerciseId>)));
+        return t('report.change.order', { day: c.day, order: names.join(' > ') });
+      }
     }
   };
 

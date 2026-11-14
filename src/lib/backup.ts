@@ -253,6 +253,8 @@ function validateSavedMeal(raw: unknown, i: number): SavedMeal {
     lastUsedAt: v.numOrNull(raw, 'lastUsedAt', 0, 1e14),
     createdAt: v.num(raw, 'createdAt', 0, 1e14),
     updatedAt: v.num(raw, 'updatedAt', 0, 1e14),
+    // OBS-A0308B: optional; older backups (and meals never marked) have none, and restore stays exact.
+    ...(raw.everyday != null ? { everyday: v.oneOf(raw, 'everyday', MEALS) } : {}),
   };
 }
 

@@ -195,7 +195,7 @@ function weekdays(x: unknown, path: string): IsoWeekday[] {
 
 function coachChange(x: unknown, path: string): CoachChange {
   const o = obj(x, path);
-  const kind = oneOf(o, 'kind', ['tm', 'rest', 'swap', 'next', 'days'] as const, path);
+  const kind = oneOf(o, 'kind', ['tm', 'rest', 'swap', 'next', 'days', 'order'] as const, path);
   switch (kind) {
     case 'tm':
       return { kind, lift: oneOf(o, 'lift', LIFTS, path), toKg: num(o, 'toKg', path, 0, 1000) };
@@ -207,6 +207,15 @@ function coachChange(x: unknown, path: string): CoachChange {
       return { kind, exerciseId: str(o, 'exerciseId', path, 60), kg: numOrNull(o, 'kg', path, 0, 1000), reps: numOrNull(o, 'reps', path, 0, 600), sets: numOrNull(o, 'sets', path, 0, 20) };
     case 'days':
       return { kind, days: weekdays(o.days, `${path}.days`) };
+    case 'order':
+      return {
+        kind,
+        day: int(o, 'day', [1, 2, 3, 4] as const, path),
+        order: list(o.order, `${path}.order`).map((v) => {
+          if (v !== 'A1' && v !== 'A2' && v !== 'B') fail(`${path}.order`, 'unknown slot');
+          return v as 'A1' | 'A2' | 'B';
+        }),
+      };
   }
 }
 
@@ -261,6 +270,16 @@ function reviewApplied(x: unknown, path: string): ReviewApplied {
           const d = obj(o.days, `${path}.days`);
           return { days: { from: d.from == null ? null : trainingDays(d.from, `${path}.days.from`), to: trainingDays(d.to, `${path}.days.to`) } };
         })()
+      : {}),
+    ...(o.orders != null
+      ? {
+          orders: list(o.orders, `${path}.orders`).map((v, i) => {
+            const q = `${path}.orders[${i}]`;
+            const w = obj(v, q);
+            const one = (x: unknown) => dayOrder({ 1: x }, q)['1'] ?? [];
+            return { day: int(w, 'day', [1, 2, 3, 4] as const, q), from: w.from == null ? null : one(w.from), to: one(w.to) };
+          }),
+        }
       : {}),
   };
 }

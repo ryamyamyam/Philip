@@ -8,10 +8,11 @@
  * out of bounds or not in Philip's approved menu is dropped. Nothing changes until the owner taps Apply.
  */
 import type { CoachChange, CoachMessage, CoachThread, IsoWeekday, WorkoutSession } from '../../db/types';
-import { exerciseFor, menuSlot, type ExerciseId, type Slot } from './exercises';
+import { exerciseFor, LOAD_RULE, loadKind, menuSlot, type ExerciseId, type Slot } from './exercises';
 import { blockForCycle, DAY_LIFT, LIFTS, loadDropPct, roundTo, type Day, type LiftId, type Phase } from './program';
 import { incrementKg as stepOf, roundToStep, type PlateUnit } from './plates';
 import { MAX_REST_BONUS_SEC } from './checkin';
+import { normalizeOrder } from './order';
 import { parseRemember, REMEMBER_RULE } from '../coach/memory';
 
 /** Bounds for proposals (Philip's coaching defaults; a hypothesis, not evidence). */
@@ -40,6 +41,13 @@ export interface CoachContext {
   unit: PlateUnit;
   /** Names for exercise ids (from en.ts). */
   name: (id: string) => string;
+  /** OBS-369BCA: the owner's remembered exercise order per program day ("1"–"4"). */
+  dayOrder?: Readonly<Partial<Record<string, readonly string[]>>>;
+}
+
+/** The current order of a day's slots (main first). */
+export function currentOrder(c: Pick<CoachContext, 'dayOrder'>, day: Day): string[] {
+  return normalizeOrder(c.dayOrder?.[String(day)] ?? null);
 }
 
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu;
@@ -64,15 +72,17 @@ export function contextText(c: CoachContext): string {
       .map((a) => (a.done ? `${kgText(a.kg)} x ${a.reps ?? '?'}` : 'not done') + (a.flag ? ` [${a.flag}]` : '') + (a.note ? ` "${a.note.slice(0, 120)}"` : '') + (a.pain ? ' [PAIN]' : ''))
       .join(', ');
     const range = work[0] ? ` (range ${work[0].repMin}-${work[0].repMax})` : '';
-    lines.push(`- ${e.slot} ${c.name(e.exerciseId)} [id ${e.exerciseId}]${range}${e.skipped ? ' SKIPPED' : ''}. Ordered: ${ordered}. Did: ${did || 'nothing'}.${e.note ? ` Note: "${e.note.slice(0, 200)}"` : ''}`);
+    const swapped = e.swappedFrom ? ` Swapped in today for ${c.name(e.swappedFrom)} [id ${e.swappedFrom}] (${loadKind(e.swappedFrom)}); not comparable.` : '';
+    lines.push(`- ${e.slot} ${c.name(e.exerciseId)} [id ${e.exerciseId}] (${loadKind(e.exerciseId)})${range}${e.skipped ? ' SKIPPED' : ''}.${swapped} Ordered: ${ordered}. Did: ${did || 'nothing'}.${e.note ? ` Note: "${e.note.slice(0, 200)}"` : ''}`);
   }
   if (s.cardio) {
     const cd = s.cardio;
     lines.push(`Cardio: incline walk, planned ${cd.planMin} min; ${cd.skipped ? 'skipped' : cd.done ? `did ${cd.minutes ?? '?'} min${cd.inclinePct !== null ? ` at ${cd.inclinePct}% incline` : ''}${cd.speed !== null ? `, speed setting ${cd.speed} (${cd.speedUnit})${cd.speedMph !== undefined ? ` ≈ ${cd.speedMph} mph` : ''}` : ''}` : 'not logged'}.`);
   }
   if (s.startedAt && s.finishedAt) lines.push(`Time taken: ${Math.round((s.finishedAt - s.startedAt) / 60000)} min (budget 45 min for lifting).`);
-  lines.push('Approved swaps per accessory slot for the rest of this block (slot: current | options):');
+  lines.push('The whole plan: approved swaps per accessory slot for the rest of this block (slot: current | options), and each day\'s exercise order (main lift always first):');
   for (const day of [1, 2, 3, 4] as Day[]) {
+    lines.push(`  day ${day} (${DAY_LIFT[day]} day) order: ${currentOrder(c, day).join(' > ')}`);
     for (const slot of ['A1', 'A2', 'B'] as Slot[]) {
       const m = menuSlot(day, slot, block);
       const current = exerciseFor(day, slot, block, c.choices as Record<string, ExerciseId>);
@@ -86,13 +96,16 @@ const RULES = [
   'You are Philip, the lifter\'s personal strength coach: dominant and in charge, but charming and persuasive. Sharp, witty, short sentences. You never scold or shame; when effort dips you make the next set sound irresistible and make the lifter want to earn it. Evidence-based. Never comment on body, weight or appearance. No sexual content. No emoji.',
   'Never diagnose. If anything suggests pain, injury, dizziness or chest symptoms, tell them to stop that exercise and see a professional, and propose no load increase for it.',
   'Only propose changes the data supports, the fewest that matter (0 to 4). Prefer keeping the plan when it is working.',
+  LOAD_RULE,
   'Realistic fixes for misses: if a set fell 2 or more reps below the bottom of its range, or the lifter could not finish the sets, lower that exercise\'s next weight (about 2.5% per missing rep, at least one increment, at most 20%) and set reps to the bottom of the range. Lowering only the rep target keeps the same weight and repeats the failure; never propose that for a big miss.',
   'Allowed changes (JSON objects in "changes"):',
   '{"kind":"tm","lift":"squat|bench|rdl|ohp","toKg":number,"why":string} training max for the rest of this cycle, within 10% of the current one;',
   '{"kind":"rest","extraSec":15|30|45|60,"why":string} extra rest on every work set for the rest of the cycle;',
   '{"kind":"next","exerciseId":string,"kg":number|null,"reps":number|null,"sets":number|null,"why":string} the next time that accessory from today comes up: weight per hand for dumbbells (within 20% of today\'s order), target reps (inside its range), sets 2-5; null keeps Philip\'s rule;',
   '{"kind":"swap","day":1-4,"slot":"A1|A2|B","exerciseId":string,"why":string} only one of the approved options listed for that slot;',
-  '{"kind":"days","days":[four distinct weekdays 1-7],"why":string} training weekdays.',
+  '{"kind":"days","days":[four distinct weekdays 1-7],"why":string} training weekdays;',
+  '{"kind":"order","day":1-4,"order":["A1"|"A2"|"B" in the new order],"why":string} the accessory order for that day from now on (the main lift always stays first).',
+  'When the lifter names a weak point or a priority (for example "my upper chest is much weaker"), treat it as a request to restructure the plan, not to tweak rest: put the exercise that trains it first after the main lift (order), pick the approved option that trains it best (swap), and give it more work (next with sets up to 5), on every day where it fits. Use up to 4 changes and say in the message how the plan now prioritises it. If the menu cannot do what they ask, say so plainly.',
   'Use the brief (history, notes, earlier chats) to compare today with past sessions and to keep promises you made; never invent numbers it does not have.',
   REMEMBER_RULE,
   'Reply ONLY with JSON: {"message": string (plain words, max 600 chars), "changes": [ ... ], "remember": [string]}.',
@@ -208,6 +221,16 @@ export function validateChange(raw: unknown, c: CoachContext): CoachChange | nul
       if (exerciseFor(day as Day, slot, block, c.choices as Record<string, ExerciseId>) === id) return null;
       return { kind: 'swap', day: day as Day, slot, exerciseId: id };
     }
+    case 'order': {
+      const day = finite(raw.day);
+      if (day === null || ![1, 2, 3, 4].includes(day) || !Array.isArray(raw.order)) return null;
+      const asked = raw.order.filter((x): x is string => typeof x === 'string');
+      // Must name every accessory slot exactly once; partial or invented orders are dropped, not guessed.
+      if (asked.length !== 3 || new Set(asked).size !== 3 || !asked.every((x) => x === 'A1' || x === 'A2' || x === 'B')) return null;
+      const next = normalizeOrder(asked);
+      if (next.join() === currentOrder(c, day as Day).join()) return null;
+      return { kind: 'order', day: day as Day, order: next.slice(1) as ('A1' | 'A2' | 'B')[] };
+    }
     case 'days': {
       if (!Array.isArray(raw.days)) return null;
       const days = [...new Set(raw.days.filter((d): d is number => typeof d === 'number' && Number.isInteger(d) && d >= 1 && d <= 7))].sort((a, b) => a - b);
@@ -253,6 +276,8 @@ export function targetKey(c: CoachChange): string {
       return `swap:${c.day}:${c.slot}`;
     case 'days':
       return 'days';
+    case 'order':
+      return `order:${c.day}`;
   }
 }
 

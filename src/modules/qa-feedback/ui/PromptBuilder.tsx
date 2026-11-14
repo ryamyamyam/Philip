@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { analyzeBatch, type BatchAnalysis } from '../ai/analysis';
 import { AiError } from '../ai/provider';
-import { copyText, promptFileName, saveTextFile } from '../browser';
+import { copyText, promptFileName, saveTextFile, screenshotFileName, shareFiles } from '../browser';
 import { shortRef } from '../db';
 import { moveObservation, planFromAi, planFromFeatures, resolveGroups, type GroupPlan } from '../prompt/grouping';
 import { buildDevelopmentPrompt } from '../prompt/template';
@@ -11,6 +11,7 @@ import {
   unarchiveObservations,
   getObservationsByIds,
   getPrompt,
+  getAttachmentBlob,
   listAttachments,
   markPromptExported,
   recentPrompts,
@@ -66,6 +67,35 @@ export function PromptBuilder() {
   const edited = !!prompt && content !== prompt.generatedContent;
 
   useEffect(() => () => window.clearTimeout(saveTimer.current), []);
+
+  // OBS-41CEBE: the prompt is text, so screenshots never travel inside it. Load them as files once the
+  // prompt exists, so "Share screenshots" can hand them to the share sheet within the tap (iOS rule).
+  const [shots, setShots] = useState<File[]>([]);
+  const promptKey = prompt ? prompt.observationIds.join(',') : '';
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const files: File[] = [];
+      for (const o of observations ?? []) {
+        if (!promptKey.split(',').includes(o.id) || !o.attachmentCount) continue;
+        const list = await listAttachments(db, projectId, o.id);
+        for (const [i, a] of list.entries()) {
+          const blob = await getAttachmentBlob(db, projectId, a.id);
+          if (blob) files.push(new File([blob], screenshotFileName(shortRef(o.id), i, a.fileName, a.mimeType), { type: a.mimeType }));
+        }
+      }
+      if (live) setShots(files);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [db, projectId, observations, promptKey]);
+
+  const shareShots = async () => {
+    const r = await shareFiles(shots, 'Screenshots');
+    if (r === 'cancelled') return;
+    setExportMsg({ ok: true, text: r === 'shared' ? 'Screenshots shared. Attach them next to the prompt in Claude.' : 'Screenshots downloaded. Attach them next to the prompt in Claude.' });
+  };
 
   const loadAttachments = async (obs: Observation[]) => {
     const map: Record<string, ScreenshotAttachment[]> = {};
@@ -308,6 +338,11 @@ export function PromptBuilder() {
             <button type="button" className="qa-btn qa-btn-secondary" onClick={() => void exportAs('md')}>
               Save .md
             </button>
+            {shots.length > 0 && (
+              <button type="button" className="qa-btn qa-btn-secondary" onClick={() => void shareShots()}>
+                Share {shots.length} screenshot{shots.length === 1 ? '' : 's'}
+              </button>
+            )}
           </div>
           {exportMsg && (
             <p className={`qa-banner ${exportMsg.ok ? 'qa-banner-success' : 'qa-banner-danger'}`} role="status">

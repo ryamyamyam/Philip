@@ -66,6 +66,29 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
+test('OBS-18D928: Undo and Redo on the capture text box', async ({ page }) => {
+  const panel = await openCapture(page);
+  const box = panel.getByLabel('What did you notice?');
+  const undoBtn = panel.getByRole('button', { name: 'Undo', exact: true });
+  const redoBtn = panel.getByRole('button', { name: 'Redo', exact: true });
+  await expect(undoBtn).toBeDisabled();
+  await expect(redoBtn).toBeDisabled();
+  await box.fill('First thought');
+  await page.waitForTimeout(1100); // a pause ends the typing step
+  await box.fill('First thought, then a typo');
+  await page.screenshot({ path: 'e2e/screenshots/393-qa-undo.png' });
+  await undoBtn.click();
+  await expect(box).toHaveValue('First thought');
+  await expect(redoBtn).toBeEnabled();
+  await redoBtn.click();
+  await expect(box).toHaveValue('First thought, then a typo');
+  await undoBtn.click();
+  await undoBtn.click();
+  await expect(box).toHaveValue('');
+  await expect(undoBtn).toBeDisabled();
+  await noHorizontalScroll(page);
+});
+
 test('quick capture without AI: save, screenshots, persistence, edit keeps original words', async ({ page }) => {
   const panel = await openCapture(page);
   // OBS-A09A21: no project picker, Feature or screen, Structure with AI or More details on the form.

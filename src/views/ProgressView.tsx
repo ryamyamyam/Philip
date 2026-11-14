@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { NamePlate } from '../components/NamePlate';
 import { StatPanel } from '../components/StatPanel';
@@ -6,8 +6,12 @@ import { StatRow } from '../components/StatRow';
 import { NumberField } from '../components/NumberField';
 import { useToast } from '../components/Toast';
 import { WeightChart } from '../components/WeightChart';
-import { deleteWeight, logWeight, restoreWeight } from '../db/repo';
-import type { WeightEntry } from '../db/types';
+import { addTargetPlan, deleteWeight, logWeight, restoreWeight } from '../db/repo';
+import { DialogBar } from '../components/DialogBar';
+import { GymCharacter } from '../components/GymCharacter';
+import { setAskDraft } from '../lib/coach/askDraft';
+import { refreshPlan, reviewWeighIn } from '../lib/weighIn';
+import type { Profile, TargetPlan, WeightEntry } from '../db/types';
 import { useProfile, useTargetPlans, useWeightEntries } from '../hooks/useData';
 import { t, type StringKey } from '../i18n';
 import { addDays, isValidYmd, todayYmd } from '../lib/date';
@@ -61,6 +65,8 @@ export default function ProgressView() {
   const entries = useWeightEntries();
   const { navigate } = useUI();
   const [section, setSection] = useState<'body' | 'strength'>('body');
+  // OBS-3037F2: after a weigh-in, Philip reacts (targets check + training note + Ask Philip).
+  const [justLogged, setJustLogged] = useState(false);
   const today = todayYmd();
   const lb = profile?.unitPrefs.weight === 'lb';
   const unit = lb ? 'lb' : 'kg';
@@ -132,7 +138,10 @@ export default function ProgressView() {
             </>
           )}
         </StatPanel>
-        <WeighIn lb={lb} unit={unit} />
+        <WeighIn lb={lb} unit={unit} onLogged={() => setJustLogged(true)} />
+        {justLogged && latest && (
+          <WeighInTake plans={plans} profile={profile} entries={entries} today={today} unit={unit} toUnit={toUnit} latestKg={latest.weightKg} onDone={() => setJustLogged(false)} />
+        )}
         {entries.length > 0 && <WeightHistory entries={entries} fmtW={fmtW} unit={unit} />}
       </div>
       )}
@@ -145,7 +154,7 @@ function signed(n: number): string {
   return n > 0 ? `+${v}` : n < 0 ? `−${v}` : v;
 }
 
-function WeighIn({ lb, unit }: { lb: boolean; unit: string }) {
+function WeighIn({ lb, unit, onLogged }: { lb: boolean; unit: string; onLogged: () => void }) {
   const toast = useToast();
   const today = todayYmd();
   const [value, setValue] = useState('');
@@ -165,6 +174,7 @@ function WeighIn({ lb, unit }: { lb: boolean; unit: string }) {
     await logWeight(date, lb ? v.value * KG_PER_LB : v.value);
     setValue('');
     toast(t('progress.logged', { value: fmtNum(v.value, 1), unit }));
+    onLogged();
   };
 
   return (
@@ -229,5 +239,115 @@ function WeightHistory({ entries, fmtW, unit }: { entries: WeightEntry[]; fmtW: 
         ))}
       </ul>
     </details>
+  );
+}
+
+/**
+ * OBS-3037F2: Philip's reaction to a weigh-in. Local math only (no AI): recalculates the targets
+ * with the new weight and offers them through the same append-only plan path as Targets. The Gemini
+ * follow-up is one tap away in Ask Philip, pre-filled, and only sent when the owner taps Send.
+ */
+function WeighInTake({
+  plans,
+  profile,
+  entries,
+  today,
+  unit,
+  toUnit,
+  latestKg,
+  onDone,
+}: {
+  plans: TargetPlan[];
+  profile: Profile;
+  entries: WeightEntry[];
+  today: string;
+  unit: string;
+  toUnit: (kg: number) => number;
+  latestKg: number;
+  onDone: () => void;
+}) {
+  const { navigate } = useUI();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const review = useMemo(() => reviewWeighIn(plans, profile, entries, today), [plans, profile, entries, today]);
+  const r = review.refresh;
+  const fmtW = (kg: number) => fmtNum(toUnit(kg), 1);
+  // The take renders below the form: bring it into view so the reaction isn't missed.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, []);
+
+  const apply = async () => {
+    if (!r) return;
+    setBusy(true);
+    await addTargetPlan(refreshPlan(r, today));
+    toast(t('weighIn.applied'));
+    onDone();
+  };
+  const ask = () => {
+    setAskDraft(t('weighIn.askQuestion', { weight: fmtW(latestKg), unit }));
+    navigate('ask');
+  };
+
+  let line: string;
+  if (review.progress.status === 'reached') line = t('weighIn.reached');
+  else if (review.noPlan) line = t('weighIn.noPlan');
+  else if (r)
+    line = t('weighIn.refresh', {
+      weight: fmtW(r.weightKg),
+      unit,
+      source: t(`weighIn.source.${r.weightSource}`),
+      fromKcal: fmtNum(r.from.calories, 0),
+      toKcal: fmtNum(r.to.calories, 0),
+      fromP: fmtNum(r.from.proteinG, 0),
+      toP: fmtNum(r.to.proteinG, 0),
+    });
+  else if (review.needsReview) line = '';
+  else line = t('weighIn.fits');
+
+  return (
+    <StatPanel title={t('weighIn.title')}>
+      <div ref={ref} className="stack-sm weigh-in-take" role="status">
+        {line && (
+          <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose="point-up" framing="bust" scale={2} className="pm-dialog-portrait" />}>
+            {line}
+          </DialogBar>
+        )}
+        {/* Safety text stays plain (D-020). */}
+        {review.needsReview && !r && review.progress.status !== 'reached' && <p className="banner banner-warning">{t('weighIn.review')}</p>}
+        {r && review.progress.status !== 'reached' && (
+          <>
+            <p className="small num">
+              {t('weighIn.newMacros', { kcal: fmtNum(r.to.calories, 0), p: fmtNum(r.to.proteinG, 0), f: fmtNum(r.to.fatG, 0), c: fmtNum(r.to.carbsG, 0) })}
+            </p>
+            <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={() => void apply()}>
+              {t('weighIn.apply')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-block"
+              onClick={() => {
+                toast(t('weighIn.kept'));
+                onDone();
+              }}
+            >
+              {t('weighIn.keep')}
+            </button>
+          </>
+        )}
+        {(review.noPlan || review.needsReview || review.progress.status === 'reached') && (
+          <button type="button" className="btn btn-secondary btn-block" onClick={() => navigate('targets')}>
+            {t('weighIn.toTargets')}
+          </button>
+        )}
+        <p className="small muted">{t('weighIn.training')}</p>
+        {profile.geminiKey && (
+          <button type="button" className="btn btn-ghost btn-block" onClick={ask}>
+            <Icon name="sparkle" /> {t('weighIn.ask')}
+          </button>
+        )}
+      </div>
+    </StatPanel>
   );
 }

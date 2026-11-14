@@ -6,11 +6,14 @@ import { AmbientScene } from '../components/AmbientScene';
 import { DeckActions } from '../components/ControlDeck';
 import { TodayCard } from '../components/TodayCard';
 import { MEALS } from '../db/types';
-import { useEntriesForDate, useProfile, useTargetPlans } from '../hooks/useData';
+import { useEntriesForDate, useProfile, useSavedMeals, useTargetPlans } from '../hooks/useData';
 import { useSwipe } from '../hooks/useSwipe';
 import { t } from '../i18n';
 import { addDays, todayYmd } from '../lib/date';
-import { defaultMealFor } from '../lib/meals';
+import { defaultMealFor, everydayToOffer } from '../lib/meals';
+import { fmtKcal } from '../lib/format';
+import { Icon } from '../components/Icon';
+import { fromSavedMeal } from './photo/reviewModel';
 import { groupByMeal, planForDate, sumMacros, targetForDate } from '../lib/nutrition';
 import { adherenceScore } from '../lib/adherence';
 import { phaseFor } from '../lib/remaining';
@@ -37,6 +40,12 @@ export function TodayView() {
     [profile?.adherenceEnabled, target, totals, entries],
   );
   const isToday = date === todayYmd();
+  // OBS-A0308B: everyday saved meals ("my usual breakfast") for meals still empty on this day.
+  const savedMeals = useSavedMeals();
+  const usual = useMemo(
+    () => (entries && savedMeals ? everydayToOffer(savedMeals, new Set(MEALS.filter((m) => byMeal[m].length > 0))) : []),
+    [entries, savedMeals, byMeal],
+  );
   const meal = defaultMealFor();
   const [typing, setTyping] = useState(false);
 
@@ -88,6 +97,49 @@ export function TodayView() {
           </section>
         )}
         {!isToday && <p className="subtle log-date-note">{t('today.loggingPast')}</p>}
+
+        {usual.length > 0 && (
+          <section className="stack-sm usual-meals" aria-labelledby="usual-meals-h">
+            <h3 id="usual-meals-h" className="section-title">
+              {t('meals.usualTitle')}
+            </h3>
+            <ul className="card card-flush list">
+              {usual.map((m) => (
+                <li key={m.id} className="list-item">
+                  <button
+                    type="button"
+                    className="list-button"
+                    aria-label={t('meals.usualLog', { meal: t(`meal.${m.everyday ?? 'snack'}`).toLocaleLowerCase(), name: m.name })}
+                    onClick={() =>
+                      openSheet({
+                        kind: 'review',
+                        date,
+                        meal: m.everyday ?? meal,
+                        items: fromSavedMeal(m.items),
+                        provider: 'gemini',
+                        model: '',
+                        notes: [],
+                        analyzedAt: Date.now(),
+                        savedMealId: m.id,
+                        title: m.name,
+                      })
+                    }
+                  >
+                    <span className="list-text">
+                      <span className="list-title">
+                        {t(`meal.${m.everyday ?? 'snack'}`)}: {m.name}
+                      </span>
+                      <span className="list-meta">{m.items.map((i) => i.name).join(', ')}</span>
+                    </span>
+                    <span className="list-value pm-display num">{fmtKcal(sumMacros(m.items).calories)}</span>
+                    <Icon name="plus" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="subtle">{t('meals.usualHint')}</p>
+          </section>
+        )}
 
         <section className="stack-sm" aria-label={t('today.logged')}>
           {entries && entries.length === 0 && (

@@ -286,6 +286,22 @@ export async function restoreSavedMeal(meal: SavedMeal, database: PhilipDB = db)
   await database.savedMeals.put(meal);
 }
 
+/**
+ * OBS-A0308B: marks a saved meal as the everyday one for `meal` (null = stop). Only one saved meal per
+ * meal: any other meal set for the same slot is cleared.
+ */
+export async function setSavedMealEveryday(id: string, meal: Meal | null, database: PhilipDB = db): Promise<void> {
+  await database.transaction('rw', database.savedMeals, async () => {
+    const target = await database.savedMeals.get(id);
+    if (!target) return;
+    if (meal) {
+      const others = (await database.savedMeals.toArray()).filter((m) => m.id !== id && m.everyday === meal);
+      for (const o of others) await database.savedMeals.update(o.id, { everyday: null, updatedAt: Date.now() });
+    }
+    if ((target.everyday ?? null) !== meal) await database.savedMeals.update(id, { everyday: meal, updatedAt: Date.now() });
+  });
+}
+
 /** Bumps usage after a saved meal was logged (it is logged through the review sheet like any other food). */
 export async function markSavedMealUsed(id: string, database: PhilipDB = db): Promise<void> {
   const m = await database.savedMeals.get(id);
@@ -512,11 +528,18 @@ function mergeApplied(a: ReviewApplied | undefined, b: ReviewApplied): ReviewApp
     else swaps.push(s);
   }
   const days = b.days ? { from: a.days ? a.days.from : b.days.from, to: b.days.to } : a.days;
+  const orders = [...(a.orders ?? [])];
+  for (const o of b.orders ?? []) {
+    const i = orders.findIndex((x) => x.day === o.day);
+    if (i >= 0) orders[i] = { ...o, from: orders[i]?.from ?? null };
+    else orders.push(o);
+  }
   return {
     tm: [...a.tm, ...b.tm],
     restBonusAddedSec: a.restBonusAddedSec + b.restBonusAddedSec,
     ...(swaps.length ? { swaps } : {}),
     ...(days ? { days } : {}),
+    ...(orders.length ? { orders } : {}),
   };
 }
 
@@ -527,7 +550,8 @@ function mergeApplied(a: ReviewApplied | undefined, b: ReviewApplied): ReviewApp
  * - rest: raises the cycle's rest bonus (capped);
  * - next: sets a next-time order for that accessory (inert once it's logged again);
  * - swap: sets the slot's sticky choice;
- * - days: sets the training weekdays.
+ * - days: sets the training weekdays;
+ * - order (OBS-369BCA): sets a day's exercise order.
  * Proposals that aren't open are ignored. Returns the ids applied.
  */
 export async function applyCoachProposals(sessionId: string, ids: readonly string[], database: PhilipDB = db): Promise<string[]> {
@@ -570,6 +594,12 @@ export async function applyCoachProposals(sessionId: string, ids: readonly strin
           const before = (await database.slotChoices.get(key))?.exerciseId ?? null;
           await database.slotChoices.put({ slotKey: key, exerciseId: c.exerciseId, chosenAt: now });
           applied.swaps = [...(applied.swaps ?? []), { slotKey: key, from: before, to: c.exerciseId }];
+        } else if (c.kind === 'order') {
+          if (!prog) continue;
+          const to: SessionSlot[] = ['main', ...c.order];
+          const before = prog.dayOrder?.[String(c.day)] ?? null;
+          prog = { ...prog, dayOrder: { ...(prog.dayOrder ?? {}), [String(c.day)]: to } };
+          applied.orders = [...(applied.orders ?? []), { day: c.day, from: before ? [...before] : null, to }];
         } else {
           if (!prog) continue;
           applied.days = { from: prog.trainingDays ? [...prog.trainingDays] : null, to: [...c.days] };
@@ -679,6 +709,15 @@ async function undoSessionChanges(session: WorkoutSession, database: PhilipDB): 
   if (days && (program.trainingDays ?? []).join() === days.to.join()) {
     if (days.from === null) delete next.trainingDays;
     else next.trainingDays = days.from;
+  }
+  // OBS-369BCA: a day order goes back to what it replaced, unless the owner reordered that day since.
+  for (const o of applied?.orders ?? []) {
+    const cur = next.dayOrder?.[String(o.day)] ?? null;
+    if ((cur ?? []).join() !== o.to.join()) continue;
+    const dayOrder = { ...(next.dayOrder ?? {}) };
+    if (o.from === null) delete dayOrder[String(o.day)];
+    else dayOrder[String(o.day)] = o.from;
+    next.dayOrder = dayOrder;
   }
   if (!next.nextOverrides?.length) delete next.nextOverrides;
   if (JSON.stringify(next) !== JSON.stringify(program)) await database.trainingProgram.put({ ...next, updatedAt: Date.now() });

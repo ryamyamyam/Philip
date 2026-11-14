@@ -6,7 +6,7 @@
  * (not the URL, so it doesn't end up in logs or history).
  */
 import { extractJson, validateAnalysis } from './parse';
-import { FOOD_ANALYSIS_INSTRUCTIONS, foodSuggestPrompt, foodTextPrompt, GEMINI_RESPONSE_SCHEMA, type SuggestTargets } from './prompt';
+import { foodPhotoPrompt, foodSuggestPrompt, foodTextPrompt, GEMINI_RESPONSE_SCHEMA, type SuggestTargets } from './prompt';
 import { AnalysisError, type AnalysisResult } from './types';
 
 export const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
@@ -22,6 +22,8 @@ export interface GeminiRequest {
   model: string;
   imageBase64: string;
   mimeType: string;
+  /** Owner's note about the photo, e.g. "I only ate half of the rice" (OBS-D9A254). */
+  details?: string | null;
   signal?: AbortSignal;
   fetchImpl?: FetchLike;
 }
@@ -149,8 +151,8 @@ export function responseText(json: GeminiResponse): string {
 }
 
 export function analyzeWithGemini(req: GeminiRequest): Promise<AnalysisResult> {
-  const { imageBase64, mimeType, ...rest } = req;
-  return generate({ ...rest, parts: [{ inline_data: { mime_type: mimeType, data: imageBase64 } }, { text: FOOD_ANALYSIS_INSTRUCTIONS }] });
+  const { imageBase64, mimeType, details, ...rest } = req;
+  return generate({ ...rest, parts: [{ inline_data: { mime_type: mimeType, data: imageBase64 } }, { text: foodPhotoPrompt(details) }] });
 }
 
 /** Text path (OBS-A2F21F): same request, schema, error mapping and validator as the photo path. */

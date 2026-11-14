@@ -8,6 +8,7 @@ import { addCoachMessage, addCoachNotes, clearCoachMessages } from '../db/repo';
 import { useCoachMessages, useProfile } from '../hooks/useData';
 import { t } from '../i18n';
 import { askPrompt, parseAskReply } from '../lib/coach/memory';
+import { takeAskDraft } from '../lib/coach/askDraft';
 import { todayYmd } from '../lib/date';
 import { useUI } from '../ui';
 
@@ -21,7 +22,8 @@ export default function AskView() {
   const profile = useProfile();
   const messages = useCoachMessages();
   const key = profile?.geminiKey ?? null;
-  const [text, setText] = useState('');
+  // OBS-3037F2: a question handed over from another screen (e.g. after a weigh-in) pre-fills the box.
+  const [text, setText] = useState(() => takeAskDraft() ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [clearing, setClearing] = useState(false);

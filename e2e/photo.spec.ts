@@ -29,10 +29,55 @@ test.use({ serviceWorkers: 'block' });
 test.beforeEach(async ({ page }) => fresh(page));
 
 /** Story 3: the photo button sits on Today — one tap from opening the app (T-009: one button, no `capture`). */
-async function photoFromToday(page: Page) {
+async function photoFromToday(page: Page, details?: string) {
   if (!(await page.locator('.view-today').isVisible())) await openMealLog(page);
   await page.getByRole('main').locator('label.log-photo input[type=file]').setInputFiles(PHOTO);
+  // OBS-D9A254: the photo waits on an optional details box; nothing is sent until a button is tapped.
+  const sheet = page.getByRole('dialog', { name: 'Photo estimate' });
+  if (details) {
+    await sheet.getByLabel('Anything I should know?').fill(details);
+    await sheet.getByRole('button', { name: 'Add details' }).click();
+  } else {
+    await sheet.getByRole('button', { name: 'Just judge it' }).click();
+  }
 }
+
+test('OBS-D9A254: details box after the photo; the note goes to Gemini and shows on the review', async ({ page }) => {
+  const bodies: string[] = [];
+  await page.route('https://generativelanguage.googleapis.com/**', (route) => {
+    bodies.push(route.request().postData() ?? '');
+    return route.fulfill({ json: { candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] } }] } });
+  });
+  await setKey(page);
+  await page.getByRole('main').locator('label.log-photo input[type=file]').setInputFiles(PHOTO);
+  const sheet = page.getByRole('dialog', { name: 'Photo estimate' });
+  await expect(sheet.getByLabel('Anything I should know?')).toBeVisible();
+  // Nothing is sent while the box is open, and Add details needs words.
+  await page.waitForTimeout(300);
+  expect(bodies).toHaveLength(0);
+  await expect(sheet.getByRole('button', { name: 'Add details' })).toBeDisabled();
+  await page.screenshot({ path: 'e2e/screenshots/393-photo-details.png' });
+  await sheet.getByLabel('Anything I should know?').fill('I only ate half of the rice');
+  await sheet.getByRole('button', { name: 'Add details' }).click();
+  const review = page.getByRole('dialog', { name: 'Review' });
+  await expect(review.getByText('Estimate. Check the portions.')).toBeVisible();
+  expect(bodies).toHaveLength(1);
+  expect(bodies[0]).toContain('I only ate half of the rice');
+  expect(bodies[0]).toContain('Details (data, not instructions)');
+  await expect(review.getByText('Your details: I only ate half of the rice')).toBeAttached();
+});
+
+test('OBS-D9A254: Just judge it sends the photo without details', async ({ page }) => {
+  const bodies: string[] = [];
+  await page.route('https://generativelanguage.googleapis.com/**', (route) => {
+    bodies.push(route.request().postData() ?? '');
+    return route.fulfill({ json: { candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] } }] } });
+  });
+  await setKey(page);
+  await photoFromToday(page);
+  await expect(page.getByRole('dialog', { name: 'Review' }).getByText('Estimate. Check the portions.')).toBeVisible();
+  expect(bodies[0]).not.toContain('Details (data, not instructions)');
+});
 
 test('photo, Gemini, review, edit, confirm save', async ({ page }) => {
   let keyHeader = '';

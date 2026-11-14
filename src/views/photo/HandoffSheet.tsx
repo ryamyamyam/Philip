@@ -11,9 +11,9 @@ import { fromAnalysis } from './reviewModel';
  * Manual Claude handoff. Philip cannot call the Claude app: the user copies the prompt,
  * attaches the photo in Claude, then pastes Claude's JSON reply back here.
  */
-export default function HandoffSheet({ date, meal, file }: { date: YMD; meal: Meal; file: File | null }) {
+export default function HandoffSheet({ date, meal, file, details = null }: { date: YMD; meal: Meal; file: File | null; details?: string | null }) {
   const { closeSheet, openSheet } = useUI();
-  const prompt = useMemo(() => claudeHandoffPrompt(), []);
+  const prompt = useMemo(() => claudeHandoffPrompt(details), [details]);
   const [copied, setCopied] = useState<'idle' | 'ok' | 'fail'>('idle');
   const [reply, setReply] = useState('');
   const [error, setError] = useState(false);

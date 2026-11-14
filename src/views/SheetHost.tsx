@@ -24,7 +24,7 @@ export function SheetHost({ sheet }: { sheet: SheetState }) {
     case 'handoff':
       return (
         <Suspense fallback={null}>
-          <HandoffSheet date={sheet.date} meal={sheet.meal} file={sheet.file} />
+          <HandoffSheet date={sheet.date} meal={sheet.meal} file={sheet.file} details={sheet.details ?? null} />
         </Suspense>
       );
     case 'suggest':

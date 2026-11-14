@@ -70,6 +70,24 @@ export function exerciseInfo(id: ExerciseId): ExerciseInfo {
   return EXERCISES[id];
 }
 
+/**
+ * OBS-41CEBE: what "kg" means for an exercise, for Philip's prompts. Loads are only comparable within
+ * one exercise: 12.5 kg per hand on dumbbells, 40 kg on a machine stack and 50 kg on a barbell are
+ * different things.
+ */
+export function loadKind(id: string): string {
+  const info = (EXERCISES as Record<string, ExerciseInfo>)[id] ?? {};
+  if (info.barbell) return 'barbell, kg = whole bar';
+  if (info.pair) return 'two dumbbells, kg per hand';
+  if (info.timed) return 'held for time';
+  if (info.bodyweight) return 'bodyweight, kg = added load';
+  return 'machine, cable or one weight, kg as set on it';
+}
+
+/** The rule every coaching prompt carries (OBS-41CEBE). */
+export const LOAD_RULE =
+  'Loads are only comparable within the same exercise. A swapped exercise (different machine, cable, dumbbells or barbell) has its own history and its own starting weight: never carry a weight across exercises or judge one exercise\'s load by another\'s. Dumbbell weights are per hand; machine numbers depend on the machine.';
+
 /** Main lift per day and its block-D (paused or tempo) variant. */
 export const MAIN_EXERCISE: Record<LiftId, { normal: ExerciseId; control: ExerciseId }> = {
   squat: { normal: 'squat', control: 'pause-squat' },

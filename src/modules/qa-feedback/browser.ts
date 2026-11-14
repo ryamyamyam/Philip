@@ -135,6 +135,43 @@ export async function saveTextFile(name: string, text: string, mime: string): Pr
   return 'downloaded';
 }
 
+/**
+ * OBS-41CEBE: hands screenshots to the share sheet (iPhone: Save Images, or straight into the Claude
+ * app) so they can be attached next to the prompt; falls back to downloading each file. Call it
+ * directly from the tap, with the files already loaded: iOS only allows sharing during the gesture.
+ */
+export async function shareFiles(files: File[], title: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  if (!files.length) return 'cancelled';
+  if (typeof navigator.canShare === 'function') {
+    try {
+      if (navigator.canShare({ files })) {
+        await navigator.share({ files, title });
+        return 'shared';
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return 'cancelled';
+    }
+  }
+  for (const file of files) {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+  return 'downloaded';
+}
+
+/** File name for a shared screenshot: the original name, else "<ref>-<n>.<ext>". Matches the prompt's list. */
+export function screenshotFileName(ref: string, index: number, fileName: string | null, mimeType: string): string {
+  if (fileName && fileName.trim()) return fileName.trim();
+  const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+  return `${ref}-${index + 1}.${ext}`;
+}
+
 export function promptFileName(appId: string, ext: 'txt' | 'md', now = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${appId}-dev-prompt-${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}.${ext}`;

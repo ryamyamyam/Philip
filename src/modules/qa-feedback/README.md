@@ -69,3 +69,8 @@ If the host has a backend and user accounts, swap `repository.ts` for an API-bac
 - **Storage:** data stays on this device only. It isn't included in the host app's backups. Clearing site data deletes it.
 - **AI calls:** these run in the browser with the user's own key. That's fine for a single-user personal app, but not for a shared deployment. There, move the provider behind a server endpoint and keep the same `AiProvider` interface.
 - **Export:** you can export `.txt` and `.md`. There's no Word export, to avoid a document-generation dependency.
+
+## Undo/redo and sharing screenshots (Nov 2026)
+
+- The capture text box has Undo/Redo (and Cmd/Ctrl+Z, Shift+Cmd/Ctrl+Z). History is pure (`textHistory.ts`): a burst of typing within 1 s is one step, one dictation run is one step. Cleared after Save.
+- Generated prompts are plain text, so screenshots never travel inside them. The prompt builder shows "Share N screenshots" when the prompt's observations have any: the Web Share sheet (iPhone: save to Photos or send to the Claude app), or one download per file. Files keep their original names so they match the prompt's list.

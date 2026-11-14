@@ -7,7 +7,7 @@ export type SheetState =
   | { kind: 'add'; date: YMD; meal: Meal }
   | { kind: 'entry'; date: YMD; meal: Meal; entryId?: string }
   | { kind: 'photo'; date: YMD; meal: Meal; file: File }
-  | { kind: 'handoff'; date: YMD; meal: Meal; file: File | null }
+  | { kind: 'handoff'; date: YMD; meal: Meal; file: File | null; details?: string | null }
   | {
       kind: 'review';
       date: YMD;

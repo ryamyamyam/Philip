@@ -10,6 +10,8 @@ import { lastSetsFor } from '../../lib/training/sessionLog';
 import { fmtIn } from './units';
 import { infoFor } from '../../lib/training/sessionLog';
 import ReplanButton from '../goal/ReplanButton';
+import { tl } from '../../i18n/learn';
+import { useUI } from '../../ui';
 
 const DAYS: Day[] = [1, 2, 3, 4];
 const WEEKS: Week[] = [1, 2, 3, 4];
@@ -41,11 +43,18 @@ export function PlanView({
     return open ?? 1;
   });
   const nextBlock = blockForCycle(cycle.index + 1);
+  const { openSheet } = useUI();
 
   return (
     <div className="stack plan">
       <section className="card stack-sm plan-replan" aria-label={tg('replan.button')}>
         <ReplanButton line />
+      </section>
+      <section className="card stack-sm plan-learn" aria-label={tl('learn.title')}>
+        <p className="small">{tl('learn.cardLine')}</p>
+        <button type="button" className="btn btn-block" onClick={() => openSheet({ kind: 'whyPlan' })}>
+          {tl('learn.open')}
+        </button>
       </section>
       <section className="card stack-sm" aria-labelledby="plan-h">
         <h2 id="plan-h">{t('brief.title', { n: cycle.index, block: cycle.block })}</h2>

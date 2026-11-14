@@ -412,9 +412,18 @@ export interface GoalPlanItems {
 }
 
 /** What Philip proposed for a goal (validated and clamped by lib/goal/proposal.ts). */
+/**
+ * Story 14 (OBS-92D8DB): how strong the evidence behind a rule or a pick is. research = a meta-analysis,
+ * systematic review or position stand supports its direction; practice = common, consistent with the
+ * evidence, exact number untested; default = a number the app chose.
+ */
+export type Basis = 'research' | 'practice' | 'default';
+
 export interface GoalProposalRecord extends GoalPlanItems {
   message: string;
   why: Partial<Record<'kcal' | 'proteinG' | 'cardioMin' | 'days' | 'swaps', string>> & { tms?: Record<string, string>; loads?: Record<string, string> };
+  /** Story 14: Philip's evidence label per lever. Optional; older plans have none. */
+  basis?: Partial<Record<'kcal' | 'proteinG' | 'cardioMin' | 'days', Basis>>;
   /** Values Philip asked for outside the safe range, and what was used instead. */
   clamps: { lever: 'kcal' | 'proteinG' | 'cardioMin'; asked: number; used: number }[];
   remember: string[];

@@ -158,7 +158,12 @@ async function sendNow(id: number): Promise<SendOutcome> {
         if (!profile?.geminiKey) throw e;
       }
     }
-    if (!profile?.geminiKey) return 'noAi';
+    if (!profile?.geminiKey) {
+      // OBS-0327E3: nothing can answer, so nothing is waiting. Marked failed: the watcher stops polling it
+      // and the sheet doesn't treat it as in flight (which locked the goal choices and said "offline").
+      await updatePlanChange(id, { failed: true });
+      return 'noAi';
+    }
     const { coachCheckinWithGemini, DEFAULT_GEMINI_MODEL, normalizeModel } = await import('../../services/foodAnalysis/gemini');
     const model = normalizeModel(profile.geminiModel ?? DEFAULT_GEMINI_MODEL);
     const raw = await coachCheckinWithGemini({ apiKey: profile.geminiKey, model, text: pc.prompt });

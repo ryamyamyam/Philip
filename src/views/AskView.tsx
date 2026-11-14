@@ -14,6 +14,7 @@ import { useUI } from '../ui';
 import { openSettingsGroup } from '../lib/settingsGroups';
 import { useCloudPaired } from '../hooks/useCoach';
 import ReplanButton from './goal/ReplanButton';
+import { tl } from '../i18n/learn';
 
 /**
  * Ask Philip (Story 9, `#/ask`): a chat outside any workout. Every question goes to Gemini with
@@ -21,7 +22,7 @@ import ReplanButton from './goal/ReplanButton';
  * Advice only: plan changes still come from a workout report, where each one is validated.
  */
 export default function AskView() {
-  const { navigate } = useUI();
+  const { navigate, openSheet } = useUI();
   const profile = useProfile();
   const messages = useCoachMessages();
   const cloud = useCloudPaired();
@@ -74,6 +75,16 @@ export default function AskView() {
           {key ? t('ask.intro') : t('ask.noKey')}
         </DialogBar>
         <ReplanButton />
+        <div className="ex-actions ask-chips">
+          {key && (
+            <button type="button" className="btn btn-sm" onClick={() => setText(tl('ask.chip.bulkCutQ'))}>
+              {tl('ask.chip.bulkCut')}
+            </button>
+          )}
+          <button type="button" className="btn btn-sm" onClick={() => openSheet({ kind: 'whyPlan' })}>
+            {tl('ask.chip.why')}
+          </button>
+        </div>
         <section className="card stack-sm" aria-labelledby="ask-h">
           <h2 id="ask-h" className="visually-hidden">
             {t('ask.title')}

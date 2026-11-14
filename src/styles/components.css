@@ -1201,3 +1201,27 @@ details.pm-panel > summary.pm-panel-head:focus-visible {
   text-transform: uppercase;
   letter-spacing: var(--display-tracking);
 }
+
+/* ---------- Story 14: evidence labels and "Why this plan" (OBS-92D8DB) ---------- */
+.basis-tag {
+  display: inline-block;
+  padding: 0 var(--space-1);
+  border: var(--border-frame) solid currentColor;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+.basis-tag[data-basis='research'] { border-style: solid; }
+.basis-tag[data-basis='practice'] { border-style: dashed; }
+.basis-tag[data-basis='default'] { border-style: dotted; }
+.why-rules { list-style: none; margin: 0; padding: 0; }
+.why-rule { display: flex; flex-direction: column; padding-top: var(--space-2); border-top: var(--border-frame) solid var(--color-border-strong); }
+.why-rule:first-child { border-top: 0; padding-top: 0; }
+.why-rule-head { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); align-items: baseline; }
+.why-side { font-weight: 700; }
+.why-now { padding-left: var(--space-2); border-left: var(--border-thick) solid var(--color-action); }
+.why-source { overflow-wrap: anywhere; }
+.why-legend { margin: 0; padding-left: 1.2em; }
+.goal-opt-help { margin: 0; }
+.ask-chips { flex-wrap: wrap; }

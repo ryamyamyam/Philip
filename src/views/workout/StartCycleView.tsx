@@ -5,6 +5,8 @@ import { addTargetPlan, addTm, startCycle, updateProfile } from '../../db/repo';
 import type { CycleRecord, IsoWeekday, Profile, TmRecord, WeightEntry, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
 import { tg, type GoalKey } from '../../i18n/goal';
+import { tl } from '../../i18n/learn';
+import { useUI } from '../../ui';
 import { todayYmd } from '../../lib/date';
 import { fmtDate, fmtKcal, fmtNum } from '../../lib/format';
 import { parseDecimal } from '../../lib/numbers';
@@ -57,6 +59,7 @@ export function StartCycleView({
   sessions: readonly WorkoutSession[];
   tmHistory: readonly TmRecord[];
 }) {
+  const { openSheet } = useUI();
   const index = nextCycleIndex(cycles, sessions);
   const last = cycles.find((c) => c.index === index - 1) ?? null;
   // OBS-FF441B: Philip coaches a direction (bulk or cut) and it is preselected; Maintain stays the owner's pick.
@@ -180,6 +183,9 @@ export function StartCycleView({
         </div>
         <p className="small muted">{t('brief.recommended', { phase: t(PHASE_KEY[recommended]) })}</p>
         {rec.why !== 'same' && <p className="small">{tg(`goal.phaseWhy.${rec.why}` as GoalKey)}</p>}
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => openSheet({ kind: 'whyPlan', phase })}>
+          {tl('learn.open')}
+        </button>
       </section>
 
       {weight !== null && (

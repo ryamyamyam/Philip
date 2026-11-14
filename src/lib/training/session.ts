@@ -94,6 +94,9 @@ export interface SessionInput {
   budgetMin?: number;
 }
 
+/** How the phase changes accessory volume (outside the deload). Read by "Why this plan" (Story 14). */
+export const PHASE_ACCESSORY = { cutSlotBSets: 2, bulkExtraSets: 1 } as const;
+
 /** Lifting minutes per session (owner, 2026-11-13: 60; was 45). Excludes the cardio finisher and stretching. */
 export const SESSION_BUDGET_MIN = 60;
 
@@ -177,8 +180,8 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
   const rules = accessoryRules(block, input.week);
   let sets = rules.sets;
   if (input.week !== DELOAD_WEEK) {
-    if (input.phase === 'lose' && slot === 'B') sets = 2;
-    if (input.phase === 'gain' && slot !== 'B') sets += 1;
+    if (input.phase === 'lose' && slot === 'B') sets = PHASE_ACCESSORY.cutSlotBSets;
+    if (input.phase === 'gain' && slot !== 'B') sets += PHASE_ACCESSORY.bulkExtraSets;
   }
   const last = input.lastSets?.(id) ?? null;
   const next = nextAccessoryKg(last, rules.sets, m.repMax, incrementKg(unit), info.timed || startRule(id).kind === 'assist' ? undefined : m.repMin);

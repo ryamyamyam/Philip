@@ -5,7 +5,7 @@ import { Sheet } from '../../components/Sheet';
 import { useToast } from '../../components/Toast';
 import { applyGoalPlan, GoalApplyError, undoGoalPlan, updatePlanChange } from '../../db/goalRepo';
 import { updateProfile } from '../../db/repo';
-import type { GoalChoice, GoalPlanItems, PlanChange } from '../../db/types';
+import type { Basis, GoalChoice, GoalPlanItems, PlanChange } from '../../db/types';
 import { useGoalState } from '../../hooks/useGoal';
 import { useProfile, useSlotChoices, useTargetPlans, useTrainingProgram, useWeightEntries, useWorkoutSessions, useCycles } from '../../hooks/useData';
 import { t, type StringKey } from '../../i18n';
@@ -16,6 +16,7 @@ import { parseDecimal } from '../../lib/numbers';
 import { planForDate } from '../../lib/nutrition';
 import { clampDeadline, suggestDeadline, weeksUntil } from '../../lib/goal/deadline';
 import { GOAL_RULES } from '../../lib/goal/goalCheck';
+import { askBlock, sameRequest } from '../../lib/goal/goalChoice';
 import { carbDays } from '../../lib/goal/carbDays';
 import { macrosFor } from '../../lib/goal/proposal';
 import { GOAL_WEEKS, ownGoal, philipNextGoal, recommendNextPhase, repeatGoal, type PrevGoal } from '../../lib/goal/nextGoal';
@@ -27,6 +28,7 @@ import { nextCycleIndex } from '../../lib/training/progress';
 import { trainingDaysOrDefault } from '../../lib/training/schedule';
 import { useUI } from '../../ui';
 import { fmtIn, fromDisplay } from '../workout/units';
+import { BasisTag } from '../learn/BasisTag';
 import { createRequest, pasteReply, prepareRequest, resumeWaiting, sendRequest, type SendOutcome } from './request';
 
 type Mode = 'repeat' | 'keep' | 'philip' | 'own';
@@ -86,9 +88,13 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
   const [modePick, setModePick] = useState<Mode | null>(null);
   const mode = modePick ?? defaultMode;
   // A new mode brings Philip's date back (the date belongs to the goal it was picked for).
+  // Story 14: the owner changed step 2 in this sheet. From then on a plan for another goal (e.g. the old
+  // request answered in the background) doesn't take over the screen.
+  const [touched, setTouched] = useState(false);
   const setMode = (m: Mode) => {
     setModePick(m);
     setDeadlineStr(null);
+    setTouched(true);
   };
   const [phase, setPhase] = useState<Phase | null>(null);
   const [endW, setEndW] = useState('');
@@ -101,6 +107,8 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
   const [pasteBad, setPasteBad] = useState(false);
   const [copied, setCopied] = useState(false);
   const [off, setOff] = useState<Record<string, boolean>>({});
+  // Story 14: back from Philip's ready plan to step 2, to change the goal.
+  const [revising, setRevising] = useState(false);
   const pickPhase = phase ?? (mode === 'philip' ? (rec?.phase ?? cycle?.phase ?? 'gain') : (cycle?.phase ?? 'gain'));
 
   // A queued request: check once when the sheet opens.
@@ -148,6 +156,8 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
   }, [cycle, prev, nowKg, mode, bf, pickPhase, daysIn, ownEndKg, bfT, goalWeeksPicked, goalDate, today]);
   const blocked = choice?.issues?.some((i) => i.level === 'error') ?? false;
   const restart = kind === 'reached' || mode !== 'keep';
+  // OBS-0327E3: the open request only counts while it is for the goal on screen.
+  const same = sameRequest(open, choice ? stripIssues(choice) : null, restart);
 
   // 0.12.3: opened from a weigh-in ("Let Philip re-plan"): ask Philip straight away, once, with the goal kept.
   const askRef = useRef<() => Promise<void>>(async () => {});
@@ -168,7 +178,8 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
   }
 
   const nextIndex = nextCycleIndex(cycles, sessions);
-  const proposal = open?.status === 'ready' ? open.proposal : null;
+  const ready = open?.status === 'ready' ? open.proposal : null;
+  const proposal = revising || (touched && !same) ? null : ready;
   const lineKey: GoalKey = kind === 'manual' ? 'goal.line.manual' : kind === 'reached' ? 'goal.line.reached' : (`goal.line.offtrack.${reason}` as GoalKey);
 
   const ask = async () => {
@@ -177,13 +188,15 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
     setOutcome(null);
     try {
       // A failed request is re-sent as is; otherwise a fresh one for the goal picked now.
-      let id = open?.id !== undefined && open.status === 'waiting' && open.failed ? open.id : undefined;
+      let id = same && open?.id !== undefined && open.status === 'waiting' && open.failed ? open.id : undefined;
       if (id === undefined) {
         const prepared = await prepareRequest(cycle, stripIssues(choice), kind, reason, restart, today);
         if (open?.id !== undefined) await updatePlanChange(open.id, { status: 'dismissed' });
         id = await createRequest(cycle, stripIssues(choice), kind, reason, restart, prepared);
       }
       setOutcome(await sendRequest(id));
+      setRevising(false);
+      setTouched(false);
     } finally {
       setBusy(false);
     }
@@ -197,7 +210,7 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
   };
 
   const copyPrompt = async () => {
-    let text = open?.prompt ?? null;
+    let text = same ? (open?.prompt ?? null) : null;
     if (!text && choice) text = (await prepareRequest(cycle, choice, kind, reason, restart, today)).prompt;
     if (!text) return;
     try {
@@ -209,9 +222,10 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
   };
 
   const usePaste = async () => {
-    let id = open?.id;
+    let id = same ? open?.id : undefined;
     if (id === undefined && choice) {
-      const prepared = await prepareRequest(cycle, choice, kind, reason, restart, today);
+      const prepared = await prepareRequest(cycle, stripIssues(choice), kind, reason, restart, today);
+      if (open?.id !== undefined) await updatePlanChange(open.id, { status: 'dismissed' });
       id = await createRequest(cycle, stripIssues(choice), kind, reason, restart, prepared);
     }
     if (id === undefined) return;
@@ -220,6 +234,8 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
     if (ok) {
       setPasted('');
       setClaudeOpen(false);
+      setRevising(false);
+      setTouched(false);
     }
   };
 
@@ -273,8 +289,12 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
   const curDays = trainingDaysOrDefault(program?.trainingDays);
   const reviewBlock = open?.restart ? blockForCycle(nextIndex) : cycle.block;
   const choiceMap = Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>;
-  const waiting = open?.status === 'waiting' && !open.failed;
-  const failed = open?.failed === true || outcome === 'failed';
+  // A request in flight for this very goal (queued in the cloud or offline). A different goal on screen is not waiting.
+  const waiting = same && open?.status === 'waiting' && !open.failed;
+  // The last answer (offline, no AI, failed) belongs to the goal it was asked for, not to a new pick.
+  const said = same ? outcome : null;
+  const failed = (same && open?.failed === true && said !== 'noAi') || said === 'failed';
+  const block = askBlock({ mode, hasChoice: !!choice, blocked, workoutOpen: state.workoutOpen, restart: restart && kind !== 'reached' });
 
   return (
     <Sheet
@@ -339,15 +359,19 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
             <h3 id="goal-h2">{tg(kind === 'reached' ? 'goal.step.next' : 'goal.step.revise')}</h3>
             <div className="segmented" role="radiogroup" aria-label={tg('goal.step.next')}>
               {(kind === 'reached' ? (['repeat', 'philip', 'own'] as const) : (['keep', 'philip', 'own'] as const)).map((m) => (
-                <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} disabled={waiting || (state.workoutOpen && m !== 'keep' && m !== 'repeat')}>
+                <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} disabled={state.workoutOpen && m !== 'keep' && m !== 'repeat'}>
                   {tg(`goal.opt.${m}` as GoalKey)}
                 </button>
               ))}
             </div>
+            <p className="small goal-opt-help">{tg(`goal.optHelp.${mode}` as GoalKey)}</p>
             {(mode === 'philip' || mode === 'own') && (
               <div className="segmented" role="radiogroup" aria-label={t('brief.phaseTitle')}>
                 {PHASES.map((p) => (
-                  <button key={p} type="button" role="radio" aria-checked={pickPhase === p} onClick={() => setPhase(p)} disabled={waiting}>
+                  <button key={p} type="button" role="radio" aria-checked={pickPhase === p} onClick={() => {
+                      setPhase(p);
+                      setTouched(true);
+                    }}>
                     {tg(`goal.phase.${p}` as GoalKey)}
                   </button>
                 ))}
@@ -358,11 +382,17 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
               <div className="setup-inputs">
                 <label className="field">
                   <span className="field-label">{tg(unit === 'kg' ? 'goal.endKg' : 'goal.endLb')}</span>
-                  <input className="input num" inputMode="decimal" value={endW} onChange={(e) => setEndW(e.target.value)} />
+                  <input className="input num" inputMode="decimal" value={endW} autoFocus onChange={(e) => {
+                      setEndW(e.target.value);
+                      setTouched(true);
+                    }} />
                 </label>
                 <label className="field">
                   <span className="field-label">{tg('goal.bfLabel')}</span>
-                  <input className="input num" inputMode="decimal" value={bfT} onChange={(e) => setBfT(e.target.value)} />
+                  <input className="input num" inputMode="decimal" value={bfT} onChange={(e) => {
+                      setBfT(e.target.value);
+                      setTouched(true);
+                    }} />
                 </label>
               </div>
             )}
@@ -382,13 +412,16 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
                     min={addDays(today, 14)}
                     max={addDays(today, 182)}
                     value={goalDate}
-                    disabled={waiting}
-                    onChange={(e) => isValidYmd(e.target.value) && setDeadlineStr(e.target.value)}
+                    onChange={(e) => {
+                      if (!isValidYmd(e.target.value)) return;
+                      setDeadlineStr(e.target.value);
+                      setTouched(true);
+                    }}
                   />
                 </label>
                 <p className="small num">{tg(deadlineStr === null ? 'goal.dateSuggested' : 'goal.dateOwn', { date: fmtDate(goalDate, 'short'), weeks: fmtNum(Math.round(goalWeeksPicked * 10) / 10, 1) })}</p>
                 {deadlineStr !== null && (
-                  <button type="button" className="btn btn-sm btn-ghost" disabled={waiting} onClick={() => setDeadlineStr(null)}>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDeadlineStr(null)}>
                     {tg('goal.dateReset')}
                   </button>
                 )}
@@ -410,12 +443,18 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
             <>
               {busy && <p className="small" role="status">{tg('goal.asking')}</p>}
               {!busy && waiting && <p className="small" role="status">{tg(open?.jobId ? 'goal.waitingCloud' : 'goal.waitingOffline')}</p>}
-              {!busy && outcome === 'offline' && !waiting && <p className="small">{tg('goal.waitingOffline')}</p>}
+              {!busy && said === 'offline' && !waiting && <p className="small">{tg('goal.waitingOffline')}</p>}
               {!busy && failed && <p className="small warn-text">{tg('goal.error')}</p>}
-              {!busy && outcome === 'noAi' && <p className="small">{tg('goal.noAi')}</p>}
+              {!busy && said === 'noAi' && <p className="small">{tg('goal.noAi')}</p>}
               {!waiting && (
-                <button type="button" className="btn btn-primary btn-block" disabled={!choice || blocked || busy} onClick={() => void ask()}>
+                <button type="button" className="btn btn-primary btn-block" disabled={block !== null || busy} onClick={() => void ask()}>
                   {tg(failed ? 'goal.retry' : 'goal.ask')}
+                </button>
+              )}
+              {!waiting && block !== null && block !== 'invalid' && <p className="small muted">{tg(`goal.askBlock.${block}` as GoalKey)}</p>}
+              {revising && ready && (
+                <button type="button" className="btn btn-ghost btn-block" onClick={() => setRevising(false)}>
+                  {tg('goal.backToPlan')}
                 </button>
               )}
               <button type="button" className="btn btn-ghost btn-block" aria-expanded={claudeOpen} onClick={() => setClaudeOpen((v) => !v)}>
@@ -424,7 +463,7 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
               {claudeOpen && (
                 <div className="stack-sm">
                   <p className="small">{tg('goal.claudeSteps')}</p>
-                  <button type="button" className="btn btn-sm" disabled={!choice || blocked} onClick={() => void copyPrompt()}>
+                  <button type="button" className="btn btn-sm" disabled={block !== null} onClick={() => void copyPrompt()}>
                     {tg(copied ? 'goal.claudeCopied' : 'goal.claudeCopy')}
                   </button>
                   <label className="field">
@@ -455,7 +494,7 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
                 {open.choice.deadline && <span className="small num">{tg('goal.dateKept', { date: fmtDate(open.choice.deadline, 'short') })}</span>}
               </div>
               {proposal.kcal !== null && (
-                <Row id="kcal" off={off} setOff={setOff} label={tg('goal.row.kcal')} from={plan ? tg('goal.kcal', { n: plan.calories }) : '–'} to={tg('goal.kcal', { n: proposal.kcal })} why={proposal.why.kcal} />
+                <Row id="kcal" off={off} setOff={setOff} label={tg('goal.row.kcal')} from={plan ? tg('goal.kcal', { n: plan.calories }) : '–'} to={tg('goal.kcal', { n: proposal.kcal })} why={proposal.why.kcal} basis={proposal.basis?.kcal} />
               )}
               {proposal.kcal !== null && (() => {
                 // The full P/F/C: fat sits on the floor, carbs take the rest (lib/goal/carbDays.ts).
@@ -471,10 +510,10 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
                 return split ? <p className="small muted num">{tg('goal.carbSplit', { train: split.train.calories, rest: split.rest.calories })}</p> : null;
               })()}
               {proposal.proteinG !== null && (
-                <Row id="proteinG" off={off} setOff={setOff} label={tg('goal.row.protein')} from={plan ? tg('goal.g', { n: plan.proteinG }) : '–'} to={tg('goal.g', { n: proposal.proteinG })} why={proposal.why.proteinG} />
+                <Row id="proteinG" off={off} setOff={setOff} label={tg('goal.row.protein')} from={plan ? tg('goal.g', { n: plan.proteinG }) : '–'} to={tg('goal.g', { n: proposal.proteinG })} why={proposal.why.proteinG} basis={proposal.basis?.proteinG} />
               )}
               {proposal.cardioMin !== null && (
-                <Row id="cardioMin" off={off} setOff={setOff} label={tg('goal.row.cardio')} from={tg('goal.min', { n: curCardio })} to={tg('goal.min', { n: proposal.cardioMin })} why={proposal.why.cardioMin} />
+                <Row id="cardioMin" off={off} setOff={setOff} label={tg('goal.row.cardio')} from={tg('goal.min', { n: curCardio })} to={tg('goal.min', { n: proposal.cardioMin })} why={proposal.why.cardioMin} basis={proposal.basis?.cardioMin} />
               )}
               {proposal.days && (
                 <Row
@@ -485,6 +524,7 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
                   from={curDays.map(wd).join(' ')}
                   to={proposal.days.map(wd).join(' ')}
                   why={proposal.why.days}
+                  basis={proposal.basis?.days}
                 />
               )}
               {proposal.swaps.map((s, k) => (
@@ -528,6 +568,9 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
                   {tg('goal.capped', { asked: c.asked, used: c.used })}
                 </p>
               ))}
+              <button type="button" className="btn btn-ghost btn-block" disabled={busy} onClick={() => setRevising(true)}>
+                {tg('goal.change')}
+              </button>
             </>
           )}
         </section>
@@ -547,6 +590,7 @@ function Row({
   from,
   to,
   why,
+  basis,
   off,
   setOff,
 }: {
@@ -555,6 +599,7 @@ function Row({
   from: string;
   to: string;
   why?: string;
+  basis?: Basis;
   off: Record<string, boolean>;
   setOff: (f: (o: Record<string, boolean>) => Record<string, boolean>) => void;
 }) {
@@ -567,6 +612,7 @@ function Row({
           {from} → <strong>{to}</strong>
         </span>
         {why && <span className="small muted">{why}</span>}
+        {basis && <BasisTag basis={basis} />}
       </span>
     </label>
   );

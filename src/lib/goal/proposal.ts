@@ -16,7 +16,7 @@
  */
 import type { CalcResult } from '../targets';
 import { referenceWeightKg, SAFETY } from '../targets';
-import type { GoalChoice, GoalPlanItems, GoalProposalRecord, IsoWeekday, Sex } from '../../db/types';
+import type { Basis, GoalChoice, GoalPlanItems, GoalProposalRecord, IsoWeekday, Sex } from '../../db/types';
 import { CARDIO_MINUTES } from '../training/cardio';
 import { exerciseFor, menuSlot, type ExerciseId } from '../training/exercises';
 import { roundTo, type Block, type Day, type LiftId } from '../training/program';
@@ -168,6 +168,13 @@ function menuText(r: LeverRanges, name: (id: string) => string): string {
   return lines.join('\n');
 }
 
+/**
+ * Story 14 (OBS-92D8DB): Philip teaches while he plans, and is honest about what is science and what is
+ * his judgment. Shared with Ask Philip's prompt.
+ */
+export const TEACH_RULE =
+  'Teach while you plan: each "why" says what the change does for him in plain words. Each lever also gets "basis": "research" when a meta-analysis, systematic review or position stand supports that direction, "practice" when it is common coaching practice consistent with the evidence but the exact number is untested, "default" when it is simply the app\'s or your own starting number. Never invent a study, statistic or citation; if you are unsure, say "practice".';
+
 export interface PromptInput {
   event: 'reached' | 'offtrack' | 'manual';
   reason: string;
@@ -230,8 +237,10 @@ export function proposalPrompt(p: PromptInput): string {
     '',
     REMEMBER_RULE,
     '',
+    TEACH_RULE,
+    '',
     'Reply with JSON only, this shape:',
-    '{"message": "2-4 sentences for him: what you saw and what you are changing", "kcal": {"value": 2900, "why": "..."}, "proteinG": {"value": 150, "why": "..."}, "cardioMin": {"value": 20, "why": "..."}, "days": {"value": [1,2,4,5], "why": "..."} or null, "swaps": [{"day": 2, "slot": "A1", "exerciseId": "...", "why": "..."}], "tms": [{"lift": "bench", "kg": 92.5, "why": "..."}], "loads": [{"exerciseId": "...", "kg": 22.5, "why": "..."}], "remember": []}',
+    '{"message": "2-4 sentences for him: what you saw, what you are changing and why it works", "kcal": {"value": 2900, "why": "...", "basis": "practice"}, "proteinG": {"value": 150, "why": "...", "basis": "research"}, "cardioMin": {"value": 20, "why": "...", "basis": "default"}, "days": {"value": [1,2,4,5], "why": "...", "basis": "practice"} or null, "swaps": [{"day": 2, "slot": "A1", "exerciseId": "...", "why": "..."}], "tms": [{"lift": "bench", "kg": 92.5, "why": "..."}], "loads": [{"exerciseId": "...", "kg": 22.5, "why": "..."}], "remember": []}',
     '',
     'His history (the brief):',
     p.brief,
@@ -246,6 +255,8 @@ const numOf = (v: unknown): number | null => {
   return typeof x === 'number' && Number.isFinite(x) ? x : null;
 };
 const whyOf = (v: unknown): string => (isObj(v) ? clean(v.why, PROPOSAL_RULES.whyMax) : '');
+const BASES: readonly Basis[] = ['research', 'practice', 'default'];
+export const basisOf = (v: unknown): Basis => (isObj(v) && typeof v.basis === 'string' && (BASES as readonly string[]).includes(v.basis) ? (v.basis as Basis) : 'practice');
 
 export class ProposalError extends Error {
   constructor(public readonly code: 'notJson' | 'missing') {
@@ -337,5 +348,11 @@ export function parseProposal(raw: unknown, r: LeverRanges, source: GoalProposal
   if (cardioMin !== null) why.cardioMin = whyOf(raw.cardioMin);
   if (days) why.days = whyOf(raw.days);
   if (swapWhy.length) why.swaps = swapWhy.join(' ');
-  return { message, kcal, proteinG, cardioMin, days, swaps, ...(tms.length ? { tms } : {}), ...(loads.length ? { loads } : {}), why, clamps, remember: parseRemember(raw), source, at };
+  // Story 14: an evidence label per lever. Missing or unknown = "practice"; never a reason to reject a plan.
+  const basis: NonNullable<GoalProposalRecord['basis']> = {};
+  if (kcal !== null) basis.kcal = basisOf(raw.kcal);
+  if (proteinG !== null) basis.proteinG = basisOf(raw.proteinG);
+  if (cardioMin !== null) basis.cardioMin = basisOf(raw.cardioMin);
+  if (days) basis.days = basisOf(raw.days);
+  return { message, kcal, proteinG, cardioMin, days, swaps, ...(tms.length ? { tms } : {}), ...(loads.length ? { loads } : {}), why, basis, clamps, remember: parseRemember(raw), source, at };
 }

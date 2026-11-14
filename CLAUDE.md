@@ -51,7 +51,7 @@ Story 4 (tour, D-024) and Story 5 (Home hub + workouts, D-025) are built on stac
 - Reversing anything in docs/DECISIONS.md.
 
 ## Conventions
-- All UI strings in `src/i18n/en.ts`, accessed with `t('key', vars)` (Story 11 and 12's lazy screens use the pack `src/i18n/goal.ts` with `tg()`, D-034). Dates/numbers via `src/lib/format.ts` (Intl).
+- All UI strings in `src/i18n/en.ts`, accessed with `t('key', vars)` (Story 11 and 12's lazy screens use the pack `src/i18n/goal.ts` with `tg()`, D-034; Story 14's "Why this plan" uses `src/i18n/learn.ts` with `tl()`, D-037). Dates/numbers via `src/lib/format.ts` (Intl).
 - Dates are local `YYYY-MM-DD` strings (`src/lib/date.ts`). Never use `toISOString()` for dates.
 - Nutrition is metric internally (g, kcal). Daily totals are computed from entries, never stored.
 - Target plans are append-only: every change inserts a new plan; `planForDate` picks the latest `effectiveFrom <= date`.

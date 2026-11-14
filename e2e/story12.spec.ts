@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { addManualFood, fresh, noHorizontalScroll, seedWeights, tab, openSettings } from './helpers';
+
+// The version line follows package.json (bumped every story, CLAUDE.md).
+const VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /**
  * Story 12: Re-plan with Philip on demand (manual mode of the goal sheet), the goal date, "Your time",
@@ -211,7 +215,7 @@ test('your time: days a week and minutes re-plan on Confirm; the version line', 
   await fresh(page, { at: 'home' });
   await startCycleOne(page);
   await openSettings(page);
-  await expect(main(page)).toContainText('Version 0.12.4');
+  await expect(main(page)).toContainText(`Version ${VERSION}`);
   const time = main(page).getByRole('group', { name: 'Your time' });
   await expect(time.getByRole('radio', { name: '4' })).toHaveAttribute('aria-checked', 'true');
   await expect(time.getByLabel('Lifting, min/session')).toHaveValue('60');

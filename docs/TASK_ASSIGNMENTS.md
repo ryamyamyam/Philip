@@ -29,6 +29,12 @@ Base branch for new work: `main`.
 
 ---
 
+### T-032 — Story 14: goal choices that work, Philip the educator (D-037), 0.14.1
+- **Role:** Core + Feature + QA (one session). **Branch:** `feat/T-032-story14` on `main` @ `8aa98a8`. **Status:** Built, awaiting WebKit on the Mac and owner review.
+- **Observations:** OBS-0327E3 (Keep this goal / Philip's pick / Set my own locked), OBS-92D8DB (Philip as an educator; science vs not; bulk vs cut).
+- **Files:** new `src/lib/goal/goalChoice.ts`, `src/lib/learn/whyPlan.ts`, `src/i18n/learn.ts`, `src/views/learn/{WhyPlanSheet,BasisTag}.tsx`, `src/lib/goal/story14.test.ts`, `e2e/story14.spec.ts`, `docs/stories/STORY_14.md`; changed `src/views/goal/{GoalSheet,request}.ts(x)`, `src/lib/goal/proposal.ts`, `src/lib/coach/memory.ts`, `src/lib/training/session.ts` (`PHASE_ACCESSORY`, same numbers), `src/db/types.ts` (optional `basis`), `src/ui.tsx`, `src/views/SheetHost.tsx`, `src/views/workout/{PlanView,StartCycleView}.tsx`, `src/views/AskView.tsx`, `src/i18n/goal.ts`, `src/styles/components.css`, `package.json`/`package-lock.json` (0.14.1), docs.
+- **Log:** 2026-11-14 (cloud clone of `8aa98a8`). Before: tsc clean, unit 469/469, size 176.6/177 KB, Chromium e2e 121/121. `e2e/story14.spec.ts` against `8aa98a8` fails ("You're offline" with no AI; "Set my own" disabled). After: tsc clean, unit 481/481 (+12), build, size 176.8/177 KB (budget unchanged), Chromium e2e 125/125 (+4 `story14.spec.ts`; `story12.spec.ts` version line now reads package.json). WebKit not run.
+
 ### T-031 — QA batch 2026-11-13 #2 (D-036), 0.12.4
 - **Role:** Core + Feature + QA (one session). **Base:** `main` @ `76353bc`. **Status:** Built, awaiting WebKit on the Mac and owner review.
 - **Observations:** OBS-FF441B (bulk/cut, never 0%), OBS-59DEFD (edit any log), OBS-1F8106 (red PR / blue weekly e1RM dots), OBS-7E209B (no voice box), OBS-C856D1 (top-left kg ⇄ lb + bug icon), OBS-46BCAD (Settings groups).

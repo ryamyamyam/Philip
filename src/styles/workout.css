@@ -738,3 +738,58 @@
   grid-template-columns: 1fr 1fr;
   align-items: end;
 }
+
+/* Story 16 (D-039): playbook, loads, strength on track */
+.strength-dash {
+  display: inline-block;
+  width: var(--space-4);
+  height: 0;
+  border-top: 2px dashed var(--color-text-2);
+  vertical-align: middle;
+}
+.ex-strip {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-hair) solid var(--color-border-strong);
+  background: var(--color-surface-2);
+}
+.ex-strip p {
+  margin: 0;
+}
+.ex-strip-k {
+  color: var(--color-text-2);
+}
+.ex-corrected {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-hair) solid var(--color-warning);
+  background: var(--color-warning-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+.ex-corrected p {
+  margin: 0;
+}
+.cal-strength {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  line-height: 0;
+  color: var(--color-action);
+}
+.cal-strength svg {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+.pb-change {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: baseline;
+}
+.pb-field {
+  min-width: 5rem;
+  font-weight: 600;
+}

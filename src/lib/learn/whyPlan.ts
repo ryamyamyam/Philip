@@ -13,6 +13,7 @@ import { PROPOSAL_RULES } from '../goal/proposal';
 import { SAFETY } from '../targets';
 import { CARDIO_MINUTES } from '../training/cardio';
 import { CUT_AT_BF, LEAN_BULK_MAX_BF, RATE_PCT } from '../training/cycleGoal';
+import { PB_FAT } from '../playbook/rules';
 import { accessoryRules, DAY_LIFT, TM_INCREMENT_KG, TM_SHARE, type Phase } from '../training/program';
 import { PHASE_ACCESSORY, SESSION_BUDGET_MIN } from '../training/session';
 
@@ -92,7 +93,7 @@ export function whyPlan(i: WhyPlanInput): WhyPlan {
       bulk: { min: PROTEIN_PER_KG.gain[0], max: PROTEIN_PER_KG.gain[1] },
     }),
     phaseRow('carbs', 'default', [], { why: { pct: pct(SAFETY.minFatPct), gkg: SAFETY.minFatGPerKg } }),
-    phaseRow('carbDays', 'practice', [], { both: { pct: pct(CARB_DAY_RULES.shiftPct) } }),
+    phaseRow('carbDays', 'practice', [], { both: { pct: pct(CARB_DAY_RULES.restCarbDown), restFat: PB_FAT.restDayGPerKg.def } }),
     // Keep the load on a cut (Helms 2015); a wide range of loads builds muscle when sets are hard (Schoenfeld 2017).
     phaseRow('main', 'research', ['helms2015', 'schoenfeld2017load'], { both: {} }),
     // More weekly sets → more growth up to a point (Schoenfeld 2017). The one-set step is Philip's number.

@@ -211,6 +211,8 @@ function issuesSection(i: BriefInput): string[] {
       }
       if (e.note) lines.push(`- ${md(s.date)} ${i.name(e.exerciseId)}: "${one(e.note, 120)}"`);
     }
+    // Story 16 §3.4: the session's own note.
+    if (s.note && s.note.trim()) lines.push(`- ${md(s.date)} whole session: "${one(s.note, 120)}"`);
   }
   return lines.length ? [`What the lifter reported during sets (last ${BRIEF_BUDGET.issueDays / 7} weeks):`, ...lines.slice(0, 12)] : [];
 }

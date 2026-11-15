@@ -27,7 +27,9 @@ export type SheetState =
   /** Story 11: goal reached / off the plan → next goal → Philip's plan. */
   | { kind: 'goal'; /** Story 12: the owner asked for a fresh plan (Re-plan with Philip). */ manual?: boolean; /** 0.12.3: ask Philip as soon as the sheet opens (from a weigh-in). */ autoAsk?: boolean }
   /** Story 14 (OBS-92D8DB): "Why this plan", optionally for a phase picked on screen (the briefing). */
-  | { kind: 'whyPlan'; phase?: 'lose' | 'maintain' | 'gain' };
+  | { kind: 'whyPlan'; phase?: 'lose' | 'maintain' | 'gain' }
+  /** Story 16: today's plan under Philip's Playbook (shown once on 0.16.1; reopened from Settings). */
+  | { kind: 'playbook' };
 
 export interface UI {
   date: YMD;

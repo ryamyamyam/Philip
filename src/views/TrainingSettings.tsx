@@ -3,14 +3,15 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Icon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 import { newId } from '../db/db';
-import { addTm, META, resetTrainingProgram, setMeta, saveWorkoutSession, setSlotChoice, setTrainingDays, updateTrainingProgram } from '../db/repo';
+import { addTm, META, resetTrainingProgram, setMeta, saveWorkoutSession, setSlotChoice, setTrainingDays, updateProfile, updateTrainingProgram } from '../db/repo';
 import type { IsoWeekday, TrainingProgram, WorkoutSession } from '../db/types';
 import { defaultDaysFor, squatRdlTooClose, trainingDaysOrDefault } from '../lib/training/schedule';
 import { YourTime } from './goal/YourTime';
-import { useMeta, useSlotChoices, useTrainingProgram, useWorkoutSessions } from '../hooks/useData';
+import { useMeta, useProfile, useSlotChoices, useTrainingProgram, useWorkoutSessions } from '../hooks/useData';
 import { isStandalone } from '../lib/pwa';
 import { pushConfig, pushSupported, scheduleRestAlert, subscribeRestAlerts, unsubscribeRestAlerts, type StoredSubscription } from '../services/restPush';
 import { t, type StringKey } from '../i18n';
+import { tp, type PlaybookKey } from '../i18n/playbook';
 import { todayYmd } from '../lib/date';
 import { parseDecimal } from '../lib/numbers';
 import { exerciseFor, menuSlot, slotKey, type ExerciseId } from '../lib/training/exercises';
@@ -34,6 +35,7 @@ export function TrainingSettings() {
   return (
     // OBS-46BCAD: the Settings group around it is the "Training" region and header.
     <div className="stack">
+      <TrainingAge />
       {!program ? (
         <button type="button" className="btn btn-secondary btn-block" onClick={() => navigate('workout')}>
           {t('training.setUp')}
@@ -50,6 +52,42 @@ export function TrainingSettings() {
           <Danger program={program} sessions={sessions} />
         </>
       )}
+    </div>
+  );
+}
+
+/** Story 16 (PB-2.3): years of consistent lifting (sets the bulk pace), and the 0.16 playbook update sheet. */
+function TrainingAge() {
+  const profile = useProfile();
+  const toast = useToast();
+  const { openSheet } = useUI();
+  const years = profile?.trainingYears ?? null;
+  const opts: { key: PlaybookKey; v: number }[] = [
+    { key: 'training.years.lt1', v: 0.5 },
+    { key: 'training.years.1to3', v: 2 },
+    { key: 'training.years.gt3', v: 5 },
+  ];
+  const band = years === null ? null : years < 1 ? 0.5 : years <= 3 ? 2 : 5;
+  return (
+    <div className="stack-sm" role="group" aria-labelledby="years-h">
+      <h3 id="years-h">{tp('training.years')}</h3>
+      <p className="small muted">{tp('training.yearsHint')}</p>
+      <div className="days-row">
+        {opts.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            className="btn btn-sm btn-secondary"
+            aria-pressed={band === o.v}
+            onClick={() => void updateProfile({ trainingYears: o.v }).then(() => toast(tp('training.yearsSaved')))}
+          >
+            {tp(o.key)}
+          </button>
+        ))}
+      </div>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => openSheet({ kind: 'playbook' })}>
+        {tp('training.playbookSheet')}
+      </button>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { addTargetPlan, updateProfile } from '../db/repo';
 import type { ActivityLevel, Goal, Macros, Profile, Sex, TargetPlan, Weekday } from '../db/types';
 import { useProfile, useTargetPlans } from '../hooks/useData';
 import { t, type StringKey } from '../i18n';
+import { tp } from '../i18n/playbook';
 import { addDays, ageOn, isValidYmd, todayYmd } from '../lib/date';
 import { fmtDate, fmtG, fmtKcal, fmtNum } from '../lib/format';
 import { CM_PER_IN, KG_PER_LB, parseDecimal, validateNumber, type FieldError } from '../lib/numbers';
@@ -543,6 +544,9 @@ function WarningBanner({ w, unit, wl }: { w: CalcWarning; unit: string; wl: (kg:
       break;
     case 'ceiling':
       text = t('targets.warning.ceiling', { ceiling: fmtKcal(w.ceiling) });
+      break;
+    case 'lowEnergyAvailability':
+      text = tp('targets.warning.lowEnergyAvailability', { n: w.kcalPerKg });
       break;
     default:
       text = t(`targets.warning.${w.code}` as StringKey);

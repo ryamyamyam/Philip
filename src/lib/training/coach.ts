@@ -9,7 +9,10 @@
  */
 import type { CoachChange, CoachMessage, CoachThread, IsoWeekday, WorkoutSession } from '../../db/types';
 import { exerciseFor, LOAD_RULE, loadKind, menuSlot, type ExerciseId, type Slot } from './exercises';
-import { blockForCycle, DAY_LIFT, LIFTS, loadDropPct, roundTo, type Day, type LiftId, type Phase } from './program';
+import { blockForCycle, DAY_LIFT, LIFTS, missedLoad, roundTo, type Day, type LiftId, type Phase } from './program';
+import type { LoadVerdict } from '../playbook/loads';
+import { labelOutside, PLAYBOOK_PROMPT } from '../playbook/prompt';
+export { labelOutside };
 import { incrementKg as stepOf, roundToStep, type PlateUnit } from './plates';
 import { MAX_REST_BONUS_SEC } from './checkin';
 import { normalizeOrder } from './order';
@@ -20,8 +23,6 @@ import { parseRemember, REMEMBER_RULE } from '../coach/memory';
 export const COACH_BOUNDS = {
   /** A TM moves at most 10% either way in one review. */
   tmPct: 0.1,
-  /** An accessory's next weight moves at most 20% from what was ordered today. */
-  nextKgPct: 0.2,
   sets: [2, 5],
   restSec: [15, 60],
   /** Characters kept from a reply or a "why" line. */
@@ -46,6 +47,10 @@ export interface CoachContext {
   name: (id: string) => string;
   /** OBS-369BCA: the owner's remembered exercise order per program day ("1"–"4"). */
   dayOrder?: Readonly<Partial<Record<string, readonly string[]>>>;
+  /** Story 16 (PB-8.4): the plausibility check for a proposed accessory load. */
+  loadCheck?: (exerciseId: string, kg: number, reps: number, rir: number) => LoadVerdict;
+  /** Story 16: replaces implausible loads named in Philip's words (`fixTextLoads`). */
+  fixText?: (text: string) => string;
 }
 
 /** The current order of a day's slots (main first). */
@@ -78,6 +83,7 @@ export function contextText(c: CoachContext): string {
     const swapped = e.swappedFrom ? ` Swapped in today for ${c.name(e.swappedFrom)} [id ${e.swappedFrom}] (${loadKind(e.swappedFrom)}); not comparable.` : '';
     lines.push(`- ${e.slot} ${c.name(e.exerciseId)} [id ${e.exerciseId}] (${loadKind(e.exerciseId)})${range}${e.skipped ? ' SKIPPED' : ''}.${swapped} Ordered: ${ordered}. Did: ${did || 'nothing'}.${e.note ? ` Note: "${e.note.slice(0, 200)}"` : ''}`);
   }
+  if (s.note && s.note.trim()) lines.push(`His note for the whole session: "${s.note.trim().slice(0, 300)}"`);
   if (s.cardio) {
     const cd = s.cardio;
     lines.push(`Cardio: incline walk, planned ${cd.planMin} min; ${cd.skipped ? 'skipped' : cd.done ? `did ${cd.minutes ?? '?'} min${cd.inclinePct !== null ? ` at ${cd.inclinePct}% incline` : ''}${cd.speed !== null ? `, speed setting ${cd.speed} (${cd.speedUnit})${cd.speedMph !== undefined ? ` ≈ ${cd.speedMph} mph` : ''}` : ''}` : 'not logged'}.`);
@@ -100,19 +106,23 @@ const RULES = [
   'Never diagnose. If anything suggests pain, injury, dizziness or chest symptoms, tell them to stop that exercise and see a professional, and propose no load increase for it.',
   'Only propose changes the data supports, the fewest that matter (0 to 4). Prefer keeping the plan when it is working.',
   LOAD_RULE,
-  'Realistic fixes for misses: if a set fell 2 or more reps below the bottom of its range, or the lifter could not finish the sets, lower that exercise\'s next weight (about 2.5% per missing rep, at least one increment, at most 20%) and set reps to the bottom of the range. Lowering only the rep target keeps the same weight and repeats the failure; never propose that for a big miss.',
+  'Realistic fixes for misses: if a set fell 2 or more reps below the bottom of its range, or the lifter could not finish the sets, lower that exercise\'s next weight and set reps to the bottom of the range; the app re-derives the exact weight from what he lifted (reps-in-reserve math, PB-8.4). Lowering only the rep target keeps the same weight and repeats the failure; never propose that for a big miss.',
+  'Every weight you propose is checked by the app for plausibility (PB-8.4): a number that does not fit his strength is replaced. Never use a flat percent; think in reps in reserve.',
   'Allowed changes (JSON objects in "changes"):',
   '{"kind":"tm","lift":"squat|bench|rdl|ohp","toKg":number,"why":string} training max for the rest of this cycle, within 10% of the current one;',
   '{"kind":"rest","extraSec":15|30|45|60,"why":string} extra rest on every work set for the rest of the cycle;',
-  '{"kind":"next","exerciseId":string,"kg":number|null,"reps":number|null,"sets":number|null,"why":string} the next time that accessory from today comes up: weight per hand for dumbbells (within 20% of today\'s order), target reps (inside its range), sets 2-5; null keeps Philip\'s rule;',
+  '{"kind":"next","exerciseId":string,"kg":number|null,"reps":number|null,"sets":number|null,"why":string} the next time that accessory from today comes up: weight per hand for dumbbells (the app checks it against his strength), target reps (inside its range), sets 2-5; null keeps Philip\'s rule;',
   '{"kind":"swap","day":1-4,"slot":"A1|A2|B","exerciseId":string,"why":string} only one of the approved options listed for that slot;',
   '{"kind":"days","days":[the same number of distinct weekdays as now, 1-7],"why":string} training weekdays;',
   '{"kind":"order","day":1-4,"order":["A1"|"A2"|"B" in the new order],"why":string} the accessory order for that day from now on (the main lift always stays first).',
   'When the lifter names a weak point or a priority (for example "my upper chest is much weaker"), treat it as a request to restructure the plan, not to tweak rest: put the exercise that trains it first after the main lift (order), pick the approved option that trains it best (swap), and give it more work (next with sets up to 5), on every day where it fits. Use up to 4 changes and say in the message how the plan now prioritises it. If the menu cannot do what they ask, say so plainly.',
   'Use the brief (history, notes, earlier chats) to compare today with past sessions and to keep promises you made; never invent numbers it does not have.',
+  'Story 16: every note he typed today (per set, per exercise, for the session) gets an answer in your message: say what you will do about it. Pain: tell him to stop that exercise and see a professional if it is sharp, radiating or in a joint (PB-7.4), and propose a lighter weight or an approved swap. A load that felt too heavy or too light: propose the next weight (the app checks it, PB-8.4). A machine that was taken or missing: propose an approved swap. Anything else: acknowledge it and ask at most one question.',
   REMEMBER_RULE,
-  'Reply ONLY with JSON: {"message": string (plain words, max 600 chars), "changes": [ ... ], "remember": [string]}.',
+  PLAYBOOK_PROMPT,
+  'Reply ONLY with JSON: {"message": string (plain words, max 600 chars), "outside": boolean, "changes": [ ... ], "remember": [string]}.',
 ].join('\n');
+
 
 /** First report after a workout. */
 export function reportPrompt(c: CoachContext, brief = ''): string {
@@ -191,20 +201,21 @@ export function validateChange(raw: unknown, c: CoachContext): CoachChange | nul
       const first = ex.prescription.find((p) => p.kind === 'accessory');
       if (!first) return null;
       let kg: number | null = null;
+      let r = finite(raw.reps);
       const k = finite(raw.kg);
       if (k !== null && k > 0 && first.kg !== null && first.kg > 0) {
-        const lo = first.kg * (1 - COACH_BOUNDS.nextKgPct);
-        const hi = first.kg * (1 + COACH_BOUNDS.nextKgPct);
-        kg = Math.max(0, roundToStep(Math.min(hi, Math.max(lo, k)), c.unit));
+        // Story 16 (PB-8.4): the proposal passes the plausibility check; an implausible one is re-derived.
+        const reps = Math.min(first.repMax, Math.max(first.repMin, Math.round(r ?? first.targetReps ?? first.repMin)));
+        const v = c.loadCheck?.(ex.exerciseId, k, reps, first.rir);
+        kg = Math.max(0, roundToStep(v && v.kg !== null ? v.kg : k, c.unit));
         if (kg === first.kg) kg = null;
       }
-      let r = finite(raw.reps);
       // OBS-2C086C: after a big miss, a proposal that only trims reps at the same weight repeats the
-      // failure. Philip's rule load (about 2.5% per missing rep) replaces it, at the bottom of the range.
-      const drop = first.timed || first.assist ? 0 : loadDropPct(ex.actual, ex.prescription.filter((p) => p.kind === 'accessory').length, first.repMin);
-      if (drop > 0 && first.kg !== null && first.kg > 0 && (kg === null || kg >= first.kg)) {
-        const step = roundToStep(first.kg * (1 - drop), c.unit);
-        kg = step < first.kg ? step : Math.max(0, roundToStep(first.kg - stepOf(c.unit), c.unit));
+      // failure. The load re-derived from what he lifted (PB-8.4 reps-in-reserve math) replaces it.
+      const missed = first.timed || first.assist ? null : missedLoad(ex.actual, ex.prescription.filter((p) => p.kind === 'accessory').length, first.repMin, first.rir);
+      if (missed !== null && first.kg !== null && first.kg > 0 && (kg === null || kg >= first.kg)) {
+        const lower = roundToStep(missed, c.unit);
+        kg = lower < first.kg ? lower : Math.max(0, roundToStep(first.kg - stepOf(c.unit), c.unit));
         r = first.repMin;
       }
       const reps = r === null ? null : Math.round(Math.min(first.repMax, Math.max(first.repMin, r)));
@@ -249,8 +260,10 @@ export function validateChange(raw: unknown, c: CoachContext): CoachChange | nul
 /** Parses Gemini's reply; null when there's no usable message. Invalid changes are dropped, not fixed up. */
 export function parseCoachTurn(raw: unknown, c: CoachContext): CoachTurn | null {
   if (!isObj(raw)) return null;
-  const message = typeof raw.message === 'string' ? cleanText(raw.message, COACH_BOUNDS.messageMax) : '';
-  if (!message) return null;
+  const text = typeof raw.message === 'string' ? cleanText(raw.message, COACH_BOUNDS.messageMax) : '';
+  if (!text) return null;
+  // Story 16: loads named in his words pass the PB-8.4 check too; outside-playbook advice is labelled.
+  const message = labelOutside(c.fixText ? c.fixText(text) : text, raw);
   const list = Array.isArray(raw.changes) ? raw.changes.slice(0, 6) : [];
   const changes: CoachTurn['changes'] = [];
   for (const x of list) {

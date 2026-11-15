@@ -32,7 +32,7 @@ export const learnStrings = {
 
   'learn.row.pace.title': 'Weekly pace',
   'learn.row.pace.cut': 'Lose {min}–{max}% of body weight a week (I start at {def}%).',
-  'learn.row.pace.bulk': 'Gain {min}–{max}% a week (I start at {def}%).',
+  'learn.row.pace.bulk': 'Gain {min}–{max}% a week at your training age (I start at {def}%). Newer lifters grow faster, so their band is higher (PB-2.3).',
   'learn.row.pace.why': 'Losing slower keeps more muscle and strength than losing fast. The bulk range keeps the gain mostly muscle; that range is common practice, tested less tightly.',
 
   'learn.row.protein.title': 'Protein',
@@ -41,12 +41,12 @@ export const learnStrings = {
   'learn.row.protein.why': 'Around 1.6 g per kg is where extra protein stops adding muscle for most lifters. In a deficit, more protein protects muscle, so the cut starts higher.',
 
   'learn.row.carbs.title': 'Fat and carbs',
-  'learn.row.carbs.cut': 'Fat stays on its floor; carbs take what’s left, so they get squeezed.',
-  'learn.row.carbs.bulk': 'Fat stays on its floor; carbs take what’s left, so there are plenty.',
-  'learn.row.carbs.why': 'Fat never drops under {pct}% of calories and {gkg} g per kg (a safety rule). Carbs fuel hard training, so they get the rest.',
+  'learn.row.carbs.cut': 'Fat sits around a quarter of calories, never under its floor; carbs take what’s left, so they get squeezed.',
+  'learn.row.carbs.bulk': 'Fat sits around a quarter of calories, never under its floor; carbs take what’s left, so there are plenty.',
+  'learn.row.carbs.why': 'Fat never drops under the higher of {gkg} g per kg and {pct}% of calories (PB-3.2). Carbs fuel hard training, so they get the rest.',
 
   'learn.row.carbDays.title': 'Training-day carbs',
-  'learn.row.carbDays.both': 'Training days get about {pct}% of the day’s calories more as carbs; rest days give it back. Same weekly calories and protein.',
+  'learn.row.carbDays.both': 'Rest days: carbs down about {pct}% and fat up to about {restFat} g per kg. Training days: fat to its floor and carbs up by what the week needs. Same weekly calories and protein (PB-3.4).',
   'learn.row.carbDays.why': 'Fuelling the work you do is sound practice for training quality. With calories and protein matched, it hasn’t beaten steady eating for fat loss or muscle, so I don’t sell it as a fat-loss trick.',
 
   'learn.row.main.title': 'Main lifts',
@@ -69,8 +69,8 @@ export const learnStrings = {
   'learn.row.cardio.why': 'On a cut the walk burns energy without eating into recovery. On a bulk it stays short: it’s there for your heart and habit, not to burn the surplus.',
 
   'learn.row.phasePick.title': 'Which phase I pick',
-  'learn.row.phasePick.both': 'Body fat {cutAt}% or more: cut. A lean bulk runs up to about {leanMax}%. Then I switch.',
-  'learn.row.phasePick.why': 'Those cut-offs are my coaching defaults. You can always pick the phase yourself.',
+  'learn.row.phasePick.both': 'Body fat {cutAt}% or more: I recommend a cut. Under that any phase is fine; my own pick is a bulk at {leanMax}% or less and maintain in between (PB-1.1, PB-1.2).',
+  'learn.row.phasePick.why': 'Those cut-offs are coaching rules of thumb from my playbook, not hard science. You can always pick the phase yourself; a bulk above the line gets a mini-cut suggestion, never a block.',
 
   'learn.week.split.title': '{days} days a week, four lifts',
   'learn.week.split.text': 'Squat, bench, Romanian deadlift and overhead press rotate, one per session. A cycle is {sessions} sessions however many days you train.',

@@ -17,3 +17,10 @@ describe('D-023 no emoji in the Story 11 goal pack', async () => {
     expect(Object.entries(goalStrings).filter(([, v]) => EMOJI.test(v))).toEqual([]);
   });
 });
+
+describe('D-023 no emoji in the Story 16 playbook pack', async () => {
+  const { playbookStrings } = await import('./playbook');
+  it('has no emoji in any string', () => {
+    expect(Object.entries(playbookStrings).filter(([, v]) => EMOJI.test(v))).toEqual([]);
+  });
+});

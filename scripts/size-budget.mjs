@@ -17,7 +17,7 @@ export const BUDGET = {
   /** Largest lazy chunk (gzip). */
   lazyChunkGzKb: 30,
   /** Everything the service worker precaches (raw bytes on the phone). */
-  precacheKb: 1200,
+  precacheKb: 1260, // D-039 (owner, 2026-11-15): Story 16's playbook, plausibility, notes and strength code
 };
 
 const files = [];

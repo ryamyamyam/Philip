@@ -3,9 +3,11 @@ import { addCoachNotes, applyCoachProposals, saveCoachThread } from '../../db/re
 import { loadBrief } from '../../db/coachBrief';
 import { todayYmd } from '../../lib/date';
 import { newId } from '../../db/db';
-import { useProfile } from '../../hooks/useData';
+import { useProfile, useWorkoutSessions } from '../../hooks/useData';
+import { loadProfileFrom, makeLoadCheck, makeTextFixer } from '../../lib/playbook/loadContext';
 import type { CoachChange, CoachProposal, CoachThread, CycleRecord, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
+import { tp } from '../../i18n/playbook';
 import { addPhilipTurn, chatPrompt, cleanText, newThread, parseCoachTurn, reportPrompt, type CoachContext } from '../../lib/training/coach';
 import { exerciseFor, menuSlot, slotKey, type ExerciseId } from '../../lib/training/exercises';
 import { blockForCycle } from '../../lib/training/program';
@@ -38,6 +40,7 @@ interface Props {
  */
 export function CoachReport({ session, program, cycle, tmHistory, choices, unit, auto }: Props) {
   const profile = useProfile();
+  const sessions = useWorkoutSessions();
   const cloud = useCloudPaired();
   const key = profile?.geminiKey ?? (cloud ? 'cloud' : null);
   const [busy, setBusy] = useState(false);
@@ -59,6 +62,9 @@ export function CoachReport({ session, program, cycle, tmHistory, choices, unit,
       unit: program.weightUnit,
       name: exName,
       dayOrder: program.dayOrder,
+      // Story 16 (PB-8.4): his proposals and the loads in his words pass the plausibility check.
+      loadCheck: makeLoadCheck(loadProfileFrom(tms, profile?.weightKg ?? null), sessions ?? [], program.weightUnit, program.bar),
+      fixText: makeTextFixer(loadProfileFrom(tms, profile?.weightKg ?? null), sessions ?? [], program.weightUnit, program.bar, exName, tp('loads.correctedWord')),
     };
   };
 

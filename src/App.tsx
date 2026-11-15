@@ -24,6 +24,8 @@ const WorkoutView = lazy(() => import('./views/WorkoutView'));
 const AskView = lazy(() => import('./views/AskView'));
 // Story 11: loads right after the first screen; it only watches for goal events.
 const GoalWatcher = lazy(() => import('./components/GoalWatcher'));
+// Story 16: the one-time playbook update sheet (0.16.1).
+const PlaybookWatcher = lazy(() => import('./components/PlaybookWatcher'));
 
 export function App() {
   const [tab, navigate] = useRoute();
@@ -141,6 +143,7 @@ export function App() {
             />
           )}
           <Suspense fallback={null}>
+            <PlaybookWatcher busy={!!sheet || showTour || seenAt === null} />
             <GoalWatcher busy={!!sheet || showTour || seenAt === null} />
           </Suspense>
           <QaFeedback config={qaFeedbackConfig} />

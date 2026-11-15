@@ -8,7 +8,11 @@
  * - **Set my own**: checked by `checkUserGoal` (and the targets.ts safety rules behind it).
  */
 import type { CycleGoalSnapshot, GoalChoice } from '../../db/types';
-import { checkUserGoal, coachPhase, CUT_AT_BF, CYCLE_WEEKS, philipGoal, type GoalIssue, type LastCycle, type PhaseWhy } from '../training/cycleGoal';
+import { checkUserGoal, coachPhase, CYCLE_WEEKS, philipGoal, ratesFor, type GoalIssue, type LastCycle, type PhaseContext, type PhaseWhy } from '../training/cycleGoal';
+import { cutLine, type RateContext } from '../playbook/rules';
+
+/** Story 16: who the goal is for (training age, BF, sex: PB-1, PB-2.3). */
+export type LifterCtx = RateContext & PhaseContext;
 import type { Phase } from '../training/program';
 
 export interface PrevGoal {
@@ -18,10 +22,10 @@ export interface PrevGoal {
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-export function repeatGoal(prev: PrevGoal, nowKg: number, bfPct: number | null, weeks: number = prev.goal.weeks ?? CYCLE_WEEKS): GoalChoice & { issues: GoalIssue[] } {
+export function repeatGoal(prev: PrevGoal, nowKg: number, bfPct: number | null, weeks: number = prev.goal.weeks ?? CYCLE_WEEKS, ctx: LifterCtx = {}): GoalChoice & { issues: GoalIssue[] } {
   const delta = prev.goal.endWeightKg - prev.goal.startWeightKg;
   const end = r1(nowKg + delta);
-  const { ratePct, issues } = checkUserGoal(nowKg, prev.phase, end, prev.goal.bfLinePct, weeks);
+  const { ratePct, issues } = checkUserGoal(nowKg, prev.phase, end, prev.goal.bfLinePct, weeks, { rates: ratesFor(ctx), bfPct, sex: ctx.sex ?? null });
   return {
     phase: prev.phase,
     startWeightKg: r1(nowKg),
@@ -41,23 +45,23 @@ export type { PhaseWhy };
  * The phase Philip recommends next, and why. OBS-FF441B: always a direction (bulk or cut); a bulk that
  * reached its BF ceiling gets a short cut, not a 0% maintain cycle.
  */
-export function recommendNextPhase(prev: PrevGoal, bfPct: number | null, longTermBfPct: number | null): { phase: Phase; why: PhaseWhy } {
-  if (bfPct !== null && bfPct >= CUT_AT_BF && prev.phase !== 'lose') return { phase: 'lose', why: 'highBf' };
+export function recommendNextPhase(prev: PrevGoal, bfPct: number | null, longTermBfPct: number | null, ctx: LifterCtx = {}): { phase: Phase; why: PhaseWhy } {
+  if (bfPct !== null && bfPct >= cutLine(ctx.sex ?? null) && prev.phase !== 'lose') return { phase: 'lose', why: 'highBf' };
   if (prev.phase === 'gain' && bfPct !== null && prev.goal.bfLinePct !== null && bfPct >= prev.goal.bfLinePct) return { phase: 'lose', why: 'bfCeiling' };
-  return coachPhase(bfPct, longTermBfPct, prev.phase);
+  return coachPhase(bfPct, longTermBfPct, prev.phase, ctx);
 }
 
-export function philipNextGoal(prev: PrevGoal, nowKg: number, bfPct: number | null, phase: Phase, daysTaken: number, weeks: number = CYCLE_WEEKS): GoalChoice {
+export function philipNextGoal(prev: PrevGoal, nowKg: number, bfPct: number | null, phase: Phase, daysTaken: number, weeks: number = CYCLE_WEEKS, ctx: LifterCtx = {}): GoalChoice {
   const taken = Math.max(1, daysTaken / 7);
   const actualRatePct = ((nowKg - prev.goal.startWeightKg) / prev.goal.startWeightKg / taken) * 100;
   const bfDelta = bfPct !== null && prev.goal.startBfPct !== null ? bfPct - prev.goal.startBfPct : null;
   const last: LastCycle = { phase: prev.phase, plannedRatePct: prev.goal.weeklyRatePct, actualRatePct, bfDelta };
-  const g = philipGoal(r1(nowKg), bfPct, phase, last, weeks);
+  const g = philipGoal(r1(nowKg), bfPct, phase, last, weeks, ratesFor(ctx));
   return { phase, startWeightKg: g.startWeightKg, startBfPct: g.startBfPct, endWeightKg: g.endWeightKg, weeklyRatePct: g.weeklyRatePct, bfLinePct: g.bfLinePct, source: 'philip', weeks };
 }
 
-export function ownGoal(nowKg: number, bfPct: number | null, phase: Phase, endKg: number, bfLine: number | null, weeks: number = CYCLE_WEEKS): (GoalChoice & { issues: GoalIssue[] }) {
-  const { ratePct, issues } = checkUserGoal(nowKg, phase, endKg, bfLine, weeks);
+export function ownGoal(nowKg: number, bfPct: number | null, phase: Phase, endKg: number, bfLine: number | null, weeks: number = CYCLE_WEEKS, ctx: LifterCtx = {}): (GoalChoice & { issues: GoalIssue[] }) {
+  const { ratePct, issues } = checkUserGoal(nowKg, phase, endKg, bfLine, weeks, { rates: ratesFor(ctx), bfPct, sex: ctx.sex ?? null });
   return { phase, startWeightKg: r1(nowKg), startBfPct: bfPct, endWeightKg: r1(endKg), weeklyRatePct: ratePct, bfLinePct: bfLine, source: 'user', weeks, issues };
 }
 

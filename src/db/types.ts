@@ -51,6 +51,8 @@ export interface Profile {
   adherenceEnabled: boolean;
   /** Story 11: the day body fat was last entered (BF has no history; a goal check needs its age). Optional. */
   bodyFatDate?: YMD | null;
+  /** Story 16 (PB-2.3): years of consistent lifting, asked once (sets the bulk pace). Absent/null = not asked. */
+  trainingYears?: number | null;
 }
 
 export type TargetMethod = 'calculated' | 'manual';
@@ -266,6 +268,8 @@ export interface SessionExercise {
   skipped?: boolean;
   /** Philip's original orders, kept when the owner OKs a mid-workout change. */
   originalPrescription?: Prescribed[];
+  /** Story 16: when the note was last saved (ms; blur or Enter). Absent = never saved since Story 16. */
+  noteSavedAt?: number;
 }
 
 export type SessionStatus = 'in_progress' | 'done' | 'skipped';
@@ -295,6 +299,9 @@ export interface WorkoutSession {
    * timer, and saving keeps the original `finishedAt`. Absent on every other session.
    */
   editing?: boolean;
+  /** Story 16 §3.4: the owner's note for the whole session (optional) and when it was saved. */
+  note?: string;
+  noteSavedAt?: number;
 }
 
 /** Cardio after the lifts (Story 7). Planned minutes come from the phase; the rest is the owner's log. */

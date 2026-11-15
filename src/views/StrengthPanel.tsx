@@ -3,11 +3,14 @@ import { StatRow } from '../components/StatRow';
 import { useCycles, useTmHistory, useTrainingProgram, useWorkoutSessions } from '../hooks/useData';
 import { useWidth } from '../hooks/useWidth';
 import { t, type StringKey } from '../i18n';
+import { tp } from '../i18n/playbook';
 import { fmtDate } from '../lib/format';
 import { LIFTS, type LiftId } from '../lib/training/program';
 import { datePosition, e1rmPoints, enteredPrPoints, weeklyE1rm, type PrPoint, type WeeklyE1rm } from '../lib/training/progress';
 import { liftOf } from '../lib/training/sessionLog';
 import { fmtIn } from './workout/units';
+import { StrengthGoal } from './StrengthGoal';
+import { linesFor, type PlannedLine } from '../lib/strength/e1rm';
 
 const LIFT_KEY: Record<LiftId, StringKey> = { squat: 'exercise.squat', bench: 'exercise.bench', rdl: 'exercise.rdl', ohp: 'exercise.ohp' };
 
@@ -30,18 +33,23 @@ export function StrengthPanel() {
   const avgMin = done.length ? Math.round(done.reduce((sum, s) => sum + ((s.finishedAt ?? 0) - s.startedAt), 0) / done.length / 60000) : null;
   const current = program.currentCycle;
 
+  // Story 16 (PB-8.2): the planned line per Big-4 lift from the current cycle.
+  const cycle = current > 0 ? (cycles.find((c) => c.index === current) ?? null) : null;
+  const lines = cycle ? linesFor(cycle) : null;
   return (
     <div className="stack">
+      <StrengthGoal />
       <div className="strength-legend small" aria-hidden="true">
         <span><i className="strength-dot strength-dot-pr" /> {t('strength.legendPr')}</span>
         <span><i className="strength-dot strength-dot-est" /> {t('strength.legendEst')}</span>
+        {lines && <span><i className="strength-dash" /> {tp('strength.legendPlan')}</span>}
       </div>
       <details className="strength-how">
         <summary className="details-summary">{t('strength.howTitle')}</summary>
         <p className="small">{t('strength.how')}</p>
       </details>
       {LIFTS.map((lift) => (
-        <LiftChart key={lift} lift={lift} weekly={weekly.filter((p) => p.lift === lift)} prs={prs.filter((p) => p.lift === lift)} unit={unit} />
+        <LiftChart key={lift} lift={lift} weekly={weekly.filter((p) => p.lift === lift)} prs={prs.filter((p) => p.lift === lift)} unit={unit} plan={lines?.[lift] ?? null} />
       ))}
       <StatPanel title={t('strength.training')}>
         <dl className="pm-rows">
@@ -73,10 +81,10 @@ const H = 110;
 const PAD = { top: 8, right: 8, bottom: 8, left: 8 };
 const DOT = 6;
 
-function LiftChart({ lift, weekly, prs, unit }: { lift: LiftId; weekly: WeeklyE1rm[]; prs: PrPoint[]; unit: 'kg' | 'lb' }) {
+function LiftChart({ lift, weekly, prs, unit, plan }: { lift: LiftId; weekly: WeeklyE1rm[]; prs: PrPoint[]; unit: 'kg' | 'lb'; plan: PlannedLine | null }) {
   const [ref, width] = useWidth<HTMLDivElement>();
-  const values = [...weekly.map((p) => p.e1rmKg), ...prs.map((p) => p.oneRmKg)];
-  const dates = [...weekly.map((p) => p.date), ...prs.map((p) => p.date)].sort();
+  const values = [...weekly.map((p) => p.e1rmKg), ...prs.map((p) => p.oneRmKg), ...(plan ? [plan.start, plan.target] : [])];
+  const dates = [...weekly.map((p) => p.date), ...prs.map((p) => p.date), ...(plan ? [plan.startDate, plan.targetDate] : [])].sort();
   const first = dates[0];
   const lastDate = dates[dates.length - 1];
   // Headroom above and below, so a single or flat series sits mid-chart instead of on an edge.
@@ -102,6 +110,18 @@ function LiftChart({ lift, weekly, prs, unit }: { lift: LiftId; weekly: WeeklyE1
       <div ref={ref} className="strength-chart">
         {values.length > 0 ? (
           <svg width={width} height={H} role="img" aria-label={label} shapeRendering="crispEdges">
+            {plan && (
+              <line
+                data-line="plan"
+                x1={x(plan.startDate)}
+                y1={y(plan.start)}
+                x2={x(plan.targetDate)}
+                y2={y(plan.target)}
+                stroke="var(--color-text-2)"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+              />
+            )}
             {weekly.length > 1 && (
               <polyline fill="none" stroke="var(--cat-sky)" strokeWidth={2} points={weekly.map((p) => `${x(p.date)},${y(p.e1rmKg)}`).join(' ')} />
             )}

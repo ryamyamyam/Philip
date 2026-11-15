@@ -37,8 +37,8 @@ export function clampDeadline(today: YMD, deadline: YMD): YMD {
 }
 
 /** The date Philip suggests for moving from `startKg` to `endKg` in `phase`. Maintain, or a goal pointing the wrong way: 4 weeks. */
-export function suggestDeadline(phase: Phase, startKg: number, endKg: number, today: YMD): { weeks: number; date: YMD } {
-  const rate = Math.abs(RATE_PCT[phase].def);
+export function suggestDeadline(phase: Phase, startKg: number, endKg: number, today: YMD, rates: Readonly<Record<Phase, { def: number }>> = RATE_PCT): { weeks: number; date: YMD } {
+  const rate = Math.abs(rates[phase].def);
   const pct = (Math.abs(endKg - startKg) / startKg) * 100;
   const wrongWay = (phase === 'gain' && endKg < startKg) || (phase === 'lose' && endKg > startKg);
   let weeks: number = CYCLE_WEEKS;

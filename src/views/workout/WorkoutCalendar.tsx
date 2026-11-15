@@ -4,10 +4,13 @@ import { CornerButton } from '../../components/CornerButton';
 import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { PixelStamp } from '../../components/PixelStamp';
+import { combinedStrengthDate } from '../../lib/strength/e1rm';
+import { Icon } from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { deleteWorkoutSession, LockedSessionError, OpenSessionError, reopenWorkoutSession } from '../../db/repo';
 import type { CycleRecord, Profile, TmRecord, TrainingProgram, WeightEntry, WorkoutSession, YMD } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
+import { tp } from '../../i18n/playbook';
 import { addDays, todayYmd } from '../../lib/date';
 import { fmtDate, fmtNum } from '../../lib/format';
 import { startingWeight } from '../../lib/training/cycleGoal';
@@ -20,7 +23,7 @@ import { fmtIn } from './units';
 import { infoFor } from '../../lib/training/sessionLog';
 import { useCycles } from '../../hooks/useData';
 import { cardioValue } from './CardioCard';
-import { CoachReport } from './CoachReport';
+import { CoachReport } from './CoachReportLazy';
 
 const LIFT_KEY: Record<LiftId, StringKey> = { squat: 'exercise.squat', bench: 'exercise.bench', rdl: 'exercise.rdl', ohp: 'exercise.ohp' };
 const TAG_KEY: Record<LiftId, StringKey> = { squat: 'cal.tag.squat', bench: 'cal.tag.bench', rdl: 'cal.tag.rdl', ohp: 'cal.tag.ohp' };
@@ -92,6 +95,12 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
   // Story 11: the day a goal was reached keeps a flower.
   const allCycles = useCycles();
   const reached = useMemo(() => new Set((allCycles ?? []).map((c) => c.reachedAt).filter((d): d is string => !!d)), [allCycles]);
+  // Story 16 (PB-8.2, PB-8.5): the combined strength date, its own marker (separate from the goal flower).
+  const strengthDate = useMemo(() => {
+    if (!cycle) return null;
+    const r = combinedStrengthDate(sessions, allCycles ?? [cycle], cycle, today);
+    return r.kind === 'date' ? r.date : null;
+  }, [sessions, cycle, allCycles, today]);
   const grid = monthGrid(month);
 
   const mark = (date: string): WorkoutSession['status'] | null => {
@@ -107,6 +116,7 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
     const m = mark(date);
     if (m) parts.push(t(m === 'done' ? 'cal.aria.done' : STATUS_KEY[m]));
     if (reached.has(date)) parts.push(t('cal.aria.reached'));
+    if (date === strengthDate) parts.push(tp('cal.strengthDate'));
     const p = plannedByDate.get(date);
     if (p && m !== 'done') {
       parts.push(t('cal.aria.planned', { day: p.day, lift: liftName(p.lift) }));
@@ -146,6 +156,11 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
                 onClick={() => setSelected(date)}
               >
                 <span className="num cal-num">{Number(date.slice(8))}</span>
+                {date === strengthDate && (
+                  <span className="cal-strength" data-testid="strength-marker" aria-hidden="true">
+                    <Icon name="dumbbell" />
+                  </span>
+                )}
                 {m === 'done' ? (
                   <PixelStamp kind="done" className={`cal-stamp${justFinished && date === today ? ' is-pressing' : ''}`} />
                 ) : reached.has(date) || p?.isGoalDay ? (
@@ -562,11 +577,16 @@ function SessionLog({ session, unit }: { session: WorkoutSession; unit: 'kg' | '
                   {a.note ? ` “${a.note}”` : ''}
                 </span>
               ))}
-            {e.note ? <span className="cal-flag"> · {e.note}</span> : null}
+            {e.note ? <span className="cal-flag"> · “{e.note}”</span> : null}
           </li>
         );
       })}
       {session.cardio && <li className="small num">{t('cardio.cal', { value: cardioValue(session.cardio) })}</li>}
+      {(session.note ?? '').trim() !== '' && (
+        <li className="small">
+          <strong>{tp('session.dayNote')}</strong> “{(session.note ?? '').trim()}”
+        </li>
+      )}
     </ul>
   );
 }

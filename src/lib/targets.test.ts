@@ -60,7 +60,8 @@ describe('calculateTargets', () => {
 
   it('caps gain at 0.5% of body weight per week', () => {
     expect(resolveRate('gain', 80, 1)).toEqual({ rateKg: 0.4, capped: true });
-    expect(resolveRate('gain', 80, null)).toEqual({ rateKg: 0.2, capped: false });
+    // Story 16 (PB-2.3): unknown training age → the 1–3 year band's default, 0.3%/week.
+    expect(resolveRate('gain', 80, null)).toEqual({ rateKg: 0.24, capped: false });
   });
 
   it('never goes below the calorie floor and flags review', () => {
@@ -90,10 +91,11 @@ describe('calculateTargets', () => {
     expect(calculateTargets({ ...base, goal: 'gain', targetWeightKg: 70 }).warnings).toContainEqual({ code: 'targetDirection' });
   });
 
-  it('fat is at least 25% of calories', () => {
+  it('fat is at least the PB-3.2 floor (20% of calories and 0.6 g/kg)', () => {
     for (const goal of ['lose', 'maintain', 'gain'] as const) {
       const r = calculateTargets({ ...base, goal, targetWeightKg: null });
-      expect((r.fatG * 9) / r.calories).toBeGreaterThanOrEqual(0.245);
+      expect((r.fatG * 9) / r.calories).toBeGreaterThanOrEqual(0.195);
+      expect(r.fatG).toBeGreaterThanOrEqual(Math.floor(0.6 * base.weightKg));
     }
   });
 

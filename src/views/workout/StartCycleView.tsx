@@ -4,6 +4,7 @@ import { GymCharacter } from '../../components/GymCharacter';
 import { addTargetPlan, addTm, startCycle, updateProfile } from '../../db/repo';
 import type { CycleRecord, IsoWeekday, Profile, TmRecord, WeightEntry, WorkoutSession } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
+import { tp } from '../../i18n/playbook';
 import { tg, type GoalKey } from '../../i18n/goal';
 import { tl } from '../../i18n/learn';
 import { useUI } from '../../ui';
@@ -18,8 +19,10 @@ import {
   calcInputsForGoal,
   checkUserGoal,
   philipGoal,
-  RATE_PCT,
   coachPhase,
+  lifterContext,
+  phaseWhyVars,
+  ratesFor,
   startingWeight,
   type CycleGoal,
   type GoalIssue,
@@ -63,7 +66,9 @@ export function StartCycleView({
   const index = nextCycleIndex(cycles, sessions);
   const last = cycles.find((c) => c.index === index - 1) ?? null;
   // OBS-FF441B: Philip coaches a direction (bulk or cut) and it is preselected; Maintain stays the owner's pick.
-  const rec = coachPhase(profile.bodyFatPct, profile.targetBodyFatPct, last?.phase ?? profile.goal ?? null);
+  const ctx = lifterContext(profile);
+  const rates = ratesFor(ctx);
+  const rec = coachPhase(profile.bodyFatPct, profile.targetBodyFatPct, last?.phase ?? profile.goal ?? null, ctx);
   const recommended = rec.phase;
   const [phase, setPhase] = useState<Phase>(recommended);
   const [mode, setMode] = useState<'philip' | 'user'>('philip');
@@ -86,12 +91,12 @@ export function StartCycleView({
 
   // Story 12: a goal with a date that is still ahead carries on into this cycle (same weight, same date).
   const carried = weight !== null && last ? continuation(last, weight, profile.bodyFatPct, phase, today) : null;
-  const philip: CycleGoal | null = weight === null ? null : (carried ?? philipGoal(weight, profile.bodyFatPct, phase, lastInfo));
+  const philip: CycleGoal | null = weight === null ? null : (carried ?? philipGoal(weight, profile.bodyFatPct, phase, lastInfo, undefined, rates));
   const userEnd = parseDecimal(endW);
   const userBf = parseDecimal(bfT);
   const userEndKg = userEnd !== null && Number.isFinite(userEnd) && userEnd > 0 ? fromDisplay(userEnd, unit) : null;
   const userBfPct = userBf !== null && Number.isFinite(userBf) ? userBf : null;
-  const check = weight !== null && userEndKg !== null ? checkUserGoal(weight, phase, userEndKg, userBfPct) : null;
+  const check = weight !== null && userEndKg !== null ? checkUserGoal(weight, phase, userEndKg, userBfPct, undefined, { rates, bfPct: profile.bodyFatPct, sex: profile.sex }) : null;
   const blocked = check?.issues.some((i) => i.level === 'error') ?? false;
   const goal: CycleGoal | null =
     mode === 'philip'
@@ -137,7 +142,7 @@ export function StartCycleView({
         method: 'calculated',
         inputsSnapshot: { ...inputs, bmr: res.bmr, tdee: res.tdee, adjustment: res.adjustment, warnings: res.warnings.map((w) => w.code), needsReview: res.needsReview, source: 'cycleBriefing', carbDays: carbOn },
         // Story 12 update: training days +carbs, rest days −carbs (same week).
-        weekdayOverrides: overridesFor(res, days ?? DEFAULT_TRAINING_DAYS, profile.sex, carbOn),
+        weekdayOverrides: overridesFor(res, days ?? DEFAULT_TRAINING_DAYS, profile.sex, carbOn, goal.startWeightKg),
       });
     }
     await startCycle({ index, block: blockForCycle(index), startedAt: Date.now(), phase, tms: snapshot, goal: { ...goal, targetPlanId } });
@@ -182,7 +187,7 @@ export function StartCycleView({
           ))}
         </div>
         <p className="small muted">{t('brief.recommended', { phase: t(PHASE_KEY[recommended]) })}</p>
-        {rec.why !== 'same' && <p className="small">{tg(`goal.phaseWhy.${rec.why}` as GoalKey)}</p>}
+        {rec.why !== 'same' && <p className="small">{tg(`goal.phaseWhy.${rec.why}` as GoalKey, phaseWhyVars(profile?.sex ?? null))}</p>}
         <button type="button" className="btn btn-sm btn-ghost" onClick={() => openSheet({ kind: 'whyPlan', phase })}>
           {tl('learn.open')}
         </button>
@@ -224,7 +229,7 @@ export function StartCycleView({
               {check && <p className="num small">{t('brief.userRate', { rate: fmtNum(check.ratePct, 2) })}</p>}
               {check?.issues.map((i) => (
                 <p key={i.code} className={`small ${i.level === 'error' ? 'field-error' : 'warn-text'}`} role={i.level === 'error' ? 'alert' : undefined}>
-                  {issueText(i, phase)}
+                  {issueText(i)}
                 </p>
               ))}
             </>
@@ -252,15 +257,17 @@ function bfKey(phase: Phase): StringKey {
   return phase === 'gain' ? 'brief.bfCeiling' : phase === 'lose' ? 'brief.bfTarget' : 'brief.bfHold';
 }
 
-function issueText(i: GoalIssue, phase: Phase): string {
+function issueText(i: GoalIssue): string {
   switch (i.code) {
     case 'rateOutOfRange':
-      return t('brief.issue.rate', { min: fmtNum(RATE_PCT[phase].min, 2), max: fmtNum(RATE_PCT[phase].max, 2) });
+      return t('brief.issue.rate', { min: fmtNum(i.range.min, 2), max: fmtNum(i.range.max, 2) });
     case 'directionMismatch':
       return t('brief.issue.direction');
     case 'bfBelowFloor':
       return t('brief.issue.bfFloor', { min: i.min });
     case 'bfLow':
       return t('brief.issue.bfLow', { warn: i.warnBelow });
+    case 'miniCut':
+      return tp('brief.issue.miniCut', { cutAt: i.cutAt, min: i.weeks[0], max: i.weeks[1] });
   }
 }

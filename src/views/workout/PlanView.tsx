@@ -7,11 +7,13 @@ import { blockForCycle, DAY_LIFT, DELOAD_WEEK, LIFTS, tmIncrement, type Day, typ
 import { tmsForCycle } from '../../lib/training/progress';
 import { buildSession } from '../../lib/training/session';
 import { lastSetsFor } from '../../lib/training/sessionLog';
+import { sessionLoadCheck } from '../../lib/playbook/loadContext';
 import { fmtIn } from './units';
 import { infoFor } from '../../lib/training/sessionLog';
 import ReplanButton from '../goal/ReplanButton';
 import { tl } from '../../i18n/learn';
 import { useUI } from '../../ui';
+import { useProfile } from '../../hooks/useData';
 
 const DAYS: Day[] = [1, 2, 3, 4];
 const WEEKS: Week[] = [1, 2, 3, 4];
@@ -38,6 +40,7 @@ export function PlanView({
 }) {
   const unit = program.weightUnit;
   const tms = tmsForCycle(tmHistory, cycle.index);
+  const profile = useProfile();
   const [week, setWeek] = useState<Week>(() => {
     const open = WEEKS.find((w) => DAYS.some((d) => !sessions.some((s) => s.cycle === cycle.index && s.week === w && s.day === d && s.status !== 'in_progress')));
     return open ?? 1;
@@ -99,6 +102,8 @@ export function PlanView({
               bar: program.bar,
               weightUnit: unit,
               ...(program.availability ? { budgetMin: program.availability.strengthMin } : {}),
+              // Story 16 (PB-8.4): the plan shows the same checked loads as the session.
+              loadCheck: sessionLoadCheck(tms, profile?.weightKg ?? null, sessions, unit, program.bar),
             })
           : null;
         return (

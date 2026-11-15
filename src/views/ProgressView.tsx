@@ -24,6 +24,7 @@ import { goalDate, weightPlanLine, weightProgress, WEIGHT_LOG_RANGE, type Weight
 import { useUI } from '../ui';
 import { StrengthPanel } from './StrengthPanel';
 import { GoalHistory } from './goal/GoalHistory';
+import { StrengthGoal } from './StrengthGoal';
 import { useGoalState } from '../hooks/useGoal';
 import { tg } from '../i18n/goal';
 
@@ -149,6 +150,7 @@ export default function ProgressView() {
           <WeighInTake plans={plans} profile={profile} entries={entries} today={today} unit={unit} toUnit={toUnit} latestKg={latest.weightKg} onDone={() => setJustLogged(false)} />
         )}
         <GoalHistory unit={unit === 'lb' ? 'lb' : 'kg'} />
+        <StrengthGoal />
         {entries.length > 0 && <WeightHistory entries={entries} fmtW={fmtW} unit={unit} />}
       </div>
       )}

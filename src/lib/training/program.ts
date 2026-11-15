@@ -5,6 +5,9 @@
  * The numbers are Philip's coaching defaults; the evidence labels live in the spec and D-025.
  */
 
+import { shortSetLoad } from '../playbook/effort';
+import { PB_WAVE } from '../playbook/rules';
+
 export type LiftId = 'squat' | 'bench' | 'rdl' | 'ohp';
 export type Block = 'A' | 'B' | 'C' | 'D';
 export type Phase = 'lose' | 'maintain' | 'gain';
@@ -18,7 +21,7 @@ export const BLOCK_ORDER: readonly Block[] = ['A', 'B', 'C', 'D'];
 export const DELOAD_WEEK: Week = 4;
 
 /** TM as a share of the 1RM. */
-export const TM_SHARE = 0.9;
+export const TM_SHARE = PB_WAVE.tmShare;
 
 /** Block for a 1-based cycle number: 1 = A, 2 = B, 3 = C, 4 = D, 5 = A … */
 export function blockForCycle(cycle: number): Block {
@@ -190,25 +193,18 @@ export interface LoggedAccessorySet {
   done: boolean;
 }
 
-/**
- * Load cut per missing rep when a set falls well short of the range (OBS-2C086C). Coaching default
- * (a hypothesis): rep-max tables put neighbouring rep maxes roughly 2–3% of 1RM apart in the 5–12
- * range, so a set that fell N reps short needs about N × 2.5% less load to land in the range.
- */
-export const LOAD_PCT_PER_MISSED_REP = 0.025;
-/** A drop never cuts more than this in one step (matches the report's 20% bound). */
-export const MAX_LOAD_DROP_PCT = 0.2;
 /** Falling this many reps (or more) below the bottom of the range lowers the weight; less only chases reps. */
 export const DROP_AT_REPS_SHORT = 2;
 
 /**
- * Double progression: when every prescribed set reached the top of the range, add the smallest
+ * Double progression (PB-4.5): when every prescribed set reached the top of the range, add the smallest
  * increment; otherwise keep the weight and chase reps. No history → null (Philip asks for a weight
  * that leaves 2 reps at the top of the range).
  *
- * OBS-2C086C: when `repMin` is given and a set fell 2+ reps below it (or the lifter couldn't finish
- * the sets), holding the weight only repeats the failure. The weight drops by about 2.5% per missing
- * rep (plus one more step for unfinished sets), at least one increment, at most 20%.
+ * OBS-2C086C, Story 16 (PB-8.4): when `repMin` is given and a set fell 2+ reps below it (or the lifter
+ * couldn't finish the sets), holding the weight only repeats the failure. The weight is re-derived from
+ * what he actually lifted (e1RM from the weakest set taken near failure → the load for the bottom of the
+ * range at `rir`), at least one increment lower. No flat percent.
  */
 export function nextAccessoryKg(
   last: readonly LoggedAccessorySet[] | null,
@@ -216,29 +212,35 @@ export function nextAccessoryKg(
   repMax: number,
   incrementKg: number,
   repMin?: number,
+  rir = 1,
 ): { kg: number | null; change: 'first' | 'add' | 'hold' | 'drop' } {
   const logged = (last ?? []).filter((s) => s.done && s.kg !== null && s.reps !== null);
   if (logged.length === 0) return { kg: null, change: 'first' };
   const kg = Math.max(...logged.map((s) => s.kg ?? 0));
   const allTop = logged.length >= prescribedSets && logged.every((s) => (s.reps ?? 0) >= repMax);
   if (allTop) return { kg: kg + incrementKg, change: 'add' };
-  const drop = loadDropPct(logged, prescribedSets, repMin);
-  if (drop > 0 && kg > 0) {
-    const lower = Math.max(0, Math.min(kg - incrementKg, kg * (1 - drop)));
-    return { kg: Math.round(lower * 100) / 100, change: 'drop' };
+  const lower = missedLoad(logged, prescribedSets, repMin, rir);
+  if (lower !== null && kg > 0) {
+    const next = Math.max(0, Math.min(kg - incrementKg, lower));
+    return { kg: Math.round(next * 100) / 100, change: 'drop' };
   }
   return { kg, change: 'hold' };
 }
 
-/** Share of load to take off after a big miss; 0 = keep the weight. Pure, shared with the in-session check. */
-export function loadDropPct(logged: readonly LoggedAccessorySet[], prescribedSets: number, repMin: number | undefined): number {
-  if (repMin === undefined) return 0;
-  const reps = logged.filter((s) => s.done && s.reps !== null).map((s) => s.reps ?? 0);
-  if (reps.length === 0) return 0;
-  const short = repMin - Math.min(...reps);
-  if (short < DROP_AT_REPS_SHORT) return 0;
-  const unfinished = reps.length < prescribedSets ? 1 : 0;
-  return Math.min(MAX_LOAD_DROP_PCT, (short + unfinished) * LOAD_PCT_PER_MISSED_REP);
+/**
+ * After a big miss (2+ reps under the range, or sets unfinished): the load for the bottom of the range
+ * at `rir`, from the weakest logged set (PB-8.4 step 4, `shortSetLoad`). Null = keep the weight. Pure,
+ * shared with the report's checks.
+ */
+export function missedLoad(logged: readonly LoggedAccessorySet[], prescribedSets: number, repMin: number | undefined, rir = 1): number | null {
+  if (repMin === undefined) return null;
+  const done = logged.filter((s) => s.done && s.reps !== null && s.kg !== null && s.kg > 0);
+  if (done.length === 0) return null;
+  const weakest = done.reduce((a, b) => ((b.reps ?? 0) < (a.reps ?? 0) ? b : a));
+  const short = repMin - (weakest.reps ?? 0);
+  const unfinished = done.length < prescribedSets;
+  if (short < DROP_AT_REPS_SHORT && !(unfinished && short > 0)) return null;
+  return shortSetLoad(weakest.kg ?? 0, weakest.reps ?? 0, repMin, rir);
 }
 
 /**
@@ -257,3 +259,9 @@ export function nextTargetReps(
   if (reps.length === 0) return Math.floor((repMin + repMax) / 2);
   return Math.min(repMax, Math.max(repMin, Math.min(...reps) + 1));
 }
+
+/** New TM after a review cut, rounded to 0.5 kg (the end-of-day review, D-027). */
+export const adjustedTm = (tmKg: number, factor: number): number => roundTo(tmKg * factor, 0.5);
+
+/** Extra rest for the rest of a cycle is capped so sessions still fit (the time-budget trims still run). */
+export const MAX_REST_BONUS_SEC = 90;

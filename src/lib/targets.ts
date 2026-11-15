@@ -9,14 +9,18 @@
  *  2. Maintenance ≈ resting energy × activity factor (1.2 … 1.9).
  *  3. Goal adjustment = weekly rate × ~7,700 kcal/kg ÷ 7. The 7,700 kcal/kg figure is a rough
  *     energy-equivalence approximation; real weight change is not linear and varies by person.
- *  4. Safety: loss rate capped at 1% of body weight/week, gain at 0.5%/week; calories never go
- *     below an absolute floor (1,500 men / 1,200 women) — if the math lands below it, the target is
- *     raised to the floor and flagged for professional review.
- *  5. Protein from g/kg (1.6–2.2 for people who train), fat ≥ 25% of calories, carbs = remainder.
+ *  4. Safety (PB-7, owner-approved 2026-11-14): loss rate capped at 1% of body weight/week (1.25% above
+ *     BMI 35), gain at 0.5%/week; calories never go below an absolute floor (1,500 men / 1,200 women) —
+ *     if the math lands below it, the target is raised to the floor and flagged for professional review.
+ *     Energy availability under 30 kcal/kg of lean mass (BF known) is warned about (PB-7.2).
+ *  5. Protein by phase (PB-3.1), fat: 25% of calories inside 0.7–1.0 g/kg but never under the floor
+ *     max(0.6 g/kg, 20%) (PB-3.2), carbs = remainder.
+ * Story 16: every number here comes from Philip's Playbook (`lib/playbook/rules.ts`).
  */
 import type { ActivityLevel, Goal, Sex } from '../db/types';
+import { fatFloorG, KCAL_PER_KG as PB_KCAL_PER_KG, PB_FAT, PB_GUARD, PB_PROTEIN, ratePctFor, type RateContext } from './playbook/rules';
 
-export const KCAL_PER_KG = 7700;
+export const KCAL_PER_KG = PB_KCAL_PER_KG;
 
 export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
   sedentary: 1.2,
@@ -27,15 +31,19 @@ export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
 };
 
 export const SAFETY = {
-  maxLossPctPerWeek: 0.01,
-  maxGainPctPerWeek: 0.005,
-  defaultLossPctPerWeek: 0.005,
-  defaultGainPctPerWeek: 0.0025,
-  calorieFloor: { male: 1500, female: 1200 } as Record<Sex, number>,
+  maxLossPctPerWeek: PB_GUARD.maxLossPct / 100,
+  /** PB-7.3: above this BMI the loss cap is `maxLossPctPerWeekHighBmi`. */
+  highBmi: PB_GUARD.highBmi,
+  maxLossPctPerWeekHighBmi: PB_GUARD.maxLossPctHighBmi / 100,
+  maxGainPctPerWeek: PB_GUARD.maxGainPct / 100,
+  /** Defaults when no rate is asked for: the playbook band's default (PB-2.3) at unknown training age. */
+  defaultLossPctPerWeek: -ratePctFor('lose').def / 100,
+  defaultGainPctPerWeek: ratePctFor('gain').def / 100,
+  calorieFloor: PB_GUARD.calorieFloor as Record<Sex, number>,
   calorieCeiling: 6000,
-  minFatPct: 0.25,
-  minFatGPerKg: 0.5,
-  lowBmi: 18.5,
+  minFatPct: PB_FAT.floorPct,
+  minFatGPerKg: PB_FAT.floorGPerKg,
+  lowBmi: PB_GUARD.lowBmi,
   minAge: 18,
   maxAge: 100,
 } as const;
@@ -61,6 +69,8 @@ export interface CalcInputs {
   weeklyRateKg: number | null;
   /** Optional body fat %. When set, resting energy uses Katch–McArdle instead of Mifflin–St Jeor. */
   bodyFatPct?: number | null;
+  /** Story 16 (PB-2.3): years of consistent lifting; sets the default bulk pace. Unknown = 1–3 years. */
+  trainingYears?: number | null;
 }
 
 export type CalcWarning =
@@ -73,7 +83,9 @@ export type CalcWarning =
   /** A floor/ceiling pushed the target the opposite way from the goal. */
   | { code: 'goalNotMet' }
   /** Calories below resting energy, or a deficit larger than ~30% of maintenance. */
-  | { code: 'aggressiveDeficit' };
+  | { code: 'aggressiveDeficit' }
+  /** PB-7.2: (intake − exercise) ÷ lean mass under 30 kcal/kg (body fat known). */
+  | { code: 'lowEnergyAvailability'; kcalPerKg: number };
 
 export interface CalcResult {
   bmr: number;
@@ -145,19 +157,24 @@ export function referenceWeightKg(weightKg: number, heightCm: number): number {
   return w30 + 0.25 * (weightKg - w30);
 }
 
-/** Protein g/kg by goal and training. Within 1.6–2.2 g/kg for people who train. */
+/** Protein g/kg by goal and training (PB-3.1: bulk 1.6–2.0, cut 2.0–2.4 for people who lift). */
 export function proteinPerKgFor(goal: Goal, trainingDaysPerWeek: number): number {
   const trains = trainingDaysPerWeek >= 1;
   if (!trains) return goal === 'maintain' ? 1.2 : 1.6;
-  if (goal === 'lose') return trainingDaysPerWeek >= 4 ? 2.2 : 2.0;
-  return goal === 'gain' ? 1.8 : 1.6;
+  return PB_PROTEIN[goal].def;
 }
 
 /** Resolves the weekly rate magnitude (kg) with defaults and caps. */
-export function resolveRate(goal: Goal, weightKg: number, requested: number | null): { rateKg: number; capped: boolean } {
+export function resolveRate(
+  goal: Goal,
+  weightKg: number,
+  requested: number | null,
+  ctx: RateContext & { bmi?: number | null } = {},
+): { rateKg: number; capped: boolean } {
   if (goal === 'maintain') return { rateKg: 0, capped: false };
-  const maxPct = goal === 'lose' ? SAFETY.maxLossPctPerWeek : SAFETY.maxGainPctPerWeek;
-  const defPct = goal === 'lose' ? SAFETY.defaultLossPctPerWeek : SAFETY.defaultGainPctPerWeek;
+  const lossMax = ctx.bmi != null && ctx.bmi > SAFETY.highBmi ? SAFETY.maxLossPctPerWeekHighBmi : SAFETY.maxLossPctPerWeek;
+  const maxPct = goal === 'lose' ? lossMax : SAFETY.maxGainPctPerWeek;
+  const defPct = Math.abs(ratePctFor(goal, ctx).def) / 100;
   const max = weightKg * maxPct;
   const want = requested == null ? weightKg * defPct : requested;
   if (want > max) return { rateKg: round2(max), capped: true };
@@ -191,7 +208,7 @@ export function calculateTargets(i: CalcInputs): CalcResult {
     }
   }
 
-  const { rateKg, capped } = resolveRate(i.goal, i.weightKg, i.weeklyRateKg);
+  const { rateKg, capped } = resolveRate(i.goal, i.weightKg, i.weeklyRateKg, { trainingYears: i.trainingYears, bfPct: i.bodyFatPct, sex: i.sex, bmi: currentBmi });
   if (capped) warnings.push({ code: 'rateCapped', rateKg });
   const sign = i.goal === 'lose' ? -1 : i.goal === 'gain' ? 1 : 0;
   const adjustment = (sign * rateKg * KCAL_PER_KG) / 7;
@@ -210,8 +227,10 @@ export function calculateTargets(i: CalcInputs): CalcResult {
   // Macros
   const refKg = referenceWeightKg(i.weightKg, i.heightCm);
   const proteinPerKg = proteinPerKgFor(i.goal, i.trainingDaysPerWeek);
-  const proteinG = Math.round(refKg * proteinPerKg);
-  const fatG = Math.round(Math.max((calories * SAFETY.minFatPct) / 9, refKg * SAFETY.minFatGPerKg));
+  // PB-3.1: a cut above 25% BF counts protein per kg of lean mass.
+  const lbmCut = i.goal === 'lose' && i.trainingDaysPerWeek >= 1 && i.bodyFatPct != null && i.bodyFatPct > PB_PROTEIN.lbmAboveBf;
+  const proteinG = Math.round(lbmCut && i.bodyFatPct != null ? leanMassKg(i.weightKg, i.bodyFatPct) * PB_PROTEIN.loseLbm.def : refKg * proteinPerKg);
+  const fatG = flatFatG(calories, refKg);
   let carbsG = Math.round((calories - proteinG * 4 - fatG * 9) / 4);
   if (carbsG < 0) {
     carbsG = 0;
@@ -219,6 +238,10 @@ export function calculateTargets(i: CalcInputs): CalcResult {
   }
 
   if (i.goal === 'lose' && (calories < bmr || tdee - calories > tdee * 0.3)) warnings.push({ code: 'aggressiveDeficit' });
+  if (i.bodyFatPct != null) {
+    const ea = energyAvailability(calories, i.trainingDaysPerWeek, leanMassKg(i.weightKg, i.bodyFatPct));
+    if (ea < PB_GUARD.energyAvailabilityMin) warnings.push({ code: 'lowEnergyAvailability', kcalPerKg: Math.round(ea) });
+  }
 
   const projectedRateKg = round2(((calories - tdee) * 7) / KCAL_PER_KG);
   if ((i.goal === 'lose' && projectedRateKg >= 0) || (i.goal === 'gain' && projectedRateKg <= 0)) warnings.push({ code: 'goalNotMet' });
@@ -247,6 +270,21 @@ export function calculateTargets(i: CalcInputs): CalcResult {
     warnings,
     needsReview,
   };
+}
+
+/**
+ * PB-3.2: the flat plan's fat. 25% of calories, kept inside the standard 0.7–1.0 g/kg band's top and never
+ * under the floor max(0.6 g/kg, 20% of calories).
+ */
+export function flatFatG(calories: number, refKg: number): number {
+  const want = Math.min((calories * PB_FAT.defaultPct) / 9, refKg * PB_FAT.standardGPerKg[1]);
+  return Math.round(Math.max(fatFloorG(calories, refKg), want));
+}
+
+/** PB-7.2: (intake − exercise kcal) ÷ lean mass, with a rough per-session exercise estimate. */
+export function energyAvailability(calories: number, trainingDaysPerWeek: number, leanKg: number): number {
+  const exercise = (Math.max(0, trainingDaysPerWeek) * PB_GUARD.sessionKcal) / 7;
+  return leanKg > 0 ? (calories - exercise) / leanKg : Infinity;
 }
 
 /** Checks for manual targets. Returns warning codes; does not block saving. */

@@ -1,13 +1,14 @@
 import { useState, type ReactNode } from 'react';
 import type { ActualSet, SessionExercise } from '../../db/types';
 import { t, type StringKey } from '../../i18n';
+import { tp, type PlaybookKey } from '../../i18n/playbook';
 import { parseDecimal } from '../../lib/numbers';
 import { menuSlot, type ExerciseId, type Slot } from '../../lib/training/exercises';
 import { loadFor, type BarSetup, type PlateUnit } from '../../lib/training/plates';
 import type { Block, Day } from '../../lib/training/program';
 import type { Prescribed } from '../../lib/training/session';
 import { canCopyOrder, canMarkDone, copyOrder, infoFor } from '../../lib/training/sessionLog';
-import { CHECKIN_FLAGS, type CheckinFlag, type CheckinOption } from '../../lib/training/checkin';
+import { CHECKIN_FLAGS, loadDirection, type CheckinFlag, type CheckinOption } from '../../lib/training/checkin';
 import { fmtBoth, fmtIn, fmtRest, fromDisplay, inputValue } from './units';
 import { Icon } from '../../components/Icon';
 import { startRule } from '../../lib/training/startLoad';
@@ -56,13 +57,15 @@ export interface ExerciseCardProps {
   onDecline?: () => void;
   /** Story 10 (OBS-DD5F16): long-press the title bar to reorder (undefined = this card can't start it). */
   onReorder?: () => void;
+  /** Story 16 (PB-8.3): last week / this week and the e1RM status, rendered under the orders. */
+  strength?: ReactNode;
 }
 
 /**
  * One exercise: PHILIP'S ORDERS (read-only, frozen on the session) above YOUR LIFT (the owner's own
  * numbers, empty until he types or taps "As ordered"). The two never overwrite each other.
  */
-export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, swapPreviewKg, onCheckin, onMissed, proposal, proposalOrder, thinking, onAccept, onDecline, onReorder }: ExerciseCardProps) {
+export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, swapPreviewKg, onCheckin, onMissed, proposal, proposalOrder, thinking, onAccept, onDecline, onReorder, strength }: ExerciseCardProps) {
   const longPress = useLongPress(onReorder);
   const info = infoFor(ex.exerciseId);
   const pair = !!info.pair;
@@ -84,6 +87,19 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
   };
   const options = proposal ? <ProposalCard key={proposal.message + proposal.options.map((o) => o.id).join()} proposal={proposal} ex={ex} unit={unit} pair={pair} onAccept={onAccept} onDecline={onDecline} /> : null;
   const optionsAtSet = proposal && proposalOrder !== null && proposalOrder !== undefined && ex.prescription.some((p) => p.order === proposalOrder) && !ex.skipped;
+  // Story 16 (PB-8.4): Philip's own number was replaced; he says so and the owner may keep the old one.
+  const w = (kg: number) => (pair ? t('session.pair', { w: fmtIn(kg, unit) }) : fmtIn(kg, unit));
+  const firstCorrected = ex.prescription.find((p) => p.corrected);
+  const corrected = firstCorrected?.corrected ? { p: firstCorrected, c: firstCorrected.corrected } : null;
+  const useOld = () => {
+    if (!corrected) return;
+    const from = corrected.c.fromKg;
+    onChange({
+      ...ex,
+      originalPrescription: ex.originalPrescription ?? ex.prescription,
+      prescription: ex.prescription.map((p) => (p.corrected && !ex.actual.find((a) => a.order === p.order)?.done ? { ...p, kg: from, corrected: undefined } : p)),
+    });
+  };
   const hurts = () => {
     const target = ex.actual.find((a) => !a.done) ?? ex.actual[ex.actual.length - 1];
     if (!target) return;
@@ -117,6 +133,20 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
             <span className="pm-pill">{t('session.estimate')}</span> {t('session.estimateWhy')}
           </p>
         )}
+        {corrected && corrected.p.kg !== null && (
+          <div className="ex-corrected" role="note" data-testid="load-corrected">
+            <p className="small">
+              <span className="pm-pill">{tp('loads.corrected')}</span>{' '}
+              {tp(`loads.why.${corrected.c.reason}` as PlaybookKey, { old: w(corrected.c.fromKg), now: w(corrected.p.kg) })}
+            </p>
+            {!anyDone && (
+              <button type="button" className="btn btn-sm btn-secondary" onClick={useOld}>
+                {tp('loads.useOld', { w: w(corrected.c.fromKg) })}
+              </button>
+            )}
+          </div>
+        )}
+        {strength}
       </div>
 
       {ex.skipped ? (
@@ -160,12 +190,7 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
         </p>
       )}
 
-      {noteOpen && (
-        <label className="field">
-          <span className="field-label">{t('session.note')}</span>
-          <textarea className="input" rows={2} value={ex.note} onChange={(e) => onChange({ ...ex, note: e.target.value })} />
-        </label>
-      )}
+      {noteOpen && <NoteField label={t('session.note')} value={ex.note} savedAt={ex.noteSavedAt ?? null} onSave={(note) => onChange({ ...ex, note, noteSavedAt: Date.now() })} />}
 
       {swapOpen && menu && (
         <div className="ex-swap" role="group" aria-label={t('session.swapTitle')}>
@@ -221,6 +246,51 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Story 16 §3.4: a note box that saves on blur or Enter (Shift+Enter = new line) and says "Saved". The
+ * text is kept locally while typing, so the stored session isn't rewritten on every keystroke.
+ */
+export function NoteField({ label, value, savedAt, onSave, testId }: { label: string; value: string; savedAt: number | null; onSave: (note: string) => void; testId?: string }) {
+  const [text, setText] = useState(value);
+  const [justSaved, setJustSaved] = useState(false);
+  const save = () => {
+    const next = text.trim();
+    if (next === value.trim() && savedAt !== null) {
+      setJustSaved(true);
+      return;
+    }
+    onSave(next);
+    setJustSaved(true);
+  };
+  const saved = justSaved && text.trim() === value.trim();
+  return (
+    <label className="field">
+      <span className="field-label">{label}</span>
+      <textarea
+        className="input"
+        rows={2}
+        maxLength={400}
+        value={text}
+        data-testid={testId}
+        onChange={(e) => {
+          setText(e.target.value);
+          setJustSaved(false);
+        }}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            save();
+          }
+        }}
+      />
+      <span className="small muted" aria-live="polite">
+        {saved || (savedAt !== null && text.trim() === value.trim() && value.trim() !== '') ? tp('session.noteSaved') : tp('session.noteHint')}
+      </span>
+    </label>
   );
 }
 
@@ -488,15 +558,17 @@ function optionText(o: CheckinOption & { previewKg?: number }, unit: PlateUnit, 
   const w = (kg: number) => (pair ? t('session.pair', { w: fmtIn(kg, unit) }) : fmtIn(kg, unit));
   if (o.id === 'ai') {
     const parts: string[] = [];
-    if (c.loadFactor !== 1) parts.push(o.previewKg !== undefined ? t(c.loadFactor < 1 ? 'checkin.opt.drop' : 'checkin.opt.up', { w: w(o.previewKg) }) : t(c.loadFactor < 1 ? 'checkin.change.lighter' : 'checkin.change.heavier', { pct: Math.round(Math.abs(1 - c.loadFactor) * 100) }));
+    const dir = loadDirection(c);
+    if (dir !== 0) parts.push(o.previewKg !== undefined ? t(dir < 0 ? 'checkin.opt.drop' : 'checkin.opt.up', { w: w(o.previewKg) }) : tp(dir < 0 ? 'checkin.change.rirLighter' : 'checkin.change.rirHeavier', { n: Math.abs(c.rirDelta ?? 0) || 1 }));
     if (c.restExtraSec > 0) parts.push(t('checkin.change.rest', { s: c.restExtraSec }));
     if (c.dropSets > 0) parts.push(t('checkin.change.drop', { n: c.dropSets }));
     return t('checkin.opt.ai', { what: parts.join(', ') });
   }
   if (o.scope === 'session') return t('checkin.opt.later', { s: c.restExtraSec });
-  if (c.loadFactor !== 1) {
-    if (o.previewKg !== undefined) return t(c.loadFactor < 1 ? 'checkin.opt.drop' : 'checkin.opt.up', { w: w(o.previewKg) });
-    return t(c.loadFactor < 1 ? 'checkin.change.lighter' : 'checkin.change.heavier', { pct: Math.round(Math.abs(1 - c.loadFactor) * 100) });
+  const dir = loadDirection(c);
+  if (dir !== 0) {
+    if (o.previewKg !== undefined) return t(dir < 0 ? 'checkin.opt.drop' : 'checkin.opt.up', { w: w(o.previewKg) });
+    return tp(dir < 0 ? 'checkin.change.rirLighter' : 'checkin.change.rirHeavier', { n: Math.abs(c.rirDelta ?? 0) || 1 });
   }
   if (c.targetReps !== undefined) return t(o.id === 'repsDown' ? 'checkin.opt.repsDown' : 'checkin.opt.repsUp', { n: c.targetReps });
   if (c.dropSets > 0) return t('checkin.opt.oneLess');

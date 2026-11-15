@@ -22,7 +22,7 @@ import { ownGoal } from '../../lib/goal/nextGoal';
 import { macrosFor } from '../../lib/goal/proposal';
 import { draftProposal, estimateDate, inferPhase, macroPct, macrosWithFat, refinePrompt, UPDATE_RULES } from '../../lib/goal/update';
 import { CARDIO_MINUTES } from '../../lib/training/cardio';
-import { RATE_PCT, rollingWeight, startingWeight, type GoalIssue } from '../../lib/training/cycleGoal';
+import { lifterContext, ratesFor, rollingWeight, startingWeight, type GoalIssue } from '../../lib/training/cycleGoal';
 import type { Phase } from '../../lib/training/program';
 import { trainingDaysOrDefault } from '../../lib/training/schedule';
 import { useUI } from '../../ui';
@@ -99,11 +99,13 @@ export default function UpdateGoalsSheet() {
   const tBfStr = tBf ?? (cycle.goal.bfLinePct !== null ? fmtNum(cycle.goal.bfLinePct, 1) : '');
   const targetKg = num(targetStr) !== null ? fromDisplay(num(targetStr) as number, unit) : null;
   const phase: Phase | null = nowKg !== null && targetKg !== null ? inferPhase(nowKg, targetKg) : null;
+  const lifter = { ...lifterContext(profile), bfPct: bfEff };
+  const rates = ratesFor(lifter);
   const choice =
     nowKg !== null && targetKg !== null && phase
       ? (() => {
-          const s = suggestDeadline(phase, nowKg, targetKg, today);
-          return { ...ownGoal(nowKg, bfEff, phase, targetKg, num(tBfStr), s.weeks), deadline: s.date };
+          const s = suggestDeadline(phase, nowKg, targetKg, today, rates);
+          return { ...ownGoal(nowKg, bfEff, phase, targetKg, num(tBfStr), s.weeks, lifter), deadline: s.date };
         })()
       : null;
   const errors = choice?.issues.filter((i) => i.level === 'error') ?? [];
@@ -289,7 +291,7 @@ export default function UpdateGoalsSheet() {
               </div>
               {choice && phase && (
                 <p className="small num">
-                  {tg(`upd.phaseLine.${phase}` as GoalKey, { change: fmtIn(Math.abs(choice.endWeightKg - choice.startWeightKg), unit), min: fmtNum(Math.abs(RATE_PCT[phase].min), 2), max: fmtNum(Math.abs(RATE_PCT[phase].max), 2) })}
+                  {tg(`upd.phaseLine.${phase}` as GoalKey, { change: fmtIn(Math.abs(choice.endWeightKg - choice.startWeightKg), unit), min: fmtNum(Math.abs(rates[phase].min), 2), max: fmtNum(Math.abs(rates[phase].max), 2) })}
                 </p>
               )}
               {choice?.issues.map((i) => (
@@ -399,7 +401,7 @@ export default function UpdateGoalsSheet() {
     const prot = it.proteinG ?? plan?.proteinG ?? null;
     const m = kcalUsed !== null && prot !== null ? (it.fatG != null ? macrosWithFat(kcalUsed, prot, it.fatG) : macrosFor(kcalUsed, prot, pc.choice.startWeightKg, profile?.heightCm ?? null)) : null;
     const pm = p.kcal !== null && p.proteinG !== null ? (p.fatG != null ? macrosWithFat(p.kcal, p.proteinG, p.fatG) : macrosFor(p.kcal, p.proteinG, pc.choice.startWeightKg, profile?.heightCm ?? null)) : null;
-    const split = pm ? carbDays(pm, trainingDaysOrDefault(p.days ?? program?.trainingDays), profile?.sex ?? null) : null;
+    const split = pm ? carbDays(pm, trainingDaysOrDefault(p.days ?? program?.trainingDays), profile?.sex ?? null, pc.choice.startWeightKg) : null;
     const curPct = plan ? macroPct(plan) : null;
     const newPct = pm ? macroPct(pm) : null;
     const curCardio = cycle?.cardioMin ?? (cycle ? CARDIO_MINUTES[cycle.phase] : 0);
@@ -555,6 +557,8 @@ function issueText(i: GoalIssue): string {
     case 'rateOutOfRange':
     case 'directionMismatch':
       return tg('goal.issue.direction');
+    case 'miniCut':
+      return tg('goal.issue.miniCut', { cutAt: i.cutAt, min: i.weeks[0], max: i.weeks[1] });
   }
 }
 

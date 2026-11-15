@@ -361,7 +361,14 @@ function prescribed(x: unknown, path: string): Prescribed {
     ...(o.targetReps != null ? { targetReps: num(o, 'targetReps', path, 0, 600) } : {}),
     ...(o.estimate === true ? { estimate: true } : {}),
     ...(o.assist === true ? { assist: true } : {}),
+    // Story 16 (PB-8.4): the check replaced Philip's number (optional).
+    ...(o.corrected != null ? { corrected: corrected(o.corrected, `${path}.corrected`) } : {}),
   };
+}
+
+function corrected(x: unknown, path: string): NonNullable<Prescribed['corrected']> {
+  const o = obj(x, path);
+  return { fromKg: num(o, 'fromKg', path, 0, 1000), reason: oneOf(o, 'reason', ['aboveBand', 'belowBand', 'overBodyWeight'] as const, path) };
 }
 
 function actual(x: unknown, path: string): ActualSet {
@@ -388,6 +395,7 @@ function exercise(x: unknown, path: string): SessionExercise {
     prescription: list(o.prescription, `${path}.prescription`).map((s, i) => prescribed(s, `${path}.prescription[${i}]`)),
     actual: list(o.actual, `${path}.actual`).map((s, i) => actual(s, `${path}.actual[${i}]`)),
     ...(o.skipped === true ? { skipped: true } : {}),
+    ...(o.noteSavedAt != null ? { noteSavedAt: num(o, 'noteSavedAt', path, 0) } : {}),
     ...(o.originalPrescription != null
       ? { originalPrescription: list(o.originalPrescription, `${path}.originalPrescription`).map((s, i) => prescribed(s, `${path}.originalPrescription[${i}]`)) }
       : {}),
@@ -415,6 +423,9 @@ function session(x: unknown, i: number): WorkoutSession {
     ...(o.cardio != null ? { cardio: cardio(o.cardio, `${p}.cardio`) } : {}),
     ...(o.coach != null ? { coach: coach(o.coach, `${p}.coach`) } : {}),
     ...(o.editing === true ? { editing: true } : {}),
+    // Story 16 §3.4 (optional).
+    ...(o.note != null ? { note: str(o, 'note', p, 1000) } : {}),
+    ...(o.noteSavedAt != null ? { noteSavedAt: num(o, 'noteSavedAt', p, 0) } : {}),
   };
 }
 

@@ -4,10 +4,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { SessionExercise, WorkoutSession } from '../../db/types';
-import { addLaterRest, applyTodayChange, checkinOptions, dropForShort, mergeOptions, remainingWork, repsShort } from './checkin';
+import { addLaterRest, applyTodayChange, checkinOptions, mergeOptions, remainingWork, repsShort } from './checkin';
 import { validateChange, type CoachContext } from './coach';
 import { DEFAULT_BAR_SETUP } from './plates';
-import { loadDropPct, nextAccessoryKg, nextTargetReps } from './program';
+import { missedLoad, nextAccessoryKg, nextTargetReps } from './program';
 import { buildSession } from './session';
 import { dropIndex, moveTo } from './order';
 import { parseTreadmillEstimate, settingToMph, treadmillPrompt, validTreadmill } from './treadmill';
@@ -33,16 +33,17 @@ describe('OBS-2C086C: next session after a big miss', () => {
   it('the owner’s case: 9, 9, 4 of 4 × 9 (range 8–12) drops the weight instead of only the reps', () => {
     const next = nextAccessoryKg(sets(40, 9, 9, 4), 4, 12, 2.5, 8);
     expect(next.change).toBe('drop');
-    // 4 short of 8 + 1 unfinished set → 5 × 2.5% = 12.5% → 35 kg
-    expect(next.kg).toBe(35);
+    // Story 16 (PB-8.4): 40 × 4 near failure → e1RM 45.3 kg → 8 reps at 1 RIR ≈ 34.9 kg (no flat percent).
+    expect(next.kg).toBeCloseTo(34.87, 1);
     expect(nextTargetReps(sets(40, 9, 9, 4), 8, 12, next.change)).toBe(8);
   });
   it('one rep short still holds the weight and chases reps (double progression unchanged)', () => {
     expect(nextAccessoryKg(sets(40, 9, 9, 7, 7), 4, 12, 2.5, 8)).toEqual({ kg: 40, change: 'hold' });
   });
-  it('drops at least one increment and at most 20%', () => {
+  it('drops at least one increment; the drop follows the reps-in-reserve math (PB-8.4)', () => {
     expect(nextAccessoryKg(sets(20, 6, 6, 6), 3, 12, 2.5, 8)).toEqual({ kg: 17.5, change: 'drop' });
-    expect(loadDropPct(sets(40, 1), 4, 12)).toBe(0.2);
+    // 40 × 1 → e1RM 41.3 → 12 reps at 1 RIR ≈ 28.8 kg.
+    expect(missedLoad(sets(40, 1), 4, 12)).toBeCloseTo(28.84, 1);
   });
   it('without repMin (old callers, timed holds) nothing changes', () => {
     expect(nextAccessoryKg(sets(40, 9, 9, 4), 4, 12, 2.5)).toEqual({ kg: 40, change: 'hold' });
@@ -67,11 +68,11 @@ describe('OBS-2C086C: next session after a big miss', () => {
 });
 
 describe('OBS-097D6D: options the moment a flag is tapped', () => {
-  it('too heavy after a big miss: Philip’s pick drops the load by the missing reps', () => {
+  it('too heavy after a big miss: Philip’s pick re-derives the load from what he lifted (PB-8.4)', () => {
     const ex = log(accessory(fresh()), [9, 9, 4]);
     expect(repsShort(ex, 2)).toBe(5);
     const opts = checkinOptions('heavy', ex, 2, 2, 2.5);
-    expect(opts[0]).toMatchObject({ id: 'drop', change: { loadFactor: 1 - dropForShort(5) } });
+    expect(opts[0]).toMatchObject({ id: 'drop', change: { loadFactor: 1, fromSet: { kg: 40, reps: 4 } } });
     expect(opts.map((o) => o.id)).toContain('rest60');
     expect(opts.map((o) => o.id)).toContain('later30');
     expect(opts.map((o) => o.id)).not.toContain('repsDown'); // only trimming reps is not offered after a big miss

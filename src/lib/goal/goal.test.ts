@@ -88,15 +88,17 @@ describe('next goal (§4)', () => {
     expect(g.issues.every((i) => i.level === 'warning')).toBe(true);
   });
 
-  it('Philip switches phase at the BF ceiling, at 20%+ or at the long-term target (OBS-FF441B: never maintain)', () => {
+  it('Philip switches phase at the BF ceiling, at 18%+ (PB-1.1) or at the long-term target', () => {
     expect(recommendNextPhase(prev, 15, null)).toEqual({ phase: 'lose', why: 'bfCeiling' });
     expect(recommendNextPhase(prev, 14, null)).toEqual({ phase: 'gain', why: 'same' });
     expect(recommendNextPhase(prev, 21, null).phase).toBe('lose');
     const cut = { phase: 'lose' as const, goal: { ...prev.goal, bfLinePct: 12 } };
     expect(recommendNextPhase(cut, 12, 12)).toEqual({ phase: 'gain', why: 'bfTarget' });
     const hold = { phase: 'maintain' as const, goal: { ...prev.goal, bfLinePct: 15 } };
-    expect(recommendNextPhase(hold, 14, null)).toEqual({ phase: 'gain', why: 'leanEnough' });
-    expect(recommendNextPhase(hold, 17, null)).toEqual({ phase: 'lose', why: 'notLean' });
+    // Story 16 (PB-1.2): between the bulk line (12%) and the cut line (18%) Philip holds.
+    expect(recommendNextPhase(hold, 12, null)).toEqual({ phase: 'gain', why: 'leanEnough' });
+    expect(recommendNextPhase(hold, 17, null)).toEqual({ phase: 'maintain', why: 'notLean' });
+    expect(recommendNextPhase(hold, 18, null)).toEqual({ phase: 'lose', why: 'highBf' });
   });
 
   it('Philip’s pick uses the Story 5 default; own goals are checked', () => {
@@ -221,7 +223,8 @@ describe('proposal (§5)', () => {
 
   it('macros: fat on the calculator floor, carbs fill the rest', () => {
     const m = macrosFor(3000, 150, 75, 184);
-    expect(m.fatG).toBe(83);
-    expect(m.carbsG).toBe(Math.round((3000 - 600 - 83 * 9) / 4));
+    // Story 16 (PB-3.2): the floor is max(0.6 g/kg, 20% of kcal) = 67 g at 3,000 kcal.
+    expect(m.fatG).toBe(67);
+    expect(m.carbsG).toBe(Math.round((3000 - 600 - 67 * 9) / 4));
   });
 });

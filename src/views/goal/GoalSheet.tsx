@@ -21,7 +21,7 @@ import { carbDays } from '../../lib/goal/carbDays';
 import { macrosFor } from '../../lib/goal/proposal';
 import { GOAL_WEEKS, ownGoal, philipNextGoal, recommendNextPhase, repeatGoal, type PrevGoal } from '../../lib/goal/nextGoal';
 import { CARDIO_MINUTES } from '../../lib/training/cardio';
-import { RATE_PCT, rollingWeight, startingWeight, type GoalIssue } from '../../lib/training/cycleGoal';
+import { lifterContext, phaseWhyVars, ratesFor, rollingWeight, startingWeight, type GoalIssue } from '../../lib/training/cycleGoal';
 import { exerciseFor, type ExerciseId } from '../../lib/training/exercises';
 import { blockForCycle, type Phase } from '../../lib/training/program';
 import { nextCycleIndex } from '../../lib/training/progress';
@@ -78,7 +78,8 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
   const bfFresh = profile?.bodyFatPct != null && profile.bodyFatDate != null && profile.bodyFatDate >= addDays(today, -(GOAL_RULES.bfFreshDays - 1));
   const bf = profile?.bodyFatPct ?? null;
   const prev: PrevGoal | null = cycle ? { phase: cycle.phase, goal: cycle.goal } : null;
-  const rec = prev ? recommendNextPhase(prev, bf, profile?.targetBodyFatPct ?? null) : null;
+  const lifter = lifterContext(profile);
+  const rec = prev ? recommendNextPhase(prev, bf, profile?.targetBodyFatPct ?? null, lifter) : null;
 
   // OBS-FF441B: a maintain goal (about 0% a week) never comes back as the default; Philip's bulk or cut does.
   const holding = cycle?.phase === 'maintain';
@@ -125,7 +126,7 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
       const w = prev.goal.weeks ?? GOAL_WEEKS;
       return { weeks: w, date: addDays(today, Math.round(w * 7)) };
     }
-    if (mode === 'own' && ownEndKg !== null) return suggestDeadline(pickPhase, nowKg, ownEndKg, today);
+    if (mode === 'own' && ownEndKg !== null) return suggestDeadline(pickPhase, nowKg, ownEndKg, today, ratesFor(lifter));
     return { weeks: GOAL_WEEKS, date: addDays(today, GOAL_WEEKS * 7) };
   }, [prev, nowKg, mode, ownEndKg, pickPhase, today]);
   const goalDate = clampDeadline(today, deadlineStr && isValidYmd(deadlineStr) ? deadlineStr : suggested.date);
@@ -133,8 +134,8 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
 
   const choice: (GoalChoice & { issues?: GoalIssue[] }) | null = useMemo(() => {
     if (!cycle || !prev || nowKg === null) return null;
-    if (mode === 'repeat') return { ...repeatGoal(prev, nowKg, bf, goalWeeksPicked), deadline: goalDate };
-    if (mode === 'philip') return { ...philipNextGoal(prev, nowKg, bf, pickPhase, daysIn, goalWeeksPicked), deadline: goalDate };
+    if (mode === 'repeat') return { ...repeatGoal(prev, nowKg, bf, goalWeeksPicked, lifter), deadline: goalDate };
+    if (mode === 'philip') return { ...philipNextGoal(prev, nowKg, bf, pickPhase, daysIn, goalWeeksPicked, lifter), deadline: goalDate };
     if (mode === 'keep') {
       const left = cycle.goal.deadline ? Math.max(7, daysBetween(today, cycle.goal.deadline)) : Math.max(7, 28 - daysIn);
       const rate = Math.round((((cycle.goal.endWeightKg - nowKg) / nowKg / (left / 7)) * 100) * 100) / 100;
@@ -152,7 +153,7 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
     }
     if (ownEndKg === null) return null;
     const b = parseDecimal(bfT);
-    return { ...ownGoal(nowKg, bf, pickPhase, ownEndKg, b !== null && Number.isFinite(b) ? b : null, goalWeeksPicked), deadline: goalDate };
+    return { ...ownGoal(nowKg, bf, pickPhase, ownEndKg, b !== null && Number.isFinite(b) ? b : null, goalWeeksPicked, lifter), deadline: goalDate };
   }, [cycle, prev, nowKg, mode, bf, pickPhase, daysIn, ownEndKg, bfT, goalWeeksPicked, goalDate, today]);
   const blocked = choice?.issues?.some((i) => i.level === 'error') ?? false;
   const restart = kind === 'reached' || mode !== 'keep';
@@ -377,7 +378,7 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
                 ))}
               </div>
             )}
-            {mode === 'philip' && rec && rec.why !== 'same' && <p className="small">{tg(`goal.phaseWhy.${rec.why}` as GoalKey)}</p>}
+            {mode === 'philip' && rec && rec.why !== 'same' && <p className="small">{tg(`goal.phaseWhy.${rec.why}` as GoalKey, phaseWhyVars(profile?.sex ?? null))}</p>}
             {mode === 'own' && (
               <div className="setup-inputs">
                 <label className="field">
@@ -399,7 +400,7 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
             {choice && <GoalLine choice={choice} unit={unit} repeat={mode === 'repeat' ? cycle.goal.endWeightKg - cycle.goal.startWeightKg : null} />}
             {choice?.issues?.map((i) => (
               <p key={i.code} className={`small ${i.level === 'error' ? 'field-error' : 'warn-text'}`} role={i.level === 'error' ? 'alert' : undefined}>
-                {issueText(i, choice.phase)}
+                {issueText(i)}
               </p>
             ))}
             {mode !== 'keep' && (
@@ -506,7 +507,7 @@ export default function GoalSheet({ manual = false, autoAsk = false }: { manual?
                 );
               })()}
               {proposal.kcal !== null && program?.carbDays !== false && (() => {
-                const split = carbDays(macrosFor(proposal.kcal, proposal.proteinG ?? plan?.proteinG ?? 0, open.choice.startWeightKg, profile.heightCm), trainingDaysOrDefault(proposal.days ?? program?.trainingDays), profile.sex);
+                const split = carbDays(macrosFor(proposal.kcal, proposal.proteinG ?? plan?.proteinG ?? 0, open.choice.startWeightKg, profile.heightCm), trainingDaysOrDefault(proposal.days ?? program?.trainingDays), profile.sex, open.choice.startWeightKg);
                 return split ? <p className="small muted num">{tg('goal.carbSplit', { train: split.train.calories, rest: split.rest.calories })}</p> : null;
               })()}
               {proposal.proteinG !== null && (
@@ -639,16 +640,18 @@ function GoalLine({ choice, unit, repeat }: { choice: GoalChoice; unit: 'kg' | '
   );
 }
 
-function issueText(i: GoalIssue, phase: Phase): string {
+function issueText(i: GoalIssue): string {
   switch (i.code) {
     case 'rateOutOfRange':
-      return tg('goal.issue.rate', { min: fmtNum(RATE_PCT[phase].min, 2), max: fmtNum(RATE_PCT[phase].max, 2) });
+      return tg('goal.issue.rate', { min: fmtNum(i.range.min, 2), max: fmtNum(i.range.max, 2) });
     case 'directionMismatch':
       return tg('goal.issue.direction');
     case 'bfBelowFloor':
       return tg('goal.issue.bfFloor', { min: i.min });
     case 'bfLow':
       return tg('goal.issue.bfLow', { warn: i.warnBelow });
+    case 'miniCut':
+      return tg('goal.issue.miniCut', { cutAt: i.cutAt, min: i.weeks[0], max: i.weeks[1] });
   }
 }
 

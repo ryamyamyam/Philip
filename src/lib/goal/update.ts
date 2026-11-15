@@ -17,7 +17,8 @@ import { RATE_PCT } from '../training/cycleGoal';
 import type { Phase } from '../training/program';
 import type { LeverRanges, Range } from './proposal';
 
-export const KCAL_PER_KG = 7700;
+export { KCAL_PER_KG } from '../playbook/rules';
+import { KCAL_PER_KG, fatFloorG } from '../playbook/rules';
 
 export const UPDATE_RULES = {
   /** Under this change the goal is "maintain" (kg). */
@@ -45,6 +46,8 @@ export interface UpdateFrame {
   maintenanceKcal: number;
   maintenanceSource: 'measured' | 'formula';
   today: YMD;
+  /** Story 16 (PB-2.3): this lifter's pace band for the phase. Absent = the unknown-training-age band. */
+  rate?: { min: number; max: number; def: number };
 }
 
 export function inferPhase(nowKg: number, endKg: number): Phase {
@@ -66,7 +69,7 @@ export function updateKcalRange(f: UpdateFrame, sex: Sex | null): Range {
     const m = clamp(r10(f.maintenanceKcal));
     return { min: clamp(m - UPDATE_RULES.maintainKcal), max: clamp(m + UPDATE_RULES.maintainKcal), def: m };
   }
-  const r = RATE_PCT[f.phase];
+  const r = f.rate ?? RATE_PCT[f.phase];
   const a = clamp(kcalForRate(f, r.min));
   const b = clamp(kcalForRate(f, r.max));
   return { min: Math.min(a, b), max: Math.max(a, b), def: clamp(kcalForRate(f, r.def)) };
@@ -96,7 +99,7 @@ export function estimateDate(f: UpdateFrame, kcal: number): DateEstimate | null 
 /** Fat range for these calories: the calculator's floor up to UPDATE_RULES.fatMaxPct. */
 export function fatRange(kcal: number, weightKg: number, heightCm: number | null): { min: number; max: number } {
   const ref = heightCm ? referenceWeightKg(weightKg, heightCm) : weightKg;
-  const min = Math.round(Math.max((kcal * SAFETY.minFatPct) / 9, ref * SAFETY.minFatGPerKg));
+  const min = Math.round(fatFloorG(kcal, ref));
   return { min, max: Math.max(min, Math.round((kcal * UPDATE_RULES.fatMaxPct) / 9)) };
 }
 

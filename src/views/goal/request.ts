@@ -13,13 +13,16 @@ import { toYmd } from '../../lib/date';
 import { planForDate } from '../../lib/nutrition';
 import { calculateTargets } from '../../lib/targets';
 import { calcInputsForGoal } from '../../lib/training/cycleGoal';
-import { blockForCycle } from '../../lib/training/program';
+import { accessoryRules, blockForCycle } from '../../lib/training/program';
 import { nextCycleIndex } from '../../lib/training/progress';
 import { trainingDaysOrDefault } from '../../lib/training/schedule';
-import { exerciseFor, type ExerciseId } from '../../lib/training/exercises';
+import { exerciseFor, menuSlot, type ExerciseId } from '../../lib/training/exercises';
 import { LIFTS } from '../../lib/training/program';
 import { tmsForCycle } from '../../lib/training/progress';
 import { lastSessionIdFor, lastSetsFor } from '../../lib/training/sessionLog';
+import { ratePctFor } from '../../lib/playbook/rules';
+import { plausibleBand } from '../../lib/playbook/loads';
+import { loadProfileFrom, traitsOf } from '../../lib/playbook/loadContext';
 import { goalWindow, type GoalWindow } from '../../lib/goal/window';
 import { leverRanges, parseProposal, proposalPrompt, type LeverRanges } from '../../lib/goal/proposal';
 import type { UpdateFrame } from '../../lib/goal/update';
@@ -82,7 +85,7 @@ export async function prepareRequest(
   // Story 15: maintenance from his logs when they're reliable, else the calculator's TDEE.
   const maint = window.reliable && window.maintenanceKcal !== null ? { kcal: window.maintenanceKcal, source: 'measured' as const } : calc ? { kcal: calc.tdee, source: 'formula' as const } : null;
   const update: UpdateFrame | null =
-    opts.update && maint ? { phase: choice.phase, nowKg: choice.startWeightKg, endKg: choice.endWeightKg, maintenanceKcal: Math.round(maint.kcal), maintenanceSource: maint.source, today } : null;
+    opts.update && maint ? { phase: choice.phase, nowKg: choice.startWeightKg, endKg: choice.endWeightKg, maintenanceKcal: Math.round(maint.kcal), maintenanceSource: maint.source, today, rate: ratePctFor(choice.phase, { trainingYears: profile?.trainingYears ?? null, bfPct: choice.startBfPct ?? profile?.bodyFatPct ?? null, sex: profile?.sex ?? null }) } : null;
   const block = restart ? blockForCycle(nextCycleIndex(cycles, sessions)) : cycle.block;
   const choiceMap = Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>;
   // 0.12.3: lift weights Philip may move, while the cycle continues (a restart applies its own TM progression).
@@ -98,7 +101,16 @@ export async function prepareRequest(
         const kgs = done.map((a) => a.kg as number);
         // Story 15: the last session's sets and top reps, so Philip can change them (Update goals).
         const reps = done.map((a) => a.reps).filter((x): x is number => typeof x === 'number');
-        if (kgs.length) loads.push({ exerciseId: id, kg: Math.max(...kgs), ...(opts.update ? { sets: done.length, reps: reps.length ? Math.max(...reps) : null } : {}) });
+        // Story 16 (PB-8.4): the plausible range at his reps, so Philip's numbers are checked before they show.
+        const atReps = reps.length ? Math.max(...reps) : menuSlot(day, slot, block).repMin;
+        const band = plausibleBand(id, atReps, accessoryRules(block, 1).rir, loadProfileFrom(tmNow, choice.startWeightKg), done, traitsOf(id));
+        if (kgs.length)
+          loads.push({
+            exerciseId: id,
+            kg: Math.max(...kgs),
+            ...(opts.update ? { sets: done.length, reps: reps.length ? Math.max(...reps) : null } : {}),
+            ...(band ? { band: { min: band.min, max: band.max, target: band.target } } : {}),
+          });
       }
   }
   const ranges = leverRanges({

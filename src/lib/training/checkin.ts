@@ -8,18 +8,28 @@
  */
 import type { SessionExercise, WorkoutSession } from '../../db/types';
 import { exerciseInfo, type ExerciseId } from './exercises';
-import { loadFor, roundToStep, type BarSetup, type PlateUnit } from './plates';
-import { isKeySet, roundTo, type LiftId } from './program';
+import { fromUnit, incrementKg, loadFor, roundToStep, type BarSetup, type PlateUnit } from './plates';
+import { isKeySet, type Day, type LiftId } from './program';
+import type { Slot } from './exercises';
 import type { Prescribed } from './session';
 import { liftOf } from './sessionLog';
+import { rirShift, shortSetLoad } from '../playbook/effort';
+import { PB_LOADS } from '../playbook/rules';
 
 export type CheckinFlag = 'breath' | 'heavy' | 'easy' | 'pain';
 export const CHECKIN_FLAGS: readonly CheckinFlag[] = ['breath', 'heavy', 'easy', 'pain'];
 
 /** A change to the rest of today's orders for one exercise. */
 export interface TodayChange {
-  /** Multiplies the load of every set not yet done (1 = unchanged). */
+  /**
+   * Multiplies the load of every set not yet done (1 = unchanged). Story 16: Philip's own options never
+   * use it (no flat percent, PB-8.4); kept so older stored changes still read.
+   */
   loadFactor: number;
+  /** Story 16 (PB-8.4): the load for each open set at its RIR + this (positive = lighter). */
+  rirDelta?: number;
+  /** Story 16 (PB-8.4): re-derive the open sets from this logged set (taken as near failure). */
+  fromSet?: { kg: number; reps: number };
   /** Seconds added to the rest of every set not yet done. */
   restExtraSec: number;
   /** Sets removed from the end (only sets not yet done, at most all but one). */
@@ -28,21 +38,30 @@ export interface TodayChange {
   targetReps?: number;
 }
 
+/** Which way a change moves the load: −1 lighter, 1 heavier, 0 unchanged. */
+export function loadDirection(c: TodayChange): -1 | 0 | 1 {
+  if (c.fromSet || (c.rirDelta ?? 0) > 0 || c.loadFactor < 1) return -1;
+  if ((c.rirDelta ?? 0) < 0 || c.loadFactor > 1) return 1;
+  return 0;
+}
+
 export const NO_CHANGE: TodayChange = { loadFactor: 1, restExtraSec: 0, dropSets: 0 };
 
-export const isNoChange = (c: TodayChange): boolean => c.loadFactor === 1 && c.restExtraSec === 0 && c.dropSets === 0 && c.targetReps === undefined;
+export const isNoChange = (c: TodayChange): boolean =>
+  c.loadFactor === 1 && !c.rirDelta && !c.fromSet && c.restExtraSec === 0 && c.dropSets === 0 && c.targetReps === undefined;
 
 /** Philip's rule for a flag (used without a Gemini key, or when Gemini fails). */
 export function ruleChange(flag: CheckinFlag, ex: SessionExercise): TodayChange {
   const remaining = remainingWork(ex).length;
   switch (flag) {
     case 'heavy':
-      return { loadFactor: 0.9, restExtraSec: 0, dropSets: 0 };
+      // PB-8.4: too heavy = the load for +2 RIR.
+      return { loadFactor: 1, rirDelta: PB_LOADS.pushbackRir, restExtraSec: 0, dropSets: 0 };
     case 'breath':
       return { loadFactor: 1, restExtraSec: 60, dropSets: remaining >= 2 ? 1 : 0 };
     case 'easy':
-      // Main lifts already have the + set for "easy"; accessories go up one small step.
-      return ex.slot === 'main' ? NO_CHANGE : { loadFactor: 1.05, restExtraSec: 0, dropSets: 0 };
+      // Main lifts already have the + set for "easy"; accessories: the load for −2 RIR (PB-8.4).
+      return ex.slot === 'main' ? NO_CHANGE : { loadFactor: 1, rirDelta: -PB_LOADS.pushbackRir, restExtraSec: 0, dropSets: 0 };
     case 'pain':
       return NO_CHANGE;
   }
@@ -66,12 +85,18 @@ export function applyTodayChange(ex: SessionExercise, change: TodayChange, bar: 
     .filter((p) => !dropped.has(p.order))
     .map((p) => {
       if (!open.has(p.order)) return p;
-      const kg =
-        p.kg === null || change.loadFactor === 1
+      const want = p.kg === null ? null : wantedKg(p, change);
+      let kg =
+        p.kg === null || want === null || Math.abs(want - p.kg) < 1e-9
           ? p.kg
           : barbell
-            ? loadFor(p.kg * change.loadFactor, bar).totalKg
-            : Math.max(0, roundToStep(p.kg * change.loadFactor, unit));
+            ? loadFor(want, bar).totalKg
+            : Math.max(0, roundToStep(want, unit));
+      // A load change always moves at least one loadable step in its direction (rounding can't swallow it).
+      if (p.kg !== null && want !== null && kg === p.kg && Math.abs(want - p.kg) > 1e-9) {
+        const dir = want > p.kg ? 1 : -1;
+        kg = barbell ? loadFor(p.kg + dir * stepFor(bar), bar).totalKg : Math.max(0, roundToStep(p.kg + dir * incrementKg(unit), unit));
+      }
       const restSec = Math.max(MIN_REST_SEC, p.restSec + change.restExtraSec);
       const targetReps =
         change.targetReps === undefined || p.repMin === p.repMax ? p.targetReps : Math.min(p.repMax, Math.max(p.repMin, Math.round(change.targetReps)));
@@ -83,6 +108,20 @@ export function applyTodayChange(ex: SessionExercise, change: TodayChange, bar: 
     actual: ex.actual.filter((a) => !dropped.has(a.order)),
     originalPrescription: ex.originalPrescription ?? ex.prescription,
   };
+}
+
+/** The smallest jump on a bar: two of the smallest plates. */
+const stepFor = (bar: BarSetup): number => 2 * fromUnit(Math.min(...bar.plates.filter((x) => x > 0)), bar.plateUnit);
+
+/** The load a change asks for on one open set (before rounding). */
+function wantedKg(p: Prescribed, c: TodayChange): number | null {
+  if (p.kg === null) return null;
+  const reps = c.targetReps ?? p.targetReps ?? p.repMin;
+  let kg = p.kg;
+  if (c.fromSet) kg = shortSetLoad(c.fromSet.kg, c.fromSet.reps, reps, p.rir);
+  if (c.rirDelta) kg = rirShift(kg, reps, p.rir, c.rirDelta);
+  if (c.loadFactor !== 1) kg *= c.loadFactor;
+  return kg;
 }
 
 /** Rest never goes below this after a "shorter rest" pick. */
@@ -110,12 +149,6 @@ export function repsShort(ex: SessionExercise, order: number): number {
   return Math.max(0, (p.targetReps ?? p.repMin) - a.reps);
 }
 
-/**
- * Load share to take off after a set fell `short` reps under the order: about 2.5% per missing rep
- * (rep-max tables put neighbouring rep maxes roughly 2–3% of 1RM apart), at least 5%, at most 20%.
- * A coaching default, not a measured rule.
- */
-export const dropForShort = (short: number): number => Math.min(0.2, Math.max(0.05, short * 0.025));
 
 /**
  * Philip's options for a flag, best first (Philip's pick is the first one). Pure: the numbers come
@@ -133,9 +166,16 @@ export function checkinOptions(flag: CheckinFlag, ex: SessionExercise, order: nu
   switch (flag) {
     case 'heavy': {
       if (hasLoad) {
-        const pct = short >= 2 ? dropForShort(short) : 0.1;
-        out.push({ id: 'drop', group: 'load', scope: 'exercise', change: only({ loadFactor: round3(1 - pct) }) });
-        if (pct > 0.05) out.push({ id: 'dropSmall', group: 'load', scope: 'exercise', change: only({ loadFactor: 0.95 }) });
+        // Story 16 (PB-8.4): a set that fell 2+ short re-derives the load from what he lifted; otherwise
+        // the load for +2 RIR, with +1 RIR as the smaller step. No flat percent.
+        const did = ex.actual.find((a) => a.order === order);
+        if (short >= 2 && did && did.kg !== null && did.reps !== null && did.reps > 0) {
+          out.push({ id: 'drop', group: 'load', scope: 'exercise', change: only({ fromSet: { kg: did.kg, reps: did.reps } }) });
+          out.push({ id: 'dropSmall', group: 'load', scope: 'exercise', change: only({ rirDelta: PB_LOADS.pushbackRir }) });
+        } else {
+          out.push({ id: 'drop', group: 'load', scope: 'exercise', change: only({ rirDelta: PB_LOADS.pushbackRir }) });
+          out.push({ id: 'dropSmall', group: 'load', scope: 'exercise', change: only({ rirDelta: 1 }) });
+        }
       }
       if (ranged && short <= 1 && target > first!.repMin) out.push({ id: 'repsDown', group: 'reps', scope: 'exercise', change: only({ targetReps: Math.max(first!.repMin, target - 1) }) });
       if (open.length > 0) out.push({ id: 'rest60', group: 'rest', scope: 'exercise', change: only({ restExtraSec: 60 }) });
@@ -153,8 +193,10 @@ export function checkinOptions(flag: CheckinFlag, ex: SessionExercise, order: nu
     }
     case 'easy': {
       if (hasLoad && ex.slot !== 'main') {
-        const kg = first!.kg!;
-        out.push({ id: 'up', group: 'load', scope: 'exercise', change: only({ loadFactor: round3(Math.max(1.05, (kg + unitStepKg) / kg)) }) });
+        // PB-8.4: the load for −2 RIR (at least one step up when rounding would swallow it).
+        const f = first!;
+        const up = rirShift(f.kg!, f.targetReps ?? f.repMin, f.rir, -PB_LOADS.pushbackRir);
+        if (up > f.kg! || unitStepKg > 0) out.push({ id: 'up', group: 'load', scope: 'exercise', change: only({ rirDelta: -PB_LOADS.pushbackRir }) });
       }
       if (ranged && target < first!.repMax) out.push({ id: 'repsUp', group: 'reps', scope: 'exercise', change: only({ targetReps: Math.min(first!.repMax, target + 2) }) });
       if (first && first.restSec - 30 >= MIN_REST_SEC) out.push({ id: 'restLess', group: 'rest', scope: 'exercise', change: only({ restExtraSec: -30 }) });
@@ -178,8 +220,12 @@ export function mergeOptions(picked: readonly CheckinOption[]): { exercise: Toda
       exercise = { ...exercise, restExtraSec: exercise.restExtraSec + o.change.restExtraSec };
       continue;
     }
+    const rir = (exercise.rirDelta ?? 0) + (o.change.rirDelta ?? 0);
+    const fromSet = o.change.fromSet ?? exercise.fromSet;
     exercise = {
       loadFactor: round3(exercise.loadFactor * o.change.loadFactor),
+      ...(rir ? { rirDelta: rir } : {}),
+      ...(fromSet ? { fromSet } : {}),
       restExtraSec: exercise.restExtraSec + o.change.restExtraSec,
       dropSets: exercise.dropSets + o.change.dropSets,
       ...(o.change.targetReps !== undefined ? { targetReps: o.change.targetReps } : exercise.targetReps !== undefined ? { targetReps: exercise.targetReps } : {}),
@@ -215,9 +261,9 @@ export function checkinPrompt(c: CoachContext): string {
   return [
     'You are Philip, a confident, charming strength coach who persuades rather than scolds. The lifter is mid-workout and just told you how a set went. Your message makes the fix sound like the smart move. No sexual content.',
     'Decide a small, safe change to the REST OF TODAY for this exercise only. Prefer the smallest change that solves it.',
-    'If a set fell 2 or more reps short of the order, lower the weight for the sets left (about 2.5% per missing rep, up to 20%) instead of only accepting fewer reps.',
+    'Think in reps in reserve (RIR), never a flat percent (PB-8.4). If a set fell 2 or more reps short of the order, make the sets left lighter (rirChange 2 to 4) instead of only accepting fewer reps. The app turns RIR into the exact weight and checks it.',
     'Never diagnose. If they mention pain, sharp pain, dizziness or chest pain, set stop to true.',
-    'Reply ONLY with JSON: {"loadPct": number (-25 to 10, percent change in weight), "restExtraSec": number (0 to 120), "dropSets": number (0 to 2), "stop": boolean, "message": string (max 160 chars, plain words, no emoji)}.',
+    'Reply ONLY with JSON: {"rirChange": number (-2 to 4: how many more reps in reserve the sets left should have; positive = lighter, negative = heavier, 0 = same weight), "restExtraSec": number (0 to 120), "dropSets": number (0 to 2), "stop": boolean, "message": string (max 160 chars, plain words, no emoji)}.',
     `Exercise: ${c.exercise} (${c.slot}). Set ${c.setNumber}. Ordered: ${c.ordered}. Logged: ${c.logged}.`,
     `Flag: ${c.flag ?? 'none'}. Their words: "${c.note.slice(0, 400)}".`,
     `Sets still to do: ${c.remaining}. Phase: ${c.phase}.`,
@@ -238,13 +284,13 @@ export function parseCoachReply(raw: unknown): CoachReply | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const o = raw as Record<string, unknown>;
   const num = (v: unknown, min: number, max: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : null);
-  const loadPct = num(o.loadPct, -25, 10);
+  const rir = num(o.rirChange, -PB_LOADS.pushbackRir, 4);
   const rest = num(o.restExtraSec, 0, 120);
   const drop = num(o.dropSets, 0, 2);
-  if (loadPct === null || rest === null || drop === null) return null;
+  if (rir === null || rest === null || drop === null) return null;
   const message = typeof o.message === 'string' ? o.message.replace(EMOJI, '').trim().slice(0, 200) : '';
   return {
-    change: { loadFactor: Math.round((1 + loadPct / 100) * 1000) / 1000, restExtraSec: Math.round(rest / 15) * 15, dropSets: Math.round(drop) },
+    change: { loadFactor: 1, ...(Math.round(rir) !== 0 ? { rirDelta: Math.round(rir) } : {}), restExtraSec: Math.round(rest / 15) * 15, dropSets: Math.round(drop) },
     stop: o.stop === true,
     message,
   };
@@ -255,9 +301,28 @@ export function parseCoachReply(raw: unknown): CoachReply | null {
 export type ReviewItem =
   | { kind: 'tm'; lift: LiftId; factor: number; why: 'flag' | 'miss' }
   | { kind: 'rest'; extraSec: number }
-  | { kind: 'note'; note: 'strong' | 'accessoryHold' | 'pain' };
+  | { kind: 'note'; note: 'strong' | 'accessoryHold' | 'pain' }
+  /** Story 16 §3.4: a note asked for a lighter/heavier next order (pushback flow, PB-8.4). */
+  | { kind: 'next'; exerciseId: string; fromKg: number; kg: number; why: 'pain' | 'heavy' | 'light'; corrected: boolean }
+  /** Story 16 §3.4: a swap from the approved menu (machine taken or missing, or pain). */
+  | { kind: 'swap'; exerciseId: string; day: Day; slot: Slot; to: string; why: 'machine' | 'pain' }
+  /** Story 16 §3.4: a note Philip read and acknowledges (no rule fired). */
+  | { kind: 'noteAck'; exerciseId: string; text: string }
+  /** Story 16 §3.4 / PB-7.4: a pain note: stop that exercise, see a professional if sharp, radiating or a joint. */
+  | { kind: 'safety'; exerciseId: string; text: string };
 
-/** What Philip proposes for the rest of the cycle after today. Changes apply only on OK. */
+/** Story 16: what the day review needs to turn notes into proposals (pure callbacks from the caller). */
+export interface ReviewContext {
+  /** The pushback flow for an exercise's next order (PB-8.4); null = no load to move. */
+  pushback?: (exerciseId: string, direction: 'heavy' | 'light') => { fromKg: number; kg: number; corrected: boolean } | null;
+  /** The first approved swap for an exercise's slot today, or null. */
+  swapFor?: (exerciseId: string) => { day: Day; slot: Slot; to: string } | null;
+}
+
+/**
+ * What Philip proposes for the rest of the cycle after today. Changes apply only on OK. Story 16: the
+ * notes' items come from `lib/playbook/notes.ts#reviewDay` (kept out of this eager module).
+ */
 export function reviewSession(session: WorkoutSession): ReviewItem[] {
   const items: ReviewItem[] = [];
   const main = session.exercises.find((e) => e.slot === 'main');
@@ -279,8 +344,6 @@ export function reviewSession(session: WorkoutSession): ReviewItem[] {
   return items;
 }
 
-/** New TM after a review cut, rounded to 0.5 kg. */
-export const adjustedTm = (tmKg: number, factor: number): number => roundTo(tmKg * factor, 0.5);
-
-/** Extra rest for the rest of a cycle is capped so sessions still fit (the time-budget trims still run). */
-export const MAX_REST_BONUS_SEC = 90;
+// Story 16: these live in program.ts so the data layer (repo.ts) doesn't pull the whole check-in engine
+// into the first screen's bundle.
+export { adjustedTm, MAX_REST_BONUS_SEC } from './program';

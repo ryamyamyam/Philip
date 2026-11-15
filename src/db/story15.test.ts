@@ -40,9 +40,13 @@ describe('Update goals engine', () => {
 
   it('calories span the safe weekly pace around maintenance', () => {
     const r = updateKcalRange(frame, 'male');
-    expect(r.min).toBe(kcalForRate(frame, 0.25));
-    expect(r.max).toBe(kcalForRate(frame, 0.5));
+    // Story 16 (PB-2.3): unknown training age → the 1–3 year bulk band.
+    expect(r.min).toBe(kcalForRate(frame, 0.2));
+    expect(r.max).toBe(kcalForRate(frame, 0.35));
     expect(r.def).toBe(kcalForRate(frame, 0.3));
+    // A known training age moves the band.
+    const vet = updateKcalRange({ ...frame, rate: { min: 0.1, max: 0.2, def: 0.15 } }, 'male');
+    expect(vet.max).toBe(kcalForRate(frame, 0.2));
     // A cut never goes under the calorie floor.
     const cut = updateKcalRange({ ...frame, phase: 'lose', endKg: 60, nowKg: 62, maintenanceKcal: 1700 }, 'male');
     expect(cut.min).toBeGreaterThanOrEqual(SAFETY.calorieFloor.male);

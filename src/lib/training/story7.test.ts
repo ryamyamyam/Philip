@@ -7,6 +7,9 @@ import { buildSession, estimateMinutes, SESSION_BUDGET_MIN } from './session';
 import { createSession, lastSessionIdFor } from './sessionLog';
 import { EXERCISES } from './exercises';
 import type { WorkoutSession } from '../../db/types';
+import { checkLoad } from '../playbook/loads';
+import { loadProfileFrom, roundingFor, traitsOf } from '../playbook/loadContext';
+import { DEFAULT_BAR_SETUP } from './plates';
 
 const TMS = { squat: 135, bench: 90, rdl: 103.5, ohp: 45 };
 
@@ -95,6 +98,11 @@ const ctx = (session = doneSession()): CoachContext => ({
   choices: {},
   unit: 'kg',
   name: (id) => id,
+  // Story 16 (PB-8.4): proposals pass the plausibility check.
+  loadCheck: (id, kg, reps, rir) => {
+    const { round, step } = roundingFor(id, 'kg', DEFAULT_BAR_SETUP);
+    return checkLoad(id, kg, reps, rir, loadProfileFrom(TMS, 73), [], round, step, traitsOf(id));
+  },
 });
 
 describe('coach report proposals (OBS-3DB146)', () => {
@@ -112,15 +120,16 @@ describe('coach report proposals (OBS-3DB146)', () => {
     expect(validateChange({ kind: 'tm', lift: 'deadlift', toKg: 90 }, ctx())).toBeNull();
   });
 
-  it('only allows next-time orders for today\'s accessories, within bounds', () => {
+  it('only allows next-time orders for today\'s accessories, within bounds (Story 16: loads pass PB-8.4)', () => {
     const c = ctx();
-    expect(validateChange({ kind: 'next', exerciseId: 'incline-db-press', kg: 40, reps: 30, sets: 9 }, c)).toEqual({
-      kind: 'next',
-      exerciseId: 'incline-db-press',
-      kg: 30,
-      reps: 12,
-      sets: 5,
-    });
+    // 40 kg per hand on incline dumbbells for a 100 kg bench is implausible: re-derived, not clamped by a percent.
+    const out = validateChange({ kind: 'next', exerciseId: 'incline-db-press', kg: 40, reps: 30, sets: 9 }, c);
+    const v = c.loadCheck!('incline-db-press', 40, 12, 1);
+    expect(v.status).toBe('corrected');
+    expect(v.kg!).toBeLessThan(30);
+    // The corrected number equals today's order here, so the weight stays (kg null = keep Philip's rule).
+    const today = c.session.exercises.find((e) => e.exerciseId === 'incline-db-press')!.prescription[0]!.kg;
+    expect(out).toEqual({ kind: 'next', exerciseId: 'incline-db-press', kg: v.kg === today ? null : v.kg, reps: 12, sets: 5 });
     expect(validateChange({ kind: 'next', exerciseId: 'bench', kg: 100, reps: 5, sets: 3 }, c)).toBeNull();
     expect(validateChange({ kind: 'next', exerciseId: 'leg-press', kg: 100, reps: 5, sets: 3 }, c)).toBeNull();
   });

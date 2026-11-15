@@ -56,7 +56,8 @@ test('OBS-92D8DB: Workout › Plan › Why this plan: cut vs bulk side by side, 
   await expect(s).toContainText('Cut vs bulk: what changes');
   await expect(s).toContainText('You’re on a bulk now.');
   await expect(s).toContainText('Bulk (now):');
-  await expect(s).toContainText('Lose 0.5–1% of body weight a week');
+  // Story 16 (PB-2.3): the standard cut band.
+  await expect(s).toContainText('Lose 0.5–0.75% of body weight a week');
   await expect(s).toContainText('same reps on a cut and a bulk');
   await expect(s).toContainText('Research-backed');
   await expect(s).toContainText('Reasonable practice');

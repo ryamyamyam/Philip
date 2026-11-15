@@ -6,6 +6,7 @@
 import type { ActivityLevel, Sex } from '../../db/types';
 import { ageOn } from '../date';
 import { BODY_FAT_TARGET, type CalcInputs } from '../targets';
+import { bulkLine, cutLine, KCAL_PER_KG, PB_PHASE, ratePctFor, trainingAgeBand, type RateContext } from '../playbook/rules';
 import type { Phase } from './program';
 import { roundTo } from './program';
 
@@ -16,14 +17,29 @@ export interface RateRange {
   def: number;
 }
 
+/**
+ * Story 16 (PB-2.3): weekly-rate bands by phase at an unknown training age and body fat. Use
+ * `ratesFor(ctx)` when the lifter's training age, BF % and sex are known.
+ */
 export const RATE_PCT: Readonly<Record<Phase, RateRange>> = {
-  gain: { min: 0.25, max: 0.5, def: 0.3 },
-  maintain: { min: -0.1, max: 0.1, def: 0 },
-  lose: { min: -1.0, max: -0.5, def: -0.6 },
+  gain: ratePctFor('gain'),
+  maintain: ratePctFor('maintain'),
+  lose: ratePctFor('lose'),
 };
 
-/** At or above this BF%, Philip recommends a cut. */
-export const CUT_AT_BF = 20;
+/** PB-2.3: the bands for this lifter. */
+export function ratesFor(ctx: RateContext = {}): Readonly<Record<Phase, RateRange>> {
+  return { gain: ratePctFor('gain', ctx), maintain: ratePctFor('maintain', ctx), lose: ratePctFor('lose', ctx) };
+}
+
+/** PB-1.1: at or above this BF% (men), Philip recommends a cut. Women: `cutLine('female')`. */
+export const CUT_AT_BF = PB_PHASE.cutAtBf.male;
+
+/** Who the phase rules are for (PB-1.1–1.3). */
+export interface PhaseContext {
+  sex?: 'male' | 'female' | null;
+  trainingYears?: number | null;
+}
 export const CYCLE_WEEKS = 4;
 /** Weigh-ins in the last 7 days for the briefing to use their average (owner: voluntary, about twice a week). */
 export const MIN_WEIGH_INS = 2;
@@ -58,41 +74,43 @@ export interface LastCycle {
 }
 
 /**
- * Starting a bulk above this BF% mostly adds fat; Philip cuts first (OBS-FF441B). Coaching default for
- * men (common lean-bulk guidance starts around 10–15%), not a hard rule from one study.
+ * PB-1.2: Philip's own bulk default is at or under this BF% (men; women `bulkLine('female')`). Between it
+ * and the cut line he picks maintain/recomp. Coaching rule of thumb, not a hard rule from one study.
  */
-export const LEAN_BULK_MAX_BF = 15;
+export const LEAN_BULK_MAX_BF = PB_PHASE.bulkAtOrBelowBf.male;
 
 /** Why Philip picked a phase (shown under his pick). */
-export type PhaseWhy = 'bfCeiling' | 'bfTarget' | 'highBf' | 'aboveTarget' | 'notLean' | 'leanEnough' | 'noData' | 'same';
+export type PhaseWhy = 'bfCeiling' | 'bfTarget' | 'highBf' | 'aboveTarget' | 'notLean' | 'leanEnough' | 'noData' | 'same' | 'beginner';
 
 /**
- * OBS-FF441B: Philip coaches a direction, bulk or cut, never "maintain" (a 0% a week plan). The owner
- * can still pick Maintain himself.
- * - BF ≥ 20% → cut.
+ * Story 16 (Philip's Playbook PB-1.1–1.3; replaces OBS-FF441B's "never maintain"):
+ * - BF ≥ the cut line (18% men / 24% women) → cut.
  * - A cut that reached the long-term BF target → lean bulk.
  * - Mid-bulk or mid-cut → keep going.
- * - After a maintain phase, or with no phase yet: BF more than 1 point over the long-term target, or
- *   over LEAN_BULK_MAX_BF → cut; lean enough → bulk; BF unknown → bulk (the first-cycle default).
+ * - After a maintain phase, or with no phase yet: BF more than 1 point over the long-term target → cut;
+ *   under 1 year of lifting → maintain/recomp (PB-1.3); BF at or under the bulk line → bulk; between the
+ *   lines → maintain/recomp (`notLean`); BF unknown → bulk (the first-cycle default).
+ * Below the cut line the lifter may pick any phase without a flag (PB-1.2).
  */
-export function coachPhase(bfPct: number | null, longTermBfPct: number | null, lastPhase: Phase | null): { phase: Phase; why: PhaseWhy } {
-  if (bfPct !== null && bfPct >= CUT_AT_BF) return { phase: 'lose', why: 'highBf' };
+export function coachPhase(bfPct: number | null, longTermBfPct: number | null, lastPhase: Phase | null, ctx: PhaseContext = {}): { phase: Phase; why: PhaseWhy } {
+  if (bfPct !== null && bfPct >= cutLine(ctx.sex ?? null)) return { phase: 'lose', why: 'highBf' };
   if (lastPhase === 'lose' && bfPct !== null && longTermBfPct !== null && bfPct <= longTermBfPct) return { phase: 'gain', why: 'bfTarget' };
   if (lastPhase === 'gain' || lastPhase === 'lose') return { phase: lastPhase, why: 'same' };
   if (bfPct === null) return { phase: 'gain', why: 'noData' };
   if (longTermBfPct !== null && bfPct > longTermBfPct + 1) return { phase: 'lose', why: 'aboveTarget' };
-  if (bfPct > LEAN_BULK_MAX_BF) return { phase: 'lose', why: 'notLean' };
+  if (ctx.trainingYears != null && trainingAgeBand(ctx.trainingYears) === 'lt1') return { phase: 'maintain', why: 'beginner' };
+  if (bfPct > bulkLine(ctx.sex ?? null)) return { phase: 'maintain', why: 'notLean' };
   return { phase: 'gain', why: 'leanEnough' };
 }
 
-/** Philip's phase pick (bulk or cut); see coachPhase. */
-export function recommendPhase(bfPct: number | null, longTermBfPct: number | null, lastPhase: Phase | null): Phase {
-  return coachPhase(bfPct, longTermBfPct, lastPhase).phase;
+/** Philip's phase pick; see coachPhase. */
+export function recommendPhase(bfPct: number | null, longTermBfPct: number | null, lastPhase: Phase | null, ctx: PhaseContext = {}): Phase {
+  return coachPhase(bfPct, longTermBfPct, lastPhase, ctx).phase;
 }
 
 /** Default weekly rate, nudged by what happened last cycle (bulk only), kept inside the phase range. */
-export function defaultRatePct(phase: Phase, last: LastCycle | null): number {
-  const r = RATE_PCT[phase];
+export function defaultRatePct(phase: Phase, last: LastCycle | null, rates: Readonly<Record<Phase, RateRange>> = RATE_PCT): number {
+  const r = rates[phase];
   let rate = r.def;
   if (last && last.phase === phase && phase === 'gain') {
     rate = last.plannedRatePct;
@@ -129,8 +147,9 @@ export function philipGoal(
   phase: Phase,
   last: LastCycle | null = null,
   weeks: number = CYCLE_WEEKS,
+  rates: Readonly<Record<Phase, RateRange>> = RATE_PCT,
 ): CycleGoal {
-  const rate = defaultRatePct(phase, last);
+  const rate = defaultRatePct(phase, last, rates);
   const end = roundTo(weightKg * (1 + (rate / 100) * weeks), 0.5);
   const bfLine = bfPct === null ? null : phase === 'gain' ? bfPct + 1 : phase === 'lose' ? bfPct - 1 : bfPct;
   return { startWeightKg: weightKg, startBfPct: bfPct, endWeightKg: end, weeklyRatePct: rate, bfLinePct: bfLine, source: 'philip' };
@@ -140,7 +159,9 @@ export type GoalIssue =
   | { code: 'rateOutOfRange'; level: 'warning'; ratePct: number; range: RateRange }
   | { code: 'bfBelowFloor'; level: 'error'; min: number }
   | { code: 'bfLow'; level: 'warning'; warnBelow: number }
-  | { code: 'directionMismatch'; level: 'warning' };
+  | { code: 'directionMismatch'; level: 'warning' }
+  /** PB-1.4: a bulk at or above the cut line. A warning, never a block: a mini-cut first is suggested. */
+  | { code: 'miniCut'; level: 'warning'; cutAt: number; weeks: readonly [number, number] };
 
 /** Checks a goal the owner typed. Errors block it; warnings are shown in plain text. */
 export function checkUserGoal(
@@ -150,10 +171,15 @@ export function checkUserGoal(
   bfTargetPct: number | null,
   /** Story 12: planned length (the goal date). Default: the 4-week cycle. */
   weeks: number = CYCLE_WEEKS,
+  /** Story 16: the lifter's rate bands (PB-2.3) and current BF/sex for the mini-cut flag (PB-1.4). */
+  opts: { rates?: Readonly<Record<Phase, RateRange>>; bfPct?: number | null; sex?: 'male' | 'female' | null } = {},
 ): { ratePct: number; issues: GoalIssue[] } {
   const ratePct = Math.round((((endWeightKg - weightKg) / weightKg / weeks) * 100) * 100) / 100;
   const issues: GoalIssue[] = [];
-  const range = RATE_PCT[phase];
+  const range = (opts.rates ?? RATE_PCT)[phase];
+  if (phase === 'gain' && opts.bfPct != null && opts.bfPct >= cutLine(opts.sex ?? null)) {
+    issues.push({ code: 'miniCut', level: 'warning', cutAt: cutLine(opts.sex ?? null), weeks: PB_PHASE.miniCutWeeks });
+  }
   if ((phase === 'gain' && ratePct < 0) || (phase === 'lose' && ratePct > 0)) {
     issues.push({ code: 'directionMismatch', level: 'warning' });
   } else if (ratePct < range.min - 1e-9 || ratePct > range.max + 1e-9) {
@@ -169,7 +195,7 @@ export function checkUserGoal(
 /** Rough daily calorie change for a weekly rate (the targets calculator computes the real plan). */
 export function kcalPerDayFor(weightKg: number, ratePct: number): number {
   const kgPerWeek = (weightKg * ratePct) / 100;
-  return Math.round((kgPerWeek * 7700) / 7 / 10) * 10;
+  return Math.round((kgPerWeek * KCAL_PER_KG) / 7 / 10) * 10;
 }
 
 /* ---------------- Briefing → calorie targets (T-014) ---------------- */
@@ -181,6 +207,8 @@ export interface ProfileForCalc {
   activityLevel: ActivityLevel | null;
   trainingDaysPerWeek: number | null;
   bodyFatPct: number | null;
+  /** Story 16 (PB-2.3). */
+  trainingYears?: number | null;
 }
 
 /**
@@ -210,6 +238,7 @@ export function calcInputsForGoal(
     targetWeightKg: phase === 'maintain' ? null : goal.endWeightKg,
     weeklyRateKg: phase === 'maintain' ? null : Math.round(rateKg * 100) / 100,
     bodyFatPct: p.bodyFatPct,
+    trainingYears: p.trainingYears ?? null,
   };
 }
 
@@ -233,4 +262,12 @@ export function startingWeight(
   if (latest) return { kg: latest.weightKg, source: 'latest' };
   if (profileWeightKg !== null && profileWeightKg > 0) return { kg: profileWeightKg, source: 'profile' };
   return null;
+}
+
+/** Story 16: the numbers the phase-pick lines quote (PB-1.1, PB-1.2), for this lifter's sex. */
+export const phaseWhyVars = (sex: 'male' | 'female' | null): { cutAt: number; lean: number } => ({ cutAt: cutLine(sex), lean: bulkLine(sex) });
+
+/** Story 16: the rate and phase context for a profile (training age, BF, sex). */
+export function lifterContext(p: { sex?: 'male' | 'female' | null; bodyFatPct?: number | null; trainingYears?: number | null } | null | undefined): RateContext & PhaseContext {
+  return { sex: p?.sex ?? null, bfPct: p?.bodyFatPct ?? null, trainingYears: p?.trainingYears ?? null };
 }

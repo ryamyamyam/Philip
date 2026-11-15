@@ -5,6 +5,7 @@
  */
 import type { CoachChatMessage } from '../../db/types';
 import { LOAD_RULE } from '../training/exercises';
+import { labelOutside, PLAYBOOK_PROMPT } from '../playbook/prompt';
 
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu;
 
@@ -48,7 +49,8 @@ export function askPrompt(brief: string, history: readonly CoachChatMessage[], q
     LOAD_RULE,
     'You cannot change the plan from this chat. If they ask for new targets, calories, macros, lift weights, cardio or training days, give at most one line of take and tell them to tap "Re-plan with Philip" just above this chat: there you propose each change and they say yes or no. Rest and next-session tweaks also come from the report after a workout.',
     REMEMBER_RULE,
-    'Reply ONLY with JSON: {"message": string (plain words, max 700 chars), "remember": [string]}.',
+    PLAYBOOK_PROMPT,
+    'Reply ONLY with JSON: {"message": string (plain words, max 700 chars), "outside": boolean, "remember": [string]}.',
     '',
     brief,
     '',
@@ -63,7 +65,9 @@ export function askPrompt(brief: string, history: readonly CoachChatMessage[], q
 export function parseAskReply(raw: unknown): { message: string; remember: string[] } | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const m = (raw as Record<string, unknown>).message;
-  const message = typeof m === 'string' ? m.replace(EMOJI, '').trim().slice(0, 800) : '';
-  if (!message) return null;
+  const text = typeof m === 'string' ? m.replace(EMOJI, '').trim().slice(0, 800) : '';
+  if (!text) return null;
+  // PB-0.3: advice from outside the playbook carries the label.
+  const message = labelOutside(text, raw);
   return { message, remember: parseRemember(raw) };
 }

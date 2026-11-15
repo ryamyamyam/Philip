@@ -11,6 +11,7 @@ Base branch for new work: `main`.
 
 | ID | Feature | Role | Status | Branch | Depends on |
 |---|---|---|---|---|---|
+| T-034 | Story 16 Philip's Playbook, sane loads, notes, strength on track (D-039) | Core + Feature + QA | Ready for owner review (WebKit on the Mac pending) | `feat/T-034-playbook` | `main` @ `c5eba7d` |
 | T-028 | Story 11 goal reached → next goal → Philip's plan; Philip in the cloud (D-034) | Core + Feature + QA | Ready for owner review | `feat/T-028-next-goal` | `main` @ `1130a6f` |
 | T-027 | Story 10 QA batch (8 observations, D-032) | Core + Feature + QA | Ready for owner review | `feat/T-027-qa-batch` | `main` @ `36b730b` |
 | T-026 | Story 9 Philip's memory: brief, notes, Ask Philip | Core + Feature + QA | Ready for owner review | `feat/T-026-philip-memory` | T-025 |
@@ -28,6 +29,12 @@ Base branch for new work: `main`.
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-034 — Story 16: Philip's Playbook (D-039), 0.16.1
+- **Role:** Core + Feature + QA (one session). **Branch:** `feat/T-034-playbook` on `main` @ `c5eba7d`. **Status:** Built, awaiting WebKit on the Mac and owner review.
+- **Spec:** `docs/stories/STORY_16_PLAYBOOK.md` (as built); playbook `docs/philip/PLAYBOOK.md`.
+- **Files:** new `src/lib/playbook/{rules,prompt,effort,loads,loadContext,replan,sweep,notes}.ts`, `src/lib/strength/e1rm.ts`, `src/db/playbookRepo.ts`, `src/i18n/playbook.ts`, `src/views/playbook/PlaybookSheet.tsx`, `src/components/PlaybookWatcher.tsx`, `src/views/StrengthGoal.tsx`, `src/views/workout/{StrengthStrip,CoachReportLazy}.tsx`, tests `src/lib/playbook/*.test.ts`, `src/lib/strength/e1rm.test.ts`, `src/db/story16.test.ts`, `e2e/story16.spec.ts`, `e2e/story16-seed.ts`, `e2e/buttons.spec.ts`; changed targets, carb days, cycle goal, next goal, update, proposal, deadline, whyPlan, startLoad, program, session, checkin, coach, memory, brief, backups, repo, types, workout/goal/progress/settings views, i18n, `scripts/size-budget.mjs` (precache 1260), `package.json` 0.16.1, docs.
+- **Log:** 2026-11-15 (cloud clone of `c5eba7d`): tsc clean, unit 538/538 (+47), build, size 175.1/177 KB initial JS, lazy 25.1/30, precache 1240.5/1260 KB (budget raised, D-039), Chromium e2e 129/130 (the one failure, food-logging offline, is flaky on `main` too). WebKit not run.
 
 ### T-033 — Story 15: Update goals (D-038), 0.15.1
 - **Role:** Core + Feature + QA (one session). **Branch:** `feat/T-033-update-goals` on `main` @ `fe65b8c`. **Status:** Built, awaiting WebKit on the Mac and owner review.

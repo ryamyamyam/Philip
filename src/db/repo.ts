@@ -21,10 +21,9 @@ import type {
   WorkoutSession,
   YMD,
 } from './types';
-import { blockForCycle, type LiftId } from '../lib/training/program';
+import { adjustedTm, blockForCycle, MAX_REST_BONUS_SEC, type LiftId } from '../lib/training/program';
 import type { SessionSlot } from '../lib/training/session';
 import { slotKey } from '../lib/training/exercises';
-import { adjustedTm, MAX_REST_BONUS_SEC } from '../lib/training/checkin';
 import { tmsForCycle } from '../lib/training/progress';
 import { roundMacros } from '../lib/nutrition';
 import { todayYmd } from '../lib/date';
@@ -344,6 +343,8 @@ export const META = {
   goalPrompts: 'goalPrompts',
   /** Story 11: this device's pairing token for Philip in the cloud (the Worker). Device-only, never in backups. */
   coachCloudToken: 'coachCloudToken',
+  /** Story 16: the one-time playbook update on 0.16.1 (`db/playbookRepo.ts`). Device-only, not in backups. */
+  playbookUpdate: 'playbookUpdate',
 } as const;
 
 /* ---------------- Training (Story 5, T-012) ---------------- */
@@ -488,7 +489,13 @@ export async function saveCoachThread(sessionId: string, coach: CoachThread, dat
   await database.workoutSessions.update(sessionId, { coach });
 }
 
-export type ReviewChange = { kind: 'tm'; lift: LiftId; factor: number } | { kind: 'rest'; extraSec: number };
+export type ReviewChange =
+  | { kind: 'tm'; lift: LiftId; factor: number }
+  | { kind: 'rest'; extraSec: number }
+  /** Story 16 §3.4: a note's next-time order (removed again when this log is deleted). */
+  | { kind: 'next'; exerciseId: string; kg: number }
+  /** Story 16 §3.4: a note's swap (the slot's sticky pick; undone when this log is deleted). */
+  | { kind: 'swap'; slotKey: string; exerciseId: string };
 
 /**
  * "OK, apply" in the end-of-workout review (D-027), in one transaction: appends `adjust` TM rows,
@@ -496,7 +503,7 @@ export type ReviewChange = { kind: 'tm'; lift: LiftId; factor: number } | { kind
  * (`reviewApplied`) so deleting the log can undo it.
  */
 export async function applyReview(sessionId: string, changes: readonly ReviewChange[], database: PhilipDB = db): Promise<ReviewApplied> {
-  return database.transaction('rw', [database.workoutSessions, database.tmHistory, database.cycles], async () => {
+  return database.transaction('rw', [database.workoutSessions, database.tmHistory, database.cycles, database.trainingProgram, database.slotChoices], async () => {
     const session = await database.workoutSessions.get(sessionId);
     if (!session) throw new Error('Session not found');
     const cycle = await database.cycles.get(session.cycle);
@@ -511,6 +518,15 @@ export async function applyReview(sessionId: string, changes: readonly ReviewCha
         await database.tmHistory.add({ lift: c.lift, tmKg: to, effectiveCycle: session.cycle, reason: 'adjust', createdAt: now });
         tms[c.lift] = to;
         applied.tm.push({ lift: c.lift, fromKg: from, toKg: to });
+      } else if (c.kind === 'next') {
+        const prog = await database.trainingProgram.get('me');
+        if (!prog) continue;
+        const rest = (prog.nextOverrides ?? []).filter((o) => o.exerciseId !== c.exerciseId);
+        await database.trainingProgram.put({ ...prog, nextOverrides: [...rest, { exerciseId: c.exerciseId, afterSessionId: session.id, kg: c.kg, reps: null, sets: null }], updatedAt: now });
+      } else if (c.kind === 'swap') {
+        const from = (await database.slotChoices.get(c.slotKey))?.exerciseId ?? null;
+        await database.slotChoices.put({ slotKey: c.slotKey, exerciseId: c.exerciseId, chosenAt: now });
+        applied.swaps = [...(applied.swaps ?? []), { slotKey: c.slotKey, from, to: c.exerciseId }];
       } else if (cycle) {
         const before = cycle.restBonusSec ?? 0;
         const after = Math.min(MAX_REST_BONUS_SEC, before + c.extraSec);

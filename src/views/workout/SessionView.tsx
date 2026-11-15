@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
@@ -6,12 +6,15 @@ import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
 import { addTm, allCoachNotes, applyCheckin, applyReview, deleteWorkoutSession, isPastCycleLog, META, saveWorkoutSession, setDayOrder, setSlotChoice, type ReviewChange } from '../../db/repo';
 import { exerciseHistory } from '../../lib/coach/brief';
-import { useMeta, useProfile, useWeightEntries } from '../../hooks/useData';
+import { useCycles, useMeta, useProfile, useWeightEntries, useWorkoutSessions } from '../../hooks/useData';
+import { historyFor, loadProfileFrom, roundingFor, sessionLoadCheck, traitsOf } from '../../lib/playbook/loadContext';
+import { pushback } from '../../lib/playbook/loads';
 import { beep, cancelRestAlert, pushConfig, scheduleRestAlert, type StoredSubscription } from '../../services/restPush';
 import { newId } from '../../db/db';
 import type { CycleRecord, SessionExercise, TmRecord, TrainingProgram, WorkoutSession } from '../../db/types';
 import { incrementKg } from '../../lib/training/plates';
 import { t, type StringKey } from '../../i18n';
+import { tp, type PlaybookKey } from '../../i18n/playbook';
 import { todayYmd } from '../../lib/date';
 import { parseDecimal } from '../../lib/numbers';
 import { exerciseFor, menuSlot, slotKey, type ExerciseId, type Slot } from '../../lib/training/exercises';
@@ -24,19 +27,23 @@ import { applyOrder, orderOf } from '../../lib/training/order';
 import { ReorderList } from './ReorderList';
 import { CARDIO_MINUTES, plannedCardio } from '../../lib/training/cardio';
 import { CardioCard, cardioValue } from './CardioCard';
-import { CoachReport } from './CoachReport';
+import { CoachReport } from './CoachReportLazy';
 import { startingWeight } from '../../lib/training/cycleGoal';
 import { useUI } from '../../ui';
-import { ExerciseCard, type CheckinProposal } from './ExerciseCard';
+import { ExerciseCard, NoteField, type CheckinProposal } from './ExerciseCard';
+import { StrengthStrip } from './StrengthStrip';
+import { lighterThanPlanned, strengthDateShift } from '../../lib/strength/e1rm';
+import { reviewDay } from '../../lib/playbook/notes';
 import {
   adjustedTm,
   applyTodayChange,
   checkinPrompt,
   parseCoachReply,
   remainingWork,
-  reviewSession,
+  type ReviewContext,
   addLaterRest,
   checkinOptions,
+  loadDirection,
   isNoChange,
   mergeOptions,
   repsShort,
@@ -102,6 +109,8 @@ function planFor(
       restBonusSec: cycle.restBonusSec ?? 0,
       bodyWeightKg,
       ...(program.availability ? { budgetMin: program.availability.strengthMin } : {}),
+      // Story 16 (PB-8.4): every accessory load passes the plausibility check.
+      loadCheck: sessionLoadCheck(tms, bodyWeightKg, sessions, program.weightUnit, program.bar),
       // Story 7: a next-time order from an applied report, until the exercise is logged again.
       override: (id) => {
         const o = program.nextOverrides?.find((x) => x.exerciseId === id);
@@ -147,7 +156,7 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
         </p>
         <ul className="start-list">
           {applyOrder(plan.exercises, opts.order).map((e) => (
-            <PreviewRow key={e.slot} e={e} day={plan.day} block={plan.block} choices={choices} />
+            <PreviewRow key={e.slot} e={e} day={plan.day} block={plan.block} choices={choices} strip={<StrengthStrip exerciseId={e.exerciseId} prescription={e.prescription} sessions={sessions} date={todayYmd()} unit={program.weightUnit} />} />
           ))}
           <li className="num">{t('cardio.preview', { n: plannedCardio(plan.phase, 'mph', cardioPlan).planMin, min: program.availability?.strengthMin ?? SESSION_BUDGET_MIN })}</li>
         </ul>
@@ -173,11 +182,14 @@ function PreviewRow({
   day,
   block,
   choices,
+  strip,
 }: {
   e: PlannedSession['exercises'][number];
   day: PlannedSession['day'];
   block: PlannedSession['block'];
   choices: Readonly<Record<string, ExerciseId>>;
+  /** Story 16 (PB-8.3): last week / this week under the row. */
+  strip?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const sets = t('session.sets', { n: e.prescription.filter((p) => p.kind !== 'warmup').length });
@@ -186,6 +198,7 @@ function PreviewRow({
     return (
       <li className="num">
         <span className="pm-pill pm-pill-quiet">{t('session.slot.main')}</span> {name} · {sets}
+        {strip}
       </li>
     );
   }
@@ -198,6 +211,7 @@ function PreviewRow({
         <span className="pm-pill pm-pill-quiet">{e.slot}</span> {name} · {sets}
         <span className="preview-swap small">{t('session.swap')}</span>
       </button>
+      {strip}
       {open && (
         <div className="ex-swap" role="radiogroup" aria-label={t('session.swapTitle')}>
           {[m.pick, ...m.swaps].map((id) => (
@@ -480,7 +494,7 @@ function LiveSession({
     setPending(options.length ? { index, order, proposal: { message, options, source: 'rules' } } : null);
   };
   const withPreview = (o: CheckinOption, ex: SessionExercise): CheckinOption & { previewKg?: number } => {
-    if (o.change.loadFactor === 1) return o;
+    if (loadDirection(o.change) === 0) return o;
     const after = applyTodayChange(ex, o.change, program.bar, program.weightUnit);
     const kg = remainingWork(after)[0]?.kg;
     return kg !== null && kg !== undefined ? { ...o, previewKg: kg } : o;
@@ -653,9 +667,13 @@ function LiveSession({
           onAccept={accept}
           onDecline={() => setPending(null)}
           onReorder={canReorder ? () => setReordering(true) : undefined}
+          strength={<StrengthStrip exerciseId={ex.exerciseId} prescription={ex.prescription} sessions={sessions} date={session.date} excludeId={session.id} unit={unit} />}
         />
       ))}
       <CardioCard cardio={cardio} cut={cycle.phase === 'lose'} treadmill={program.treadmill} budgetMin={program.availability?.strengthMin ?? SESSION_BUDGET_MIN} onChange={(next) => save({ ...session, cardio: next })} />
+      <section className="card stack-sm" aria-label={tp('session.dayNote')}>
+        <NoteField label={tp('session.dayNote')} value={session.note ?? ''} savedAt={session.noteSavedAt ?? null} testId="day-note" onSave={(note) => save({ ...session, note, noteSavedAt: Date.now() })} />
+      </section>
       <button type="button" className="btn btn-primary btn-block" onClick={() => setChecking(true)}>
         {t(session.editing ? 'session.finishEdit' : 'session.finish')}
       </button>
@@ -728,6 +746,12 @@ function FinishCheck({
               <span className="num">{r.text}</span>
             </li>
           ))}
+          {(session.note ?? '').trim() !== '' && (
+            <li>
+              <strong>{tp('session.dayNote')}</strong>
+              <span>{tp('finishCheck.note', { note: (session.note ?? '').trim().slice(0, 120) })}</span>
+            </li>
+          )}
           {cardio && !cardio.skipped && cardio.done && (
             <li>
               <strong>{t('cardio.summary')}</strong>
@@ -759,7 +783,8 @@ export function finishRows(session: WorkoutSession, unit: 'kg' | 'lb'): { key: s
         const w = a.kg === null ? null : pair ? t('session.pair', { w: fmtIn(a.kg, unit) }) : fmtIn(a.kg, unit);
         return `${w ? `${w} × ` : ''}${a.reps ?? '?'}`;
       });
-    return { key, name, text: sets.length ? t('finishCheck.sets', { n: sets.length, list: sets.join(', ') }) : t('finishCheck.none') };
+    const note = e.note.trim() ? ` · ${tp('finishCheck.note', { note: e.note.trim().slice(0, 80) })}` : '';
+    return { key, name, text: (sets.length ? t('finishCheck.sets', { n: sets.length, list: sets.join(', ') }) : t('finishCheck.none')) + note };
   });
 }
 
@@ -809,13 +834,14 @@ function Summary({
             <StatRow key={k} label={k ?? ''} value={v ?? ''} />
           ))}
         </dl>
+        <StrengthDateLine session={session} cycle={cycle} />
       </section>
       {/* OBS-59DEFD: a fixed log from a finished cycle changes the record only; its TMs were set long ago. */}
       {isPastCycleLog(session, program) ? (
         <p className="small muted">{t('summary.pastCycle')}</p>
       ) : (
         <>
-          <Review session={session} cycle={cycle} tmHistory={tmHistory} unit={unit} />
+          <Review session={session} cycle={cycle} tmHistory={tmHistory} unit={unit} program={program} />
           <CoachReport session={session} program={program} cycle={cycle} tmHistory={tmHistory} choices={choices} unit={unit} auto />
         </>
       )}
@@ -832,19 +858,77 @@ function Summary({
 }
 
 /**
+ * Story 16 (PB-8.5): lighter than planned → how the combined strength date moves (or "barely"), and that
+ * the body-weight goal date doesn't. Computed from the trend of the recent sessions, never one day.
+ */
+function StrengthDateLine({ session, cycle }: { session: WorkoutSession; cycle: CycleRecord }) {
+  const sessions = useWorkoutSessions();
+  const cycles = useCycles();
+  const shift = useMemo(() => (sessions && cycles && lighterThanPlanned(session) ? strengthDateShift(sessions, session, cycles, cycle) : null), [sessions, cycles, session, cycle]);
+  if (!shift || shift.kind === 'unknown') return null;
+  const text =
+    shift.kind === 'off'
+      ? tp('summary.strength.off', { date: fmtDate(shift.from, 'short') })
+      : shift.kind === 'barely'
+        ? tp('summary.strength.barely', { date: fmtDate(shift.to, 'short') })
+        : shift.days > 0
+          ? tp('summary.strength.moved', { days: shift.days, date: fmtDate(shift.to, 'short') })
+          : tp('summary.strength.earlier', { days: -shift.days, date: fmtDate(shift.to, 'short') });
+  return (
+    <div className="stack-xs" data-testid="strength-date-line">
+      <p className="small">
+        <strong>{tp('summary.strengthDate')}:</strong> {text}
+      </p>
+      <p className="small muted">{tp('summary.strength.weight')}</p>
+    </div>
+  );
+}
+
+/**
  * Philip's look back at today (owner feedback, Nov 5): what he noticed and what he'd change for the
  * rest of this cycle. Nothing changes until the owner taps OK; each change can be unticked.
  */
-function Review({ session, cycle, tmHistory, unit }: { session: WorkoutSession; cycle: CycleRecord; tmHistory: readonly TmRecord[]; unit: 'kg' | 'lb' }) {
-  const items = useMemo(() => reviewSession(session), [session]);
-  const changes = items.filter((i): i is Exclude<ReviewItem, { kind: 'note' }> => i.kind !== 'note');
+function Review({ session, cycle, tmHistory, unit, program }: { session: WorkoutSession; cycle: CycleRecord; tmHistory: readonly TmRecord[]; unit: 'kg' | 'lb'; program: TrainingProgram }) {
+  const sessions = useWorkoutSessions();
+  const profile = useProfile();
+  const tms = tmsForCycle(tmHistory, cycle.index);
+  // Story 16 §3.4: notes become proposals through the pushback flow (PB-8.4) and the swap menu.
+  const ctx = useMemo((): ReviewContext => {
+    const lp = loadProfileFrom(tms, profile?.weightKg ?? null);
+    return {
+      pushback: (id, direction) => {
+        const ex = session.exercises.find((e) => e.exerciseId === id);
+        const p = ex?.prescription.find((x) => x.kind === 'accessory' && x.kg !== null && x.kg > 0 && !x.assist && !x.timed);
+        if (!ex || !p || p.kg === null) return null;
+        const { round, step } = roundingFor(id, program.weightUnit, program.bar);
+        const r = pushback(direction, id, p.kg, p.targetReps ?? p.repMin, p.rir, lp, historyFor(sessions ?? [], id), round, step, traitsOf(id));
+        return r.kg === p.kg ? null : { fromKg: p.kg, kg: r.kg, corrected: r.corrected };
+      },
+      swapFor: (id) => {
+        const ex = session.exercises.find((e) => e.exerciseId === id);
+        if (!ex || ex.slot === 'main') return null;
+        const slot = ex.slot as Slot;
+        const m = menuSlot(session.day, slot, session.block);
+        const to = [m.pick, ...m.swaps].find((x) => x !== id && x !== ex.swappedFrom);
+        return to ? { day: session.day, slot, to } : null;
+      },
+    };
+  }, [session, sessions, profile?.weightKg, program.weightUnit, program.bar, tms]);
+  const items = useMemo(() => reviewDay(session, ctx), [session, ctx]);
+  type Change = Extract<ReviewItem, { kind: 'tm' | 'rest' | 'next' | 'swap' }>;
+  const changes = items.filter((i): i is Change => i.kind === 'tm' || i.kind === 'rest' || i.kind === 'next' || i.kind === 'swap');
   const notes = items.filter((i): i is Extract<ReviewItem, { kind: 'note' }> => i.kind === 'note');
+  const safety = items.filter((i): i is Extract<ReviewItem, { kind: 'safety' }> => i.kind === 'safety');
+  const acks = items.filter((i): i is Extract<ReviewItem, { kind: 'noteAck' }> => i.kind === 'noteAck');
   const [on, setOn] = useState<boolean[]>(() => changes.map(() => true));
   const [answered, setAnswered] = useState(false);
-  const tms = tmsForCycle(tmHistory, cycle.index);
   if (items.length === 0) return null;
-  const label = (c: (typeof changes)[number]) => {
+  const pairW = (id: string, kg: number) => (infoFor(id).pair ? t('session.pair', { w: fmtIn(kg, unit) }) : fmtIn(kg, unit));
+  const label = (c: Change) => {
     if (c.kind === 'rest') return t('dayReview.rest', { s: c.extraSec });
+    if (c.kind === 'next')
+      return tp(c.corrected ? 'dayReview.nextCorrected' : (`dayReview.next.${c.why}` as PlaybookKey), { name: exName(c.exerciseId), from: pairW(c.exerciseId, c.fromKg), to: pairW(c.exerciseId, c.kg) });
+    if (c.kind === 'swap') return tp(`dayReview.swap.${c.why}` as PlaybookKey, { name: exName(c.exerciseId), to: exName(c.to) });
     const tm = tms[c.lift];
     return t(c.why === 'miss' ? 'dayReview.tmMiss' : 'dayReview.tmFlag', {
       lift: t(LIFT_KEY[c.lift]),
@@ -854,9 +938,13 @@ function Review({ session, cycle, tmHistory, unit }: { session: WorkoutSession; 
   };
   const apply = async () => {
     // Story 6 §4: one transaction that also records what changed, so deleting the log can undo it.
-    const picked: ReviewChange[] = changes.flatMap((c, i): ReviewChange[] =>
-      !on[i] ? [] : c.kind === 'tm' ? [{ kind: 'tm', lift: c.lift, factor: c.factor }] : [{ kind: 'rest', extraSec: c.extraSec }],
-    );
+    const picked: ReviewChange[] = changes.flatMap((c, i): ReviewChange[] => {
+      if (!on[i]) return [];
+      if (c.kind === 'tm') return [{ kind: 'tm', lift: c.lift, factor: c.factor }];
+      if (c.kind === 'rest') return [{ kind: 'rest', extraSec: c.extraSec }];
+      if (c.kind === 'next') return [{ kind: 'next', exerciseId: c.exerciseId, kg: c.kg }];
+      return [{ kind: 'swap', slotKey: slotKey(c.day, c.slot, session.block), exerciseId: c.to }];
+    });
     await applyReview(session.id, picked);
     setAnswered(true);
   };
@@ -866,6 +954,16 @@ function Review({ session, cycle, tmHistory, unit }: { session: WorkoutSession; 
       {notes.map((n) => (
         <p key={n.note} className={n.note === 'pain' ? 'ex-pain' : 'small'}>
           {t(`dayReview.note.${n.note}` as StringKey)}
+        </p>
+      ))}
+      {safety.map((n) => (
+        <p key={`s-${n.exerciseId}`} className="ex-pain" role="alert" data-testid="note-safety">
+          {tp('dayReview.safety', { name: exName(n.exerciseId), note: n.text.slice(0, 80) })}
+        </p>
+      ))}
+      {acks.map((n, i) => (
+        <p key={`a-${i}`} className="small" data-testid="note-ack">
+          {n.exerciseId ? tp('dayReview.noteAck', { name: exName(n.exerciseId), note: n.text.slice(0, 80) }) : tp('dayReview.noteAckDay', { note: n.text.slice(0, 80) })}
         </p>
       ))}
       {changes.length > 0 &&
@@ -901,6 +999,8 @@ function Review({ session, cycle, tmHistory, unit }: { session: WorkoutSession; 
 }
 
 /** The next set to do (first unticked set of a live exercise), for the "Time's up" line. */
+const exName = (id: string) => t(`exercise.${id}` as StringKey);
+
 function nextSetLabel(session: WorkoutSession): { name: string; n: number } | null {
   for (const ex of session.exercises) {
     if (ex.skipped || ex.actual.some((a) => a.pain)) continue;

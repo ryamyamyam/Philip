@@ -11,6 +11,7 @@ const SuggestSheet = lazy(() => import('./SuggestSheet'));
 const GoalSheet = lazy(() => import('./goal/GoalSheet'));
 const UpdateGoalsSheet = lazy(() => import('./goal/UpdateGoalsSheet'));
 const WhyPlanSheet = lazy(() => import('./learn/WhyPlanSheet'));
+const PlaybookSheet = lazy(() => import('./playbook/PlaybookSheet'));
 
 export function SheetHost({ sheet }: { sheet: SheetState }) {
   switch (sheet.kind) {
@@ -49,6 +50,12 @@ export function SheetHost({ sheet }: { sheet: SheetState }) {
       return (
         <Suspense fallback={null}>
           <WhyPlanSheet {...(sheet.phase ? { phase: sheet.phase } : {})} />
+        </Suspense>
+      );
+    case 'playbook':
+      return (
+        <Suspense fallback={null}>
+          <PlaybookSheet />
         </Suspense>
       );
   }

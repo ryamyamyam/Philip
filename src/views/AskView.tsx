@@ -5,7 +5,12 @@ import { GymCharacter } from '../components/GymCharacter';
 import { Icon } from '../components/Icon';
 import { loadBrief } from '../db/coachBrief';
 import { addCoachMessage, addCoachNotes, clearCoachMessages } from '../db/repo';
-import { useCoachMessages, useProfile } from '../hooks/useData';
+import { useCoachMessages, useProfile, useTmHistory, useTrainingProgram, useWorkoutSessions } from '../hooks/useData';
+import { loadProfileFrom, makeTextFixer } from '../lib/playbook/loadContext';
+import { tmsForCycle } from '../lib/training/progress';
+import { DEFAULT_BAR_SETUP } from '../lib/training/plates';
+import type { StringKey } from '../i18n';
+import { tp } from '../i18n/playbook';
 import { t } from '../i18n';
 import { askPrompt, parseAskReply } from '../lib/coach/memory';
 import { takeAskDraft } from '../lib/coach/askDraft';
@@ -25,6 +30,9 @@ export default function AskView() {
   const { navigate, openSheet } = useUI();
   const profile = useProfile();
   const messages = useCoachMessages();
+  const sessions = useWorkoutSessions();
+  const program = useTrainingProgram();
+  const tmHistory = useTmHistory();
   const cloud = useCloudPaired();
   const key = profile?.geminiKey ?? (cloud ? 'cloud' : null);
   // OBS-3037F2: a question handed over from another screen (e.g. after a weigh-in) pre-fills the box.
@@ -53,7 +61,10 @@ export default function AskView() {
       const { raw } = await coachJson(askPrompt(brief, history, q), { apiKey: profile?.geminiKey ?? null, model: profile?.geminiModel ?? null });
       const reply = parseAskReply(raw);
       if (!reply) throw new Error('bad reply');
-      await addCoachMessage({ from: 'philip', text: reply.message, at: Date.now() });
+      // Story 16 (PB-8.4): a load named in his answer passes the plausibility check too.
+      const tms = tmsForCycle(tmHistory ?? [], program?.currentCycle ?? 0);
+      const fix = makeTextFixer(loadProfileFrom(tms, profile?.weightKg ?? null), sessions ?? [], program?.weightUnit ?? 'kg', program?.bar ?? DEFAULT_BAR_SETUP, (id) => t(`exercise.${id}` as StringKey), tp('loads.correctedWord'));
+      await addCoachMessage({ from: 'philip', text: fix(reply.message), at: Date.now() });
       if (reply.remember.length) await addCoachNotes(reply.remember, { source: 'ask', sessionId: null });
     } catch {
       setError(true);

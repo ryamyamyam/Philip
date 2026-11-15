@@ -159,7 +159,7 @@ describe('goal date (deadline)', () => {
     // +3 kg from 75 kg = 4%; bulk default 0.3%/week → 14 weeks.
     expect(suggestDeadline('gain', 75, 78, '2026-11-13')).toEqual({ weeks: 14, date: '2027-02-19' });
     expect(suggestDeadline('gain', 75, 75.5, '2026-11-13').weeks).toBe(4);
-    expect(suggestDeadline('lose', 80, 76, '2026-11-13').weeks).toBe(9); // 5% at 0.6%/week
+    expect(suggestDeadline('lose', 80, 76, '2026-11-13').weeks).toBe(10); // 5% at 0.5%/week (Story 16, PB-2.3)
     expect(suggestDeadline('lose', 80, 50, '2026-11-13').weeks).toBe(26);
     expect(suggestDeadline('maintain', 75, 75, '2026-11-13').weeks).toBe(4);
   });
@@ -262,12 +262,11 @@ describe('your time', () => {
     return i ? calculateTargets(i) : null;
   };
 
-  it('nutrition moves only when the calculator says so (cut: protein per kg at under four days)', () => {
+  it('nutrition moves only when the calculator says so (Story 16: PB-3.1 protein no longer depends on days)', () => {
     const three = planAvailability({ daysPerWeek: 3, strengthMin: 60, cardioMin: 25 }, cur, calcFor);
     expect(three.daysChanged).toBe(true);
-    expect(three.nutritionChanged).toBe(true);
-    expect(three.nutrition?.proteinG).toBe(172 - (calcFor(4)!.proteinG - calcFor(3)!.proteinG));
-    expect(three.nutrition?.calories).toBe(2200);
+    expect(calcFor(4)!.proteinG).toBe(calcFor(3)!.proteinG);
+    expect(three.nutritionChanged).toBe(false);
     const five = planAvailability({ daysPerWeek: 5, strengthMin: 45, cardioMin: 25 }, cur, calcFor);
     expect(five).toMatchObject({ nutritionChanged: false, strengthChanged: true, cardioChanged: false, changed: true, closeDays: true });
     expect(planAvailability({ daysPerWeek: 4, strengthMin: 60, cardioMin: 25 }, cur, calcFor).changed).toBe(false);
@@ -329,21 +328,22 @@ describe('backup', () => {
 });
 
 describe('macros by phase and carb days (Story 12 update)', () => {
-  it('protein bands: a cut starts higher; bulk and maintain top out at 2.0 g/kg', async () => {
+  it('protein bands (PB-3.1): cut 2.0–2.4, bulk and maintain 1.6–2.0 g/kg', async () => {
     const { PROTEIN_PER_KG } = await import('../lib/goal/carbDays');
-    expect(PROTEIN_PER_KG).toEqual({ lose: [1.8, 2.2], maintain: [1.6, 2.0], gain: [1.6, 2.0] });
+    expect(PROTEIN_PER_KG).toEqual({ lose: [2.0, 2.4], maintain: [1.6, 2.0], gain: [1.6, 2.0] });
     const window = goalWindow({ start: '2026-11-02', today: '2026-11-12', startKg: 75, weights: [], food: [], targetOn: () => null, sessions: [], cycle: 1 });
     const r = (phase: 'lose' | 'gain') => leverRanges({ choice: { ...fresh, phase, startWeightKg: 75 }, calc: null, window, sex: 'male', heightCm: 184, block: 'A', trainingDays: [1, 2, 4, 5], choices: {} });
-    expect(r('lose').proteinG).toMatchObject({ min: 135, max: 165 });
+    expect(r('lose').proteinG).toMatchObject({ min: 150, max: 180 });
     expect(r('gain').proteinG).toMatchObject({ min: 120, max: 150 });
   });
 
-  it('training days +carbs, rest days −carbs: same week of calories, protein and fat', async () => {
+  it('training days +carbs, rest days −carbs: same week of calories and protein (PB-3.4, solved)', async () => {
     const { carbDays } = await import('../lib/goal/carbDays');
     const base = { calories: 2800, proteinG: 150, fatG: 78, carbsG: 370 };
+    // No weight given: fat stays flat, rest-day carbs drop 30%, gym-day carbs are solved for the week.
     const s = carbDays(base, [1, 2, 4, 5], 'male')!;
-    expect(s.train).toEqual({ calories: 3080, proteinG: 150, fatG: 78, carbsG: 440 });
-    expect(s.rest).toEqual({ calories: 2428, proteinG: 150, fatG: 78, carbsG: 277 });
+    expect(s.train).toEqual({ calories: 3146, proteinG: 150, fatG: 78, carbsG: 461 });
+    expect(s.rest).toEqual({ calories: 2338, proteinG: 150, fatG: 78, carbsG: 259 });
     const week = Object.values(s.overrides).reduce((a, m) => a + m!.calories, 0);
     expect(Math.abs(week - base.calories * 7)).toBeLessThanOrEqual(8);
     expect(s.overrides[1]).toEqual(s.train); // Monday (date weekday 1)
@@ -383,7 +383,7 @@ describe('macros by phase and carb days (Story 12 update)', () => {
     const cur = { days: [1, 2, 4, 5] as const, strengthMin: 60, cardioPlanned: 15, phase: 'gain' as const, plan: { calories: 2800, proteinG: 150, fatG: 78, carbsG: 370 }, weightKg: 75, heightCm: 184, carbDays: false, sex: 'male' as const };
     const on = planAvailability({ daysPerWeek: 4, strengthMin: 60, cardioMin: 15, carbDays: true }, cur, () => null);
     expect(on).toMatchObject({ changed: true, writePlan: true, carbDaysOn: true, food: cur.plan });
-    expect(on.carb?.train.carbsG).toBe(440);
+    expect(on.carb?.train.carbsG).toBe(461);
     const moved = planAvailability({ daysPerWeek: 3, strengthMin: 60, cardioMin: 15, carbDays: true }, { ...cur, carbDays: true }, () => null);
     expect(moved.writePlan).toBe(true);
     expect(Object.values(moved.carb!.overrides).filter((m) => m!.carbsG > 370)).toHaveLength(3);

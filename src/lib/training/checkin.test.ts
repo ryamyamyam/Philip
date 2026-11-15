@@ -22,9 +22,9 @@ function doneMain(s: WorkoutSession, n: number): WorkoutSession {
 }
 
 describe('rules', () => {
-  it('too heavy: −10% on the sets left; out of breath: +60 s rest and one set fewer', () => {
+  it('too heavy: the load for +2 RIR on the sets left (PB-8.4, no flat %); out of breath: +60 s rest and one set fewer', () => {
     const s = doneMain(fresh(), 1);
-    expect(ruleChange('heavy', s.exercises[0]!)).toEqual({ loadFactor: 0.9, restExtraSec: 0, dropSets: 0 });
+    expect(ruleChange('heavy', s.exercises[0]!)).toEqual({ loadFactor: 1, rirDelta: 2, restExtraSec: 0, dropSets: 0 });
     expect(ruleChange('breath', s.exercises[0]!)).toEqual({ loadFactor: 1, restExtraSec: 60, dropSets: 1 });
     expect(ruleChange('easy', s.exercises[0]!)).toEqual({ loadFactor: 1, restExtraSec: 0, dropSets: 0 });
   });
@@ -35,7 +35,7 @@ describe('applyTodayChange', () => {
     const s = doneMain(fresh(), 1);
     const main = s.exercises[0]!;
     const before = remainingWork(main);
-    const next = applyTodayChange(main, { loadFactor: 0.9, restExtraSec: 60, dropSets: 1 }, DEFAULT_BAR_SETUP, 'lb');
+    const next = applyTodayChange(main, { loadFactor: 1, rirDelta: 2, restExtraSec: 60, dropSets: 1 }, DEFAULT_BAR_SETUP, 'lb');
     expect(next.originalPrescription).toEqual(main.prescription);
     expect(remainingWork(next)).toHaveLength(before.length - 1);
     const doneOrder = main.actual.find((a) => a.done)!.order;
@@ -54,8 +54,8 @@ describe('applyTodayChange', () => {
 
 describe('parseCoachReply', () => {
   it('clamps Gemini’s numbers and strips emoji', () => {
-    expect(parseCoachReply({ loadPct: -40, restExtraSec: 500, dropSets: 5, stop: false, message: 'Breathe. 💨 Lighter.' })).toEqual({
-      change: { loadFactor: 0.75, restExtraSec: 120, dropSets: 2 },
+    expect(parseCoachReply({ rirChange: 9, restExtraSec: 500, dropSets: 5, stop: false, message: 'Breathe. 💨 Lighter.' })).toEqual({
+      change: { loadFactor: 1, rirDelta: 4, restExtraSec: 120, dropSets: 2 },
       stop: false,
       message: 'Breathe.  Lighter.',
     });

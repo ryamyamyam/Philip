@@ -24,6 +24,9 @@ import { roundToStep } from '../training/plates';
 import { parseRemember, REMEMBER_RULE } from '../coach/memory';
 import type { GoalWindow } from './window';
 import { PROTEIN_PER_KG } from './carbDays';
+import { RATE_PCT } from '../training/cycleGoal';
+import { fatFloorG, KCAL_PER_KG } from '../playbook/rules';
+import { labelOutside, PLAYBOOK_PROMPT } from '../playbook/prompt';
 import { fatRange, kcalForRate, UPDATE_RULES, updateKcalRange, type UpdateFrame } from './update';
 import { windowText } from './window';
 
@@ -37,9 +40,8 @@ export const PROPOSAL_RULES = {
   /** Story 12 update: by phase (lib/goal/carbDays.ts › PROTEIN_PER_KG). */
   proteinPerKg: PROTEIN_PER_KG,
   cardioMin: { gain: [15, 25], maintain: [15, 30], lose: [20, 40] } as const,
-  /** 0.12.3: same bounds as the workout report (COACH_BOUNDS): TM ±10%, accessory next weight ±20%. */
+  /** 0.12.3: same bound as the workout report (COACH_BOUNDS): TM ±10%. Accessory loads: PB-8.4 bands (Story 16). */
   tmPct: 0.1,
-  loadPct: 0.2,
   messageMax: 700,
   whyMax: 200,
 } as const;
@@ -49,6 +51,15 @@ export interface Range {
   max: number;
   /** The engine's own value (shown as "formula"). */
   def: number;
+}
+
+/** An accessory weight Philip may move; `band` = the PB-8.4 plausible range at its reps (Story 16). */
+export interface LoadLever {
+  exerciseId: string;
+  kg: number;
+  reps?: number | null;
+  sets?: number | null;
+  band?: { min: number; max: number; target: number };
 }
 
 export interface LeverRanges {
@@ -62,7 +73,7 @@ export interface LeverRanges {
   choices: Readonly<Record<string, string>>;
   /** 0.12.3: current training maxes and accessory weights Philip may move (only while the cycle continues). */
   tms?: { lift: LiftId; kg: number }[];
-  loads?: { exerciseId: string; kg: number; reps?: number | null; sets?: number | null }[];
+  loads?: LoadLever[];
   /** Story 15: an Update goals request (cycle kept): kcal from the safe pace, fat, 3–5 days, reps/sets. */
   update?: UpdateFrame;
   /** Plate / dumbbell unit for rounding. */
@@ -106,7 +117,7 @@ export function leverRanges(i: RangeInput): LeverRanges {
     let hi = formula;
     if (w.reliable && w.maintenanceKcal !== null) {
       const kgPerDay = (c.endWeightKg - c.startWeightKg) / Math.max(7, i.goalDays ?? 28);
-      const measured = r10(w.maintenanceKcal + kgPerDay * 7700);
+      const measured = r10(w.maintenanceKcal + kgPerDay * KCAL_PER_KG);
       lo = Math.min(lo, measured) - PROPOSAL_RULES.kcalMargin;
       hi = Math.max(hi, measured) + PROPOSAL_RULES.kcalMargin;
     } else {
@@ -155,12 +166,16 @@ export function leverRanges(i: RangeInput): LeverRanges {
 /** Fat at the calculator's floor, carbs from what's left (never below 0). */
 export function macrosFor(kcal: number, proteinG: number, weightKg: number, heightCm: number | null): { calories: number; proteinG: number; fatG: number; carbsG: number } {
   const ref = heightCm ? referenceWeightKg(weightKg, heightCm) : weightKg;
-  const fatG = Math.round(Math.max((kcal * SAFETY.minFatPct) / 9, ref * SAFETY.minFatGPerKg));
+  const fatG = Math.round(fatFloorG(kcal, ref));
   const carbsG = Math.max(0, Math.round((kcal - proteinG * 4 - fatG * 9) / 4));
   return { calories: kcal, proteinG, fatG, carbsG };
 }
 
 const SLOTS = ['A1', 'A2', 'B'] as const;
+
+const r1 = (n: number) => Math.round(n * 10) / 10;
+/** The plausible range in words for the prompt (Story 16). */
+const bandText = (x: LoadLever) => (x.band ? ` (plausible ${r1(x.band.min)}-${r1(x.band.max)} kg)` : '');
 
 function menuText(r: LeverRanges, name: (id: string) => string): string {
   const lines: string[] = [];
@@ -212,6 +227,7 @@ export function proposalPrompt(p: PromptInput): string {
   const dayCount = r.trainingDays.length;
   return [
     "You are Philip, the lifter's coach. Short, warm, persuasive, never scolding, no emoji, no comments on body or looks.",
+    PLAYBOOK_PROMPT,
     'Decide his plan for this goal from HIS data below. Pick a value for every numeric lever inside its range and give one short reason tied to the data.',
     '',
     situation,
@@ -236,8 +252,8 @@ export function proposalPrompt(p: PromptInput): string {
       : []),
     ...(r.loads?.length
       ? [
-          '- loads: optional next weights for accessories (dumbbells per hand), each within 20% of the last weight; only when the logs support it. Last: ' +
-            r.loads.map((x) => `${x.exerciseId} (${p.name(x.exerciseId)}) ${x.kg} kg`).join(', ') +
+          '- loads: optional next weights for accessories (dumbbells per hand), inside the plausible range the app computed from his strength (PB-8.4); only when the logs support it. Last (range): ' +
+            r.loads.map((x) => `${x.exerciseId} (${p.name(x.exerciseId)}) ${x.kg} kg${bandText(x)}`).join(', ') +
             '.',
         ]
       : []),
@@ -249,7 +265,7 @@ export function proposalPrompt(p: PromptInput): string {
     TEACH_RULE,
     '',
     'Reply with JSON only, this shape:',
-    '{"message": "2-4 sentences for him: what you saw, what you are changing and why it works", "kcal": {"value": 2900, "why": "...", "basis": "practice"}, "proteinG": {"value": 150, "why": "...", "basis": "research"}, "cardioMin": {"value": 20, "why": "...", "basis": "default"}, "days": {"value": [1,2,4,5], "why": "...", "basis": "practice"} or null, "swaps": [{"day": 2, "slot": "A1", "exerciseId": "...", "why": "..."}], "tms": [{"lift": "bench", "kg": 92.5, "why": "..."}], "loads": [{"exerciseId": "...", "kg": 22.5, "why": "..."}], "remember": []}',
+    '{"message": "2-4 sentences for him: what you saw, what you are changing and why it works", "outside": false, "kcal": {"value": 2900, "why": "...", "basis": "practice"}, "proteinG": {"value": 150, "why": "...", "basis": "research"}, "cardioMin": {"value": 20, "why": "...", "basis": "default"}, "days": {"value": [1,2,4,5], "why": "...", "basis": "practice"} or null, "swaps": [{"day": 2, "slot": "A1", "exerciseId": "...", "why": "..."}], "tms": [{"lift": "bench", "kg": 92.5, "why": "..."}], "loads": [{"exerciseId": "...", "kg": 22.5, "why": "..."}], "remember": []}',
     '',
     'His history (the brief):',
     p.brief,
@@ -262,9 +278,11 @@ function updatePrompt(p: PromptInput, u: UpdateFrame): string {
   const c = p.choice;
   const k = r.kcal;
   const fat = k ? fatRange(k.def, r.weightKg, r.heightCm) : null;
-  const rate = RATE_PCT_TEXT[c.phase];
+  const band = u.rate ?? RATE_PCT[c.phase];
+  const rate = c.phase === 'maintain' ? 'within 100 kcal of maintenance' : `${c.phase === 'lose' ? 'a loss' : 'a gain'} of ${Math.abs(band.max)}-${Math.abs(band.min)}% of body weight a week (PB-2.3)`.replace(/of (\S+)-(\S+)%/, (_m, a: string, b: string) => `of ${Math.min(Number(a), Number(b))}-${Math.max(Number(a), Number(b))}%`);
   return [
     "You are Philip, the lifter's coach. Short, warm, persuasive, never scolding, no emoji, no comments on body or looks. You plan and you teach.",
+    PLAYBOOK_PROMPT,
     'He updated his goals. Build his plan from HIS data below: a value for every numeric lever inside its range, one short reason each tied to the data.',
     '',
     `Now: ${u.nowKg} kg${c.startBfPct !== null ? `, ${c.startBfPct}% body fat` : ''}. Target: ${u.endKg} kg${c.bfLinePct !== null ? `, ${c.bfLinePct}% body fat` : ''}. Phase: ${PHASE_WORD[c.phase]}. The current cycle keeps going (no restart): food changes today, training from his next session.`,
@@ -275,7 +293,7 @@ function updatePrompt(p: PromptInput, u: UpdateFrame): string {
     '',
     'Levers and allowed ranges (the app caps anything outside them):',
     k
-      ? `- kcal: ${k.min}-${k.max} a day (${rate}; default ${k.def}). The app estimates the goal date from this: every 7,700 kcal of gap from maintenance is about 1 kg. For example ${kcalForRate(u, c.phase === 'lose' ? -0.5 : 0.25)} kcal is the slow end.`
+      ? `- kcal: ${k.min}-${k.max} a day (${rate}; default ${k.def}). The app estimates the goal date from this: every 7,700 kcal of gap from maintenance is about 1 kg. For example ${kcalForRate(u, c.phase === 'lose' ? band.max : band.min)} kcal is the slow end.`
       : '- kcal: not available (body stats missing); return null.',
     r.proteinG ? `- proteinG: ${r.proteinG.min}-${r.proteinG.max} g a day (${PROPOSAL_RULES.proteinPerKg[c.phase].join('-')} g/kg for this phase; default ${r.proteinG.def}).` : '- proteinG: not available; return null.',
     fat ? `- fatG: at least the safety floor (${SAFETY.minFatPct * 100}% of kcal and ${SAFETY.minFatGPerKg} g/kg; ${fat.min} g at ${k?.def} kcal), at most ${UPDATE_RULES.fatMaxPct * 100}% of kcal. Carbs fill the rest. The app shows P/F/C as %.` : '- fatG: return null.',
@@ -289,8 +307,8 @@ function updatePrompt(p: PromptInput, u: UpdateFrame): string {
       : []),
     ...(r.loads?.length
       ? [
-          `- loads: optional next orders for accessories: kg (dumbbells per hand, within 20% of the last weight), and optionally sets (${UPDATE_RULES.sets[0]}-${UPDATE_RULES.sets[1]}) and reps (${UPDATE_RULES.reps[0]}-${UPDATE_RULES.reps[1]}). Only when the logs or the goal support it. Last: ` +
-            r.loads.map((x) => `${x.exerciseId} (${p.name(x.exerciseId)}) ${x.kg} kg${x.sets ? ` ${x.sets} sets` : ''}${x.reps ? ` x ${x.reps}` : ''}`).join(', ') +
+          `- loads: optional next orders for accessories: kg (dumbbells per hand, inside the plausible range the app computed from his strength, PB-8.4), and optionally sets (${UPDATE_RULES.sets[0]}-${UPDATE_RULES.sets[1]}) and reps (${UPDATE_RULES.reps[0]}-${UPDATE_RULES.reps[1]}). Only when the logs or the goal support it. Last: ` +
+            r.loads.map((x) => `${x.exerciseId} (${p.name(x.exerciseId)}) ${x.kg} kg${x.sets ? ` ${x.sets} sets` : ''}${x.reps ? ` x ${x.reps}` : ''}${bandText(x)}`).join(', ') +
             '.',
         ]
       : []),
@@ -300,14 +318,13 @@ function updatePrompt(p: PromptInput, u: UpdateFrame): string {
     TEACH_RULE,
     '',
     'Reply with JSON only, this shape:',
-    '{"message": "2-4 sentences for him: what you saw, what you are changing, when he gets there and why it works", "kcal": {"value": 2900, "why": "...", "basis": "practice"}, "proteinG": {"value": 150, "why": "...", "basis": "research"}, "fatG": {"value": 80, "why": "..."}, "carbDays": {"value": true, "why": "..."}, "cardioMin": {"value": 20, "why": "...", "basis": "default"}, "days": {"value": [1,2,4,5], "why": "...", "basis": "practice"} or null, "swaps": [], "tms": [{"lift": "bench", "kg": 92.5, "why": "..."}], "loads": [{"exerciseId": "...", "kg": 22.5, "sets": 3, "reps": 12, "why": "..."}], "remember": []}',
+    '{"message": "2-4 sentences for him: what you saw, what you are changing, when he gets there and why it works", "outside": false, "kcal": {"value": 2900, "why": "...", "basis": "practice"}, "proteinG": {"value": 150, "why": "...", "basis": "research"}, "fatG": {"value": 80, "why": "..."}, "carbDays": {"value": true, "why": "..."}, "cardioMin": {"value": 20, "why": "...", "basis": "default"}, "days": {"value": [1,2,4,5], "why": "...", "basis": "practice"} or null, "swaps": [], "tms": [{"lift": "bench", "kg": 92.5, "why": "..."}], "loads": [{"exerciseId": "...", "kg": 22.5, "sets": 3, "reps": 12, "why": "..."}], "remember": []}',
     '',
     'His history (the brief):',
     p.brief,
   ].join('\n');
 }
 
-const RATE_PCT_TEXT = { gain: 'a lean gain of 0.25-0.5% of body weight a week', lose: 'a loss of 0.5-1% of body weight a week', maintain: 'within 100 kcal of maintenance' } as const;
 
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu;
 const clean = (v: unknown, max: number): string => (typeof v === 'string' ? v.replace(EMOJI, '').replace(/\s+/g, ' ').trim().slice(0, max) : '');
@@ -333,8 +350,9 @@ export class ProposalError extends Error {
  */
 export function parseProposal(raw: unknown, r: LeverRanges, source: GoalProposalRecord['source'], at: number): GoalProposalRecord {
   if (!isObj(raw)) throw new ProposalError('notJson');
-  const message = clean(raw.message, PROPOSAL_RULES.messageMax);
-  if (!message) throw new ProposalError('missing');
+  const text = clean(raw.message, PROPOSAL_RULES.messageMax);
+  if (!text) throw new ProposalError('missing');
+  const message = labelOutside(text, raw);
   const clamps: GoalProposalRecord['clamps'] = [];
   const pick = (lever: 'kcal' | 'proteinG' | 'cardioMin', range: Range | null, step: number): number | null => {
     if (!range) return null;
@@ -408,7 +426,10 @@ export function parseProposal(raw: unknown, r: LeverRanges, source: GoalProposal
       const kg = numOf(x.kg);
       if (!cur || kg === null || cur.kg <= 0 || loads.some((l) => l.exerciseId === cur.exerciseId)) continue;
       // The same weight stays exactly as it is (rounding it to the plate step would look like a change).
-      const toKg = Math.abs(kg - cur.kg) < 0.01 ? cur.kg : Math.max(0, roundToStep(Math.min(cur.kg * (1 + PROPOSAL_RULES.loadPct), Math.max(cur.kg * (1 - PROPOSAL_RULES.loadPct), kg)), r.unit ?? 'kg'));
+      // Story 16 (PB-8.4): inside the plausible band it stands; outside it, the band's own number replaces it.
+      const b = cur.band;
+      const checked = b && (kg < b.min || kg > b.max) ? b.target : kg;
+      const toKg = Math.abs(checked - cur.kg) < 0.01 ? cur.kg : Math.max(0, roundToStep(checked, r.unit ?? 'kg'));
       if (toKg <= 0) continue;
       // Story 15: sets and reps too (Update goals only), clamped; unchanged ones dropped.
       const int = (v: unknown, [lo, hi]: readonly [number, number]) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(Math.min(hi, Math.max(lo, v))) : null);

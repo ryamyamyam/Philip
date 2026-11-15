@@ -286,6 +286,8 @@ function validateProfile(raw: unknown): Profile | null {
     geminiModel: typeof raw.geminiModel === 'string' && raw.geminiModel.length < 100 ? raw.geminiModel : null,
     adherenceEnabled: raw.adherenceEnabled === true,
     ...(raw.bodyFatDate != null && isValidYmd(raw.bodyFatDate) ? { bodyFatDate: raw.bodyFatDate } : {}),
+    // Story 16: years of consistent lifting (optional, schemaVersion still 1).
+    ...(typeof raw.trainingYears === 'number' && Number.isFinite(raw.trainingYears) && raw.trainingYears >= 0 && raw.trainingYears <= 80 ? { trainingYears: raw.trainingYears } : {}),
   };
 }
 

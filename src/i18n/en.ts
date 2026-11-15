@@ -569,7 +569,7 @@ export const en = {
   'cal.wd.fri': 'Fr',
   'cal.wd.sat': 'Sa',
   'cal.wd.sun': 'Su',
-  'cal.legend': 'Stamp: trained. Tag: planned. Flower: goal day. Dash: skipped.',
+  'cal.legend': 'Stamp: trained. Tag: planned. Flower: goal day. Dumbbell: strength date. Dash: skipped.',
   'cal.tag.squat': 'SQ',
   'cal.tag.bench': 'BP',
   'cal.tag.rdl': 'RDL',

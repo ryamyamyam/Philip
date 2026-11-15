@@ -4,6 +4,7 @@
  */
 import { exerciseFor, exerciseInfo, MAIN_EXERCISE, menuSlot, type ExerciseId, type Slot } from './exercises';
 import { startingKg, startRule } from './startLoad';
+import type { LoadReason } from '../playbook/loads';
 import { DEFAULT_BAR_SETUP, incrementKg, loadFor, roundToStep, type BarSetup, type PlateUnit } from './plates';
 import {
   accessoryRules,
@@ -46,6 +47,8 @@ export interface Prescribed {
   estimate?: boolean;
   /** The load is machine assistance (counterweight), not added weight. */
   assist?: boolean;
+  /** Story 16 (PB-8.4): the plausibility check replaced Philip's number; what it was and why. */
+  corrected?: { fromKg: number; reason: LoadReason };
 }
 
 export interface PlannedExercise {
@@ -92,6 +95,11 @@ export interface SessionInput {
   override?: (id: ExerciseId) => { kg: number | null; reps: number | null; sets: number | null } | null;
   /** Story 12: the owner's lifting minutes for this session ("Your time"). Default: SESSION_BUDGET_MIN. */
   budgetMin?: number;
+  /**
+   * Story 16 (PB-8.4): the plausibility check every accessory load passes before it's shown
+   * (`lib/playbook/loadContext.ts#sessionLoadCheck`). Injected so the eager Home card doesn't load it.
+   */
+  loadCheck?: (id: ExerciseId, kg: number, reps: number, rir: number) => { kg: number; reason: LoadReason } | null;
 }
 
 /** How the phase changes accessory volume (outside the deload). Read by "Why this plan" (Story 14). */
@@ -184,7 +192,7 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
     if (input.phase === 'gain' && slot !== 'B') sets += PHASE_ACCESSORY.bulkExtraSets;
   }
   const last = input.lastSets?.(id) ?? null;
-  const next = nextAccessoryKg(last, rules.sets, m.repMax, incrementKg(unit), info.timed || startRule(id).kind === 'assist' ? undefined : m.repMin);
+  const next = nextAccessoryKg(last, rules.sets, m.repMax, incrementKg(unit), info.timed || startRule(id).kind === 'assist' ? undefined : m.repMin, rules.rir);
   let kg = next.kg === null ? null : input.week === DELOAD_WEEK ? next.kg : roundToStep(next.kg, unit);
   // Story 6 §6: no log for this exercise yet → Philip's starting estimate instead of "Your pick".
   let estimate = false;
@@ -204,6 +212,15 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
     if (o.reps !== null) targetReps = o.reps;
     if (o.sets !== null) sets = o.sets;
   }
+  // Story 16 (PB-8.4): every load Philip shows passes the plausibility check first.
+  let corrected: Prescribed['corrected'];
+  if (input.loadCheck && kg !== null && !assist && !info.timed && input.week !== DELOAD_WEEK) {
+    const v = input.loadCheck(id, kg, targetReps, rules.rir);
+    if (v) {
+      corrected = { fromKg: kg, reason: v.reason };
+      kg = v.kg;
+    }
+  }
   return {
     slot,
     exerciseId: id,
@@ -221,6 +238,7 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
       targetReps,
       ...(estimate ? { estimate: true } : {}),
       ...(assist ? { assist: true } : {}),
+      ...(corrected ? { corrected } : {}),
     })),
   };
 }

@@ -22,6 +22,7 @@ import { tmsForCycle } from '../../lib/training/progress';
 import { lastSessionIdFor, lastSetsFor } from '../../lib/training/sessionLog';
 import { goalWindow, type GoalWindow } from '../../lib/goal/window';
 import { leverRanges, parseProposal, proposalPrompt, type LeverRanges } from '../../lib/goal/proposal';
+import type { UpdateFrame } from '../../lib/goal/update';
 import { extractJson } from '../../services/foodAnalysis/parse';
 import { askCloud, cloudJob, cloudToken, cloudUrl } from '../../services/coachCloud';
 import type { StoredSubscription } from '../../services/restPush';
@@ -35,7 +36,16 @@ export interface Prepared {
 }
 
 /** Everything Philip needs, from the database (one read), for the goal the owner picked. */
-export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, event: PlanChange['event'], reason: string, restart: boolean, today: YMD): Promise<Prepared> {
+export async function prepareRequest(
+  cycle: CycleRecord,
+  choice: GoalChoice,
+  event: PlanChange['event'],
+  reason: string,
+  restart: boolean,
+  today: YMD,
+  /** Story 15: an Update goals request (the cycle keeps going). */
+  opts: { update?: boolean } = {},
+): Promise<Prepared> {
   const [profile, plans, weights, program, cycles, sessions, choices, tmRows] = await Promise.all([
     db.profile.get('me'),
     db.targetPlans.toArray(),
@@ -69,6 +79,10 @@ export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, eve
       }
     }
   }
+  // Story 15: maintenance from his logs when they're reliable, else the calculator's TDEE.
+  const maint = window.reliable && window.maintenanceKcal !== null ? { kcal: window.maintenanceKcal, source: 'measured' as const } : calc ? { kcal: calc.tdee, source: 'formula' as const } : null;
+  const update: UpdateFrame | null =
+    opts.update && maint ? { phase: choice.phase, nowKg: choice.startWeightKg, endKg: choice.endWeightKg, maintenanceKcal: Math.round(maint.kcal), maintenanceSource: maint.source, today } : null;
   const block = restart ? blockForCycle(nextCycleIndex(cycles, sessions)) : cycle.block;
   const choiceMap = Object.fromEntries(choices.map((c) => [c.slotKey, c.exerciseId])) as Record<string, ExerciseId>;
   // 0.12.3: lift weights Philip may move, while the cycle continues (a restart applies its own TM progression).
@@ -80,8 +94,11 @@ export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, eve
       for (const slot of ['A1', 'A2', 'B'] as const) {
         const id = exerciseFor(day, slot, block, choiceMap);
         if (loads.some((x) => x.exerciseId === id) || !lastSessionIdFor(sessions, id)) continue;
-        const kgs = (lastSetsFor(sessions, id) ?? []).filter((a) => a.done && a.kg !== null && a.kg > 0).map((a) => a.kg as number);
-        if (kgs.length) loads.push({ exerciseId: id, kg: Math.max(...kgs) });
+        const done = (lastSetsFor(sessions, id) ?? []).filter((a) => a.done && a.kg !== null && a.kg > 0);
+        const kgs = done.map((a) => a.kg as number);
+        // Story 15: the last session's sets and top reps, so Philip can change them (Update goals).
+        const reps = done.map((a) => a.reps).filter((x): x is number => typeof x === 'number');
+        if (kgs.length) loads.push({ exerciseId: id, kg: Math.max(...kgs), ...(opts.update ? { sets: done.length, reps: reps.length ? Math.max(...reps) : null } : {}) });
       }
   }
   const ranges = leverRanges({
@@ -98,6 +115,7 @@ export async function prepareRequest(cycle: CycleRecord, choice: GoalChoice, eve
     tms,
     loads,
     unit: program?.weightUnit ?? 'kg',
+    ...(update ? { update } : {}),
   });
   const brief = await loadBrief(today);
   const prompt = proposalPrompt({ event, reason, restart, choice, ranges, window, brief, name: exName });

@@ -19,6 +19,7 @@ import type { CycleRecord, GoalPlanItems, GoalPlanUndo, PlanChange, TargetPlan, 
 import { planForDate } from '../lib/nutrition';
 import { goalWeeks } from '../lib/goal/deadline';
 import { macrosFor } from '../lib/goal/proposal';
+import { macrosWithFat } from '../lib/goal/update';
 import { overridesFor } from '../lib/goal/carbDays';
 import { trainingDaysOrDefault } from '../lib/training/schedule';
 import { blockForCycle } from '../lib/training/program';
@@ -83,20 +84,25 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
       noteIds: [],
     };
 
-    // Calories and protein → a new plan (append-only), effective today.
+    // Story 15 (Update goals): the cycle keeps going but the goal itself changes in place.
+    const update = pc.event === 'manual' && !pc.restart;
+    const carbOn = items.carbDays != null ? items.carbDays : program.carbDays !== false;
+    if (items.carbDays != null) undo.carbDaysBefore = program.carbDays ?? null;
+
+    // Calories and protein (Story 15: and fat, or the carb-days switch) → a new plan (append-only), effective today.
     let targetPlanId: number | null = null;
-    if (items.kcal !== null || items.proteinG !== null) {
+    if (items.kcal !== null || items.proteinG !== null || items.fatG != null || items.carbDays != null) {
       const kcal = items.kcal ?? before?.calories ?? null;
       const protein = items.proteinG ?? before?.proteinG ?? null;
       if (kcal !== null && protein !== null) {
-        const m = macrosFor(kcal, protein, c.startWeightKg, profile.heightCm);
+        const m = items.fatG != null ? macrosWithFat(kcal, protein, items.fatG) : items.kcal === null && items.proteinG === null && before ? { calories: before.calories, proteinG: before.proteinG, fatG: before.fatG, carbsG: before.carbsG } : macrosFor(kcal, protein, c.startWeightKg, profile.heightCm);
         targetPlanId = (await database.targetPlans.add({
           effectiveFrom: today,
           ...m,
           method: 'calculated',
           inputsSnapshot: {
             source: 'goalPlan',
-            carbDays: program.carbDays !== false,
+            carbDays: carbOn,
             planChangeId: id,
             goal: c.phase,
             weightKg: c.startWeightKg,
@@ -104,7 +110,7 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
             weeklyRateKg: Math.round((Math.abs(c.endWeightKg - c.startWeightKg) / weeks) * 100) / 100,
           },
           // Story 12 update: training days +carbs, rest days −carbs (same week), on the days in force after Apply.
-          weekdayOverrides: overridesFor(m, trainingDaysOrDefault(items.days ?? program.trainingDays), profile.sex, program.carbDays !== false),
+          weekdayOverrides: overridesFor(m, trainingDaysOrDefault(items.days ?? program.trainingDays), profile.sex, carbOn),
           createdAt: now,
         })) as number;
       }
@@ -129,8 +135,14 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
       undo.restart = { oldCycle: current.index, newCycle: newIndex, tmIds };
     } else {
       // Off track, same cycle: the goal stays; Philip's levers aim at it.
+      // Story 15 (Update goals): the new goal and phase replace the old ones; the cycle and its logs stay.
       undo.cycleBefore = { index: current.index, goal: { ...current.goal }, cardioMin: current.cardioMin ?? null };
-      await database.cycles.put({ ...current, ...(items.cardioMin !== null ? { cardioMin: items.cardioMin } : {}) });
+      if (update) undo.phaseBefore = current.phase;
+      await database.cycles.put({
+        ...current,
+        ...(update ? { goal: { ...goal, targetPlanId: targetPlanId ?? current.goal.targetPlanId ?? null }, phase: c.phase } : {}),
+        ...(items.cardioMin !== null ? { cardioMin: items.cardioMin } : {}),
+      });
     }
 
     // 0.12.3: training maxes (main-lift weights follow) and accessory next weights. TM history stays append-only.
@@ -146,7 +158,7 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
         const after = lastSessionIdFor(sessions, x.exerciseId);
         if (!after) continue;
         const i = list.findIndex((o) => o.exerciseId === x.exerciseId);
-        const o = { exerciseId: x.exerciseId, afterSessionId: after, kg: x.toKg, reps: null, sets: null };
+        const o = { exerciseId: x.exerciseId, afterSessionId: after, kg: x.toKg, reps: x.reps ?? null, sets: x.sets ?? null };
         if (i >= 0) list[i] = o;
         else list.push(o);
       }
@@ -163,9 +175,10 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
       ...(newIndex !== null ? { currentCycle: newIndex } : {}),
       ...(items.days ? { trainingDays: [...items.days] } : {}),
       ...(nextOverrides ? { nextOverrides } : {}),
+      ...(items.carbDays != null ? { carbDays: items.carbDays } : {}),
       updatedAt: now,
     });
-    if (pc.restart) await database.profile.put({
+    if (pc.restart || update) await database.profile.put({
       ...profile,
       goal: c.phase,
       targetWeightKg: c.phase === 'maintain' ? profile.targetWeightKg : r1(c.endWeightKg),
@@ -217,7 +230,7 @@ export async function undoGoalPlan(id: number, today: YMD, database: PhilipDB = 
       const cur = await database.cycles.get(u.cycleBefore.index);
       if (cur) {
         const { cardioMin: _c, ...rest } = cur;
-        await database.cycles.put({ ...rest, goal: u.cycleBefore.goal, ...(u.cycleBefore.cardioMin !== null ? { cardioMin: u.cycleBefore.cardioMin } : {}) });
+        await database.cycles.put({ ...rest, goal: u.cycleBefore.goal, ...(u.phaseBefore ? { phase: u.phaseBefore } : {}), ...(u.cycleBefore.cardioMin !== null ? { cardioMin: u.cycleBefore.cardioMin } : {}) });
       }
     }
     for (const s of u.swaps) {
@@ -225,7 +238,10 @@ export async function undoGoalPlan(id: number, today: YMD, database: PhilipDB = 
       else await database.slotChoices.put({ slotKey: s.slotKey, exerciseId: s.from, chosenAt: now });
     }
     if (program) {
-      const { trainingDays: _d, ...rest } = program;
+      const { trainingDays: _d, ...rest0 } = program;
+      // Story 15: the carb-days switch goes back too (absent = on, as before Story 12's switch existed).
+      const { carbDays: _cd, ...rest1 } = rest0;
+      const rest = u.carbDaysBefore !== undefined ? { ...rest1, ...(u.carbDaysBefore !== null ? { carbDays: u.carbDaysBefore } : {}) } : rest0;
       await database.trainingProgram.put({
         ...rest,
         ...(u.trainingDays ? { trainingDays: [...u.trainingDays] } : {}),
@@ -235,7 +251,7 @@ export async function undoGoalPlan(id: number, today: YMD, database: PhilipDB = 
       });
     }
     if (profile) await database.profile.put({ ...profile, ...u.profile });
-    if (u.targetPlanBefore && pc.accepted && (pc.accepted.kcal !== null || pc.accepted.proteinG !== null)) {
+    if (u.targetPlanBefore && pc.accepted && (pc.accepted.kcal !== null || pc.accepted.proteinG !== null || pc.accepted.fatG != null || pc.accepted.carbDays != null)) {
       await database.targetPlans.add({ ...u.targetPlanBefore, effectiveFrom: today, createdAt: now });
     }
     if (u.noteIds.length) await database.coachNotes.bulkDelete(u.noteIds);

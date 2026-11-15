@@ -329,3 +329,18 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Alternatives:** keep the lock and add a Cancel request button (one more step for a bug); AI-written explanations (could invent studies, needs a key and a connection); a separate learn screen (the sheet opens from where he plans).
 - **Consequences:** No Dexie or backup change; optional `GoalProposalRecord.basis`. `PHASE_ACCESSORY` exported from `session.ts` so the lesson reads the builder's numbers. First-screen JS 176.8 / 177 KB (budget unchanged). Engine numbers unchanged; two open questions for the owner in the spec.
 - **Date:** 2026-11-14 · **By:** Ryan (owner observations) · **Status:** Implemented, 0.14.1
+
+## D-038 — Story 15: Update goals (now → target → Philip's plan → tick + Others → confirm), cycle kept (0.15.1)
+- **Context:** Owner, 2026-11-14: plan changes shouldn't only follow a weigh-in. He wants Progress › Goals › Update goals: current weight and body fat (unchanged or new), target weight and body fat, Generate plan; Philip estimates the date and proposes calories, P/F/C % with gym-day carbs, weights/reps/sets and days a week; he ticks points and writes in Others; Philip refines until there's no note, then confirms and the app renews every nutrition and training goal. Spec: `docs/stories/STORY_15.md`.
+- **Decision:**
+  1. **One flow for manual plans:** Update goals replaces the manual "Re-plan" everywhere (Progress › Goals, Workout › Plan, Ask Philip, the weigh-in hand-off). Goal events (reached, off track) keep the goal sheet.
+  2. **The cycle keeps going** (owner's choice): Apply replaces the cycle's goal and phase in place; food changes today, training from the next session. No restart, so an open workout doesn't block it.
+  3. **The date is estimated, not picked:** from the calories that apply, by energy balance (~7,700 kcal/kg, a rough average) against maintenance (measured from his logs when reliable, else the calculator's TDEE). The calorie range is the phase's safe weekly pace either side of maintenance, so "earlier" moves calories and the safety bounds hold.
+  4. **New levers, Update goals only:** fat (floor to 35% of kcal; carbs fill the rest; shown as P/F/C % and grams), the gym-day carb switch, 3–5 training days, accessory sets (2–5) and reps (5–20). Out-of-range wishes are capped and shown.
+  5. **Refining:** a note sends the first prompt, his last plan, KEPT/UNTICKED per point and the note (fenced as his words) back to Philip; the last plan stays until the revision arrives. No note → the final plan of ticked points → "Yes, confirm".
+  6. **No connection → the app's formula draft** (calculator numbers at the default pace, training unchanged, marked as the app's); notes then go through Claude by paste (owner's choice).
+- **Reason:** owner ask; the estimate keeps the date honest and inside the safety rules; keeping the cycle avoids resetting a wave mid-block.
+- **Alternatives:** a date he picks (Story 12) with calories following (dropped: he asked Philip to estimate it); restart the cycle (owner chose keep); block without AI (owner chose the draft).
+- **Consequences:** No Dexie or backup change (optional fields). A manual plan now changes the cycle's goal (story12 unit test updated). Five e2e tests for the retired sheet removed; `story15.spec.ts` replaces them. First-screen JS 176.9 / 177 KB; precache 1188 / 1200 KB (watch it).
+- **Date:** 2026-11-14 · **By:** Ryan (owner ask, three answers) · **Status:** Implemented, 0.15.1
+

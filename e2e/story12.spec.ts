@@ -10,7 +10,7 @@ const VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.
  * the 60-minute lifting budget, Copy to today, the day slide and the version line.
  */
 const main = (page: Page) => page.getByRole('main');
-const sheet = (page: Page) => page.getByRole('dialog', { name: 'Re-plan' });
+const sheet = (page: Page) => page.getByRole('dialog', { name: 'Update goals' });
 const SHOTS = process.env.STORY12_SHOTS;
 const shot = async (page: Page, name: string) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false });
@@ -18,26 +18,6 @@ const shot = async (page: Page, name: string) => {
 
 // Gemini is mocked with page.route(), which misses service-worker fetches (see photo.spec.ts).
 test.use({ serviceWorkers: 'block', viewport: { width: 393, height: 793 } });
-
-const PLAN = {
-  message: 'You are on pace. A touch more food, the rest stays.',
-  kcal: { value: 2900, why: 'Your logs say maintenance is about 2,650.' },
-  proteinG: { value: 150, why: 'Two grams per kilo while we build.' },
-  cardioMin: { value: 15, why: 'Recovery first.' },
-  days: null,
-  swaps: [],
-  remember: [],
-};
-
-function mockGemini(page: Page, reply: object) {
-  const prompts: string[] = [];
-  void page.route('https://generativelanguage.googleapis.com/**', async (route) => {
-    const body = route.request().postDataJSON() as { contents: { parts: { text: string }[] }[] };
-    prompts.push(body.contents[0]?.parts[0]?.text ?? '');
-    await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] }, finishReason: 'STOP' }] } });
-  });
-  return prompts;
-}
 
 async function setKey(page: Page) {
   await openSettings(page);
@@ -67,9 +47,9 @@ const openAsk = async (page: Page) => {
   await main(page).getByRole('button', { name: 'Ask Philip' }).click();
   await expect(page.getByRole('heading', { name: 'Ask Philip', level: 1 })).toBeVisible();
 };
-const replan = (page: Page) => main(page).getByRole('button', { name: 'Re-plan with Philip' });
+const replan = (page: Page) => main(page).getByRole('button', { name: 'Update goals' });
 
-test('the button: hidden before the first cycle; on Plan, Goals and Ask Philip during one; disabled while a workout is open', async ({ page }) => {
+test('the button: hidden before the first cycle; on Plan, Goals and Ask Philip during one; still usable while a workout is open', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
   await fresh(page, { at: 'home' });
   await openAsk(page);
@@ -80,19 +60,19 @@ test('the button: hidden before the first cycle; on Plan, Goals and Ask Philip d
   await expect(replan(page)).toBeEnabled();
 
   await tab(page, 'Progress').click();
-  await expect(page.getByRole('region', { name: 'Goals' }).getByRole('button', { name: 'Re-plan with Philip' })).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'Goals' }).getByRole('button', { name: 'Update goals' })).toBeEnabled();
 
   await tab(page, 'Home').click();
   await main(page).getByRole('button', { name: /^Workout/ }).click();
   await main(page).getByRole('button', { name: 'Cycle plan' }).click();
-  await expect(main(page)).toContainText('Want a fresh look?');
+  await expect(main(page)).toContainText('New numbers, new target?');
   await expect(replan(page)).toBeEnabled();
   await noHorizontalScroll(page);
   await shot(page, '1-plan-card');
 
   // Home keeps its single action and still fits the screen.
   await tab(page, 'Home').click();
-  await expect(main(page).getByRole('button', { name: 'Re-plan with Philip' })).toHaveCount(0);
+  await expect(main(page).getByRole('button', { name: 'Update goals' })).toHaveCount(0);
 
   // Open workout → disabled with the plain line.
   await main(page).getByRole('button', { name: /^Workout/ }).click();
@@ -100,115 +80,15 @@ test('the button: hidden before the first cycle; on Plan, Goals and Ask Philip d
   await expect(main(page)).toContainText('Give me 60 minutes');
   await expect(main(page)).toContainText('(outside the 60)');
   await main(page).getByRole('button', { name: 'Start workout' }).click();
-  // 0.12.3: still usable; only a new goal (a restart) waits for the workout.
+  // Story 15: Update goals never restarts the cycle, so an open workout doesn't block it.
   await openAsk(page);
   await replan(page).click();
   const s = sheet(page);
-  await expect(s).toContainText('A workout is open, so a new goal waits');
-  await expect(s.getByRole('radio', { name: 'Keep this goal' })).toHaveAttribute('aria-checked', 'true');
-  await expect(s.getByRole('radio', { name: 'Set my own' })).toBeDisabled();
+  await expect(s).toContainText('Cycle 1 keeps going');
+  await expect(s.getByRole('button', { name: 'Generate plan' })).toBeEnabled();
 });
 
-test('weigh-in → "Let Philip re-plan" asks at once; he proposes food, P/F/C and lift weights; yes/no each; Apply changes the app', async ({ page }) => {
-  await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
-  const prompts = mockGemini(page, { ...PLAN, tms: [{ lift: 'bench', kg: 95, why: 'Bench key sets are flying.' }, { lift: 'squat', kg: 140, why: 'Squat too.' }] });
-  await fresh(page, { at: 'home' });
-  await setKey(page);
-  await startCycleOne(page);
-  await page.clock.setFixedTime(new Date('2026-11-12T10:00:00'));
-  await page.reload();
-  await tab(page, 'Progress').click();
-  const card = page.getByRole('region', { name: 'Log weight' });
-  await card.getByLabel(/^Weight/).fill('163');
-  await card.getByRole('button', { name: 'Log weight' }).click();
-  await page.getByRole('button', { name: 'Let Philip re-plan' }).click();
-
-  const s = sheet(page);
-  await expect(s).toContainText('You are on pace.');
-  expect(prompts).toHaveLength(1);
-  expect(prompts[0]).toContain('tms: optional training-max changes');
-  await expect(s).toContainText('Bench press: training max');
-  await expect(s).toContainText('Back squat: training max');
-  await shot(page, '7-lift-weights');
-  // Say no to the squat change, yes to the rest.
-  await s.getByRole('checkbox', { name: /Back squat: training max/ }).uncheck();
-  await s.getByRole('button', { name: 'Yes, let’s go' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'New plan is live.' })).toBeVisible();
-
-  await tab(page, 'Home').click();
-  await main(page).getByRole('button', { name: /^Workout/ }).click();
-  await main(page).getByRole('button', { name: 'Cycle plan' }).click();
-  await expect(main(page)).toContainText(/Bench press: training max 209(\.\d)? lb/); // 95 kg
-  await expect(main(page)).toContainText('Back squat: training max 298 lb'); // unchanged 135 kg
-});
-
-test('keep this goal: Philip tunes the levers, the cycle stays; then "See Philip’s plan", the 7-day note and a goal date', async ({ page }) => {
-  test.setTimeout(60_000);
-  await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
-  const prompts = mockGemini(page, PLAN);
-  await fresh(page, { at: 'home' });
-  await setKey(page);
-  await startCycleOne(page);
-  await page.clock.setFixedTime(new Date('2026-11-12T10:00:00'));
-  await page.reload();
-
-  await openAsk(page);
-  await replan(page).click();
-  const s = sheet(page);
-  await expect(s).toBeVisible();
-  await expect(s).toContainText('Let’s take a fresh look. Tell me where we’re aiming, and I’ll read your logs.');
-  await expect(s.getByRole('radio', { name: 'Keep this goal' })).toHaveAttribute('aria-checked', 'true');
-  await expect(s).toContainText('Cycle 1 keeps going.');
-  await expect(s).not.toContainText('You re-planned less than a week ago');
-  await shot(page, '2-manual-step2');
-
-  await s.getByRole('button', { name: 'Ask Philip for the plan' }).click();
-  await expect(s).toContainText('You are on pace.');
-  await expect(s).toContainText('146 g'); // bulk protein tops out at 2.0 g/kg (Story 12 update): 150 is capped
-  expect(prompts).toHaveLength(1);
-  expect(prompts[0]).toContain('asked for a fresh look mid-cycle');
-  expect(prompts[0]).toContain('keeps the current goal');
-  await shot(page, '3-review');
-
-  // Close without answering: the button now reopens this plan instead of asking again.
-  await s.getByRole('button', { name: 'Close' }).click();
-  await tab(page, 'Home').click();
-  await expect(main(page)).not.toContainText('Philip’s plan is ready');
-  await expect(main(page).getByRole('button', { name: 'Next goal' })).toHaveCount(0);
-  await openAsk(page);
-  await expect(replan(page)).toHaveCount(0);
-  await main(page).getByRole('button', { name: 'See Philip’s plan' }).click();
-  await expect(s).toContainText('You are on pace.');
-  expect(prompts).toHaveLength(1);
-
-  await s.getByRole('button', { name: 'Yes, let’s go' }).click();
-  await expect(s).toHaveCount(0);
-  await expect(page.getByRole('status').filter({ hasText: 'New plan is live.' })).toBeVisible();
-  await tab(page, 'Home').click();
-  await expect(main(page).getByRole('button', { name: /^Workout/ })).toContainText('Block A');
-  await expect(main(page).getByRole('button', { name: 'Ask Philip' })).toBeVisible();
-
-  // Under 7 days later: Philip's note, nothing blocked.
-  await page.clock.setFixedTime(new Date('2026-11-14T10:00:00'));
-  await page.reload();
-  await openAsk(page);
-  await replan(page).click();
-  await expect(s).toContainText('You re-planned less than a week ago.');
-  await expect(s.getByRole('button', { name: 'Ask Philip for the plan' })).toBeEnabled();
-  await shot(page, '4-seven-day-note');
-
-  // A new goal has a goal date: Philip suggests one, the owner can move it, the pace follows.
-  await s.getByRole('radio', { name: 'Set my own' }).click();
-  await s.getByLabel(/^Goal weight/).fill('168');
-  await expect(s).toContainText('Philip suggests');
-  await expect(s).toContainText('Cycle 1 ends today. Cycle 2 (Block B) starts with this goal.');
-  await s.getByLabel('Goal date').fill('2027-01-09');
-  await expect(s).toContainText('Your date: ');
-  await expect(s).toContainText('8 weeks');
-  await shot(page, '5-goal-date');
-  await s.getByRole('button', { name: 'Use Philip’s date' }).click();
-  await expect(s).toContainText('Philip suggests');
-});
+// Story 15: the weigh-in hand-off and the manual plan review are "Update goals" now (e2e/story15.spec.ts).
 
 test('your time: days a week and minutes re-plan on Confirm; the version line', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));

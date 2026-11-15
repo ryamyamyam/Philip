@@ -9,6 +9,7 @@ const HandoffSheet = lazy(() => import('./photo/HandoffSheet'));
 import ReviewSheet from './photo/ReviewSheet';
 const SuggestSheet = lazy(() => import('./SuggestSheet'));
 const GoalSheet = lazy(() => import('./goal/GoalSheet'));
+const UpdateGoalsSheet = lazy(() => import('./goal/UpdateGoalsSheet'));
 const WhyPlanSheet = lazy(() => import('./learn/WhyPlanSheet'));
 
 export function SheetHost({ sheet }: { sheet: SheetState }) {
@@ -40,7 +41,8 @@ export function SheetHost({ sheet }: { sheet: SheetState }) {
     case 'goal':
       return (
         <Suspense fallback={null}>
-          <GoalSheet manual={sheet.manual === true} autoAsk={sheet.autoAsk === true} />
+          {/* Story 15: every manual plan change is "Update goals"; goal events (reached, off track) keep the goal sheet. */}
+          {sheet.manual === true ? <UpdateGoalsSheet /> : <GoalSheet />}
         </Suspense>
       );
     case 'whyPlan':

@@ -17,26 +17,6 @@ const shot = async (page: Page, name: string) => {
 
 test.use({ serviceWorkers: 'block', viewport: { width: 393, height: 793 } });
 
-const PLAN = {
-  message: 'You are on pace. A touch more food, the rest stays.',
-  kcal: { value: 2900, why: 'Your logs say maintenance is about 2,650.', basis: 'practice' },
-  proteinG: { value: 140, why: 'Plenty while we build.', basis: 'research' },
-  cardioMin: { value: 15, why: 'Recovery first.', basis: 'default' },
-  days: null,
-  swaps: [],
-  remember: [],
-};
-
-function mockGemini(page: Page, reply: object) {
-  const prompts: string[] = [];
-  void page.route('https://generativelanguage.googleapis.com/**', async (route) => {
-    const body = route.request().postDataJSON() as { contents: { parts: { text: string }[] }[] };
-    prompts.push(body.contents[0]?.parts[0]?.text ?? '');
-    await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] }, finishReason: 'STOP' }] } });
-  });
-  return prompts;
-}
-
 async function setKey(page: Page) {
   await openSettings(page);
   await page.getByRole('textbox', { name: 'Gemini API key' }).fill('test-key-123');
@@ -59,111 +39,9 @@ async function startCycleOne(page: Page) {
   await expect(main(page).getByRole('button', { name: /Today’s workout: Day 1/ })).toBeVisible();
 }
 
-async function weighInReplan(page: Page) {
-  await tab(page, 'Progress').click();
-  const card = page.getByRole('region', { name: 'Log weight' });
-  await card.getByLabel(/^Weight/).fill('163');
-  await card.getByRole('button', { name: 'Log weight' }).click();
-  await page.getByRole('button', { name: 'Let Philip re-plan' }).click();
-}
-
-test('OBS-0327E3: with no AI set up, the weigh-in re-plan leaves all three goal choices working', async ({ page }) => {
-  await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
-  await fresh(page, { at: 'home' });
-  await startCycleOne(page);
-  await page.clock.setFixedTime(new Date('2026-11-12T10:00:00'));
-  await page.reload();
-  await weighInReplan(page);
-
-  const s = sheet(page);
-  await expect(s).toContainText('Philip needs a way to think');
-  // Not "you're offline": nothing is waiting to be sent.
-  await expect(s).not.toContainText('You’re offline');
-  await shot(page, '1-no-ai');
-
-  // Each choice selects, says what it does, and leads to Ask.
-  await s.getByRole('radio', { name: 'Philip’s pick' }).click();
-  await expect(s.getByRole('radio', { name: 'Philip’s pick' })).toHaveAttribute('aria-checked', 'true');
-  await expect(s).toContainText('Starts a new cycle today');
-  await expect(s.getByRole('button', { name: 'Ask Philip for the plan' })).toBeEnabled();
-
-  await s.getByRole('radio', { name: 'Set my own' }).click();
-  await expect(s.getByRole('radio', { name: 'Set my own' })).toHaveAttribute('aria-checked', 'true');
-  await expect(s.getByLabel(/^Goal weight/)).toBeVisible();
-  await expect(s.getByRole('button', { name: 'Ask Philip for the plan' })).toBeDisabled();
-  await expect(s).toContainText('Type your goal weight first.');
-  await s.getByLabel(/^Goal weight/).fill('168');
-  await expect(s.getByRole('button', { name: 'Ask Philip for the plan' })).toBeEnabled();
-  await shot(page, '2-own');
-
-  await s.getByRole('radio', { name: 'Keep this goal' }).click();
-  await expect(s.getByRole('radio', { name: 'Keep this goal' })).toHaveAttribute('aria-checked', 'true');
-  await expect(s).toContainText('Same goal, same cycle.');
-  await noHorizontalScroll(page);
-});
-
-test('OBS-0327E3: a ready plan can go back to change the goal; asking again replaces it, once', async ({ page }) => {
-  test.setTimeout(60_000);
-  await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
-  const prompts = mockGemini(page, PLAN);
-  await fresh(page, { at: 'home' });
-  await setKey(page);
-  await startCycleOne(page);
-  await page.clock.setFixedTime(new Date('2026-11-12T10:00:00'));
-  await page.reload();
-  await weighInReplan(page);
-
-  const s = sheet(page);
-  await expect(s).toContainText('You are on pace.');
-  expect(prompts).toHaveLength(1);
-  // Evidence labels on Philip's levers (OBS-92D8DB).
-  await expect(s).toContainText('Research-backed');
-  await expect(s).toContainText('Philip’s default');
-
-  await s.getByRole('button', { name: 'Change the goal' }).click();
-  await expect(s.getByRole('radio', { name: 'Keep this goal' })).toHaveAttribute('aria-checked', 'true');
-  await s.getByRole('radio', { name: 'Philip’s pick' }).click();
-  await expect(s.getByRole('radio', { name: 'Philip’s pick' })).toHaveAttribute('aria-checked', 'true');
-  await shot(page, '3-change-goal');
-  await s.getByRole('button', { name: 'Ask Philip for the plan' }).click();
-  await expect(s.getByRole('button', { name: 'Yes, let’s go' })).toBeVisible();
-  expect(prompts).toHaveLength(2);
-  expect(prompts[1]).toContain('restart');
-  await expect(s).toContainText('Cycle 1 ends today.');
-});
-
-test('OBS-0327E3: offline, the request waits but the choices stay live; a new choice asks with the new goal', async ({ page, context }) => {
-  test.setTimeout(60_000);
-  await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));
-  const prompts = mockGemini(page, PLAN);
-  await fresh(page, { at: 'home' });
-  await setKey(page);
-  await startCycleOne(page);
-  await page.clock.setFixedTime(new Date('2026-11-12T10:00:00'));
-  await page.reload();
-  // Lazy chunks (Progress, the sheet) load online; the SW is blocked here, so they can't load offline.
-  await tab(page, 'Progress').click();
-  await page.getByRole('region', { name: 'Goals' }).getByRole('button', { name: 'Re-plan with Philip' }).click();
-  const s = sheet(page);
-  await expect(s).toBeVisible();
-  await context.setOffline(true);
-  await s.getByRole('button', { name: 'Ask Philip for the plan' }).click();
-  await expect(s).toContainText('You’re offline');
-  expect(prompts).toHaveLength(0);
-
-  await s.getByRole('radio', { name: 'Set my own' }).click();
-  await expect(s.getByRole('radio', { name: 'Set my own' })).toHaveAttribute('aria-checked', 'true');
-  await s.getByLabel(/^Goal weight/).fill('168');
-  // A different goal is not the one waiting: no "offline" line for it, and Ask is back.
-  await expect(s).not.toContainText('You’re offline');
-  await context.setOffline(false);
-  await s.getByRole('button', { name: 'Ask Philip for the plan' }).click();
-  await expect(s.getByRole('button', { name: 'Yes, let’s go' })).toBeVisible();
-  // Back online, the watcher may also send the old waiting request; the plan on screen is the new goal's.
-  expect(prompts.at(-1)).toContain('restarts');
-  await expect(s).toContainText('168 lb');
-  await expect(s).toContainText('Cycle 1 ends today.');
-});
+// OBS-0327E3's three e2e tests drove the manual "Re-plan" sheet, which Story 15 replaced with "Update goals"
+// (e2e/story15.spec.ts). The fix itself (request.ts › noAi, goalChoice.ts) still serves the goal-reached and
+// off-track sheet and stays unit-tested in src/lib/goal/story14.test.ts.
 
 test('OBS-92D8DB: Workout › Plan › Why this plan: cut vs bulk side by side, labels and sources; Ask has the bulk vs cut chip', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-02T10:00:00'));

@@ -75,7 +75,8 @@ describe('manual plan: keep this goal', () => {
     expect(next).toBeNull();
     const c = await db.cycles.get(1);
     expect(c?.endedEarly).toBeUndefined();
-    expect(c?.goal).toEqual(cycle1.goal);
+    // Story 15: a manual plan (Update goals) writes the goal it was made for onto the same cycle.
+    expect(c?.goal).toMatchObject({ startWeightKg: 73.6, endWeightKg: 75, bfLinePct: 15 });
     expect(c?.cardioMin).toBe(20);
     expect((await db.trainingProgram.get('me'))).toMatchObject({ currentCycle: 1, trainingDays: [1, 2, 4, 6] });
     expect(planForDate(await db.targetPlans.toArray(), '2026-11-12')).toMatchObject({ calories: 2900, proteinG: 140 });

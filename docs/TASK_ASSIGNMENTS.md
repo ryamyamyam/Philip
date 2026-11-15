@@ -29,6 +29,12 @@ Base branch for new work: `main`.
 
 ---
 
+### T-033 — Story 15: Update goals (D-038), 0.15.1
+- **Role:** Core + Feature + QA (one session). **Branch:** `feat/T-033-update-goals` on `main` @ `fe65b8c`. **Status:** Built, awaiting WebKit on the Mac and owner review.
+- **Spec:** `docs/stories/STORY_15.md`.
+- **Files:** new `src/lib/goal/update.ts`, `src/views/goal/UpdateGoalsSheet.tsx`, `src/db/story15.test.ts`, `e2e/story15.spec.ts`, `docs/stories/STORY_15.md`; changed `src/lib/goal/proposal.ts`, `src/views/goal/request.ts`, `src/db/goalRepo.ts`, `src/db/types.ts`, `src/views/SheetHost.tsx`, `src/i18n/goal.ts`, `src/styles/components.css`, `src/db/story12.test.ts`, `e2e/story12.spec.ts`, `e2e/story14.spec.ts`, `package.json`/`package-lock.json` (0.15.1), docs.
+- **Log:** 2026-11-14 (cloud clone of `fe65b8c`): tsc clean, unit 491/491 (+10), build, size 176.9/177 KB initial JS, precache 1188/1200 KB, Chromium e2e 123/123 (+3 story15, −5 retired Re-plan tests). WebKit not run.
+
 ### T-032 — Story 14: goal choices that work, Philip the educator (D-037), 0.14.1
 - **Role:** Core + Feature + QA (one session). **Branch:** `feat/T-032-story14` on `main` @ `8aa98a8`. **Status:** Built, awaiting WebKit on the Mac and owner review.
 - **Observations:** OBS-0327E3 (Keep this goal / Philip's pick / Set my own locked), OBS-92D8DB (Philip as an educator; science vs not; bulk vs cut).

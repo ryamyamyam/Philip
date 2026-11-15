@@ -408,7 +408,12 @@ export interface GoalPlanItems {
   swaps: { day: Day; slot: 'A1' | 'A2' | 'B'; exerciseId: string }[];
   /** Story 12 (0.12.3): main-lift training maxes (their working weights follow) and accessory next weights. */
   tms?: { lift: LiftId; fromKg: number; toKg: number }[];
-  loads?: { exerciseId: string; fromKg: number; toKg: number }[];
+  /** Story 15: an accessory's next order may also change its reps and sets (null/absent = as the plan says). */
+  loads?: { exerciseId: string; fromKg: number; toKg: number; reps?: number | null; sets?: number | null; fromReps?: number | null; fromSets?: number | null }[];
+  /** Story 15 (Update goals): fat in grams (carbs fill the rest). Absent = the calculator's fat floor. */
+  fatG?: number | null;
+  /** Story 15: extra carbs on gym days on (true) or even days (false). Absent/null = unchanged. */
+  carbDays?: boolean | null;
 }
 
 /** What Philip proposed for a goal (validated and clamped by lib/goal/proposal.ts). */
@@ -421,13 +426,14 @@ export type Basis = 'research' | 'practice' | 'default';
 
 export interface GoalProposalRecord extends GoalPlanItems {
   message: string;
-  why: Partial<Record<'kcal' | 'proteinG' | 'cardioMin' | 'days' | 'swaps', string>> & { tms?: Record<string, string>; loads?: Record<string, string> };
+  why: Partial<Record<'kcal' | 'proteinG' | 'cardioMin' | 'days' | 'swaps' | 'fatG' | 'carbDays', string>> & { tms?: Record<string, string>; loads?: Record<string, string> };
   /** Story 14: Philip's evidence label per lever. Optional; older plans have none. */
   basis?: Partial<Record<'kcal' | 'proteinG' | 'cardioMin' | 'days', Basis>>;
   /** Values Philip asked for outside the safe range, and what was used instead. */
-  clamps: { lever: 'kcal' | 'proteinG' | 'cardioMin'; asked: number; used: number }[];
+  clamps: { lever: 'kcal' | 'proteinG' | 'cardioMin' | 'fatG'; asked: number; used: number }[];
   remember: string[];
-  source: { kind: 'gemini-cloud' | 'gemini-device' | 'claude-paste'; model: string | null };
+  /** Story 15: 'engine' = the app's formula draft (no Philip connection). */
+  source: { kind: 'gemini-cloud' | 'gemini-device' | 'claude-paste' | 'engine'; model: string | null };
   at: number;
 }
 
@@ -459,6 +465,9 @@ export interface GoalPlanUndo {
   /** 0.12.3: TMs before (Undo appends them back; TM history is append-only) and the accessory orders before. */
   tmsBefore?: { lift: LiftId; kg: number }[];
   nextOverridesBefore?: AccessoryOverride[] | null;
+  /** Story 15 (Update goals, cycle kept): the cycle's phase and the carb-days switch before Apply. */
+  phaseBefore?: Phase;
+  carbDaysBefore?: boolean | null;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import { DialogBar } from '../components/DialogBar';
 import { GymCharacter } from '../components/GymCharacter';
 import { Icon } from '../components/Icon';
@@ -10,6 +10,7 @@ import {
   useEntriesForDate,
   useProfile,
   useTargetPlans,
+  useGymContext,
   useTmHistory,
   useTrainingProgram,
   useWeightEntries,
@@ -28,6 +29,9 @@ import { buildSession } from '../lib/training/session';
 import { useUI } from '../ui';
 import { useGoalState, type GoalState } from '../hooks/useGoal';
 import { daysSinceWeighIn, goalEta } from '../lib/goal/goalCheck';
+
+/** Story 17 (N-2, N-3): today's line carousel, lazy so the first screen's budget doesn't move. */
+const TodayLine = lazy(() => import('./home/TodayLine'));
 
 const PHASE_KEY: Record<FoodPhase, StringKey> = { cut: 'home.phase.cut', maintain: 'home.phase.maintain', bulk: 'home.phase.bulk' };
 const KCAL_KEY: Record<Remaining['status'], StringKey> = {
@@ -73,7 +77,8 @@ export function HomeView() {
 
   const unit = profile?.unitPrefs.weight ?? 'kg';
   const foodPhase = phaseFor(plans ? planForDate(plans, today) : null, profile);
-  const target = plans ? targetForDate(plans, today) : null;
+  const gym = useGymContext();
+  const target = plans ? targetForDate(plans, today, gym) : null;
   const consumed = useMemo(() => sumMacros(entries ?? []), [entries]);
   const rem = target ? remainingAll(foodPhase, consumed, target) : null;
 
@@ -103,10 +108,19 @@ export function HomeView() {
         }
       />
       <div className="stack home-stack">
-        <p className="home-goal num" data-tour="home-goal">
-          {goalLine(profile, cycle?.goal ?? null, cycle ? (cycle.goal.deadline ?? addDays(fmtYmd(cycle.startedAt), 28)) : null, weights ?? [], today, unit)}
-          {cycle && weights && etaText(goalEta(cycle, weights, today))}
-        </p>
+        {/* Story 17: with a goal running, today's line below says all this (and more); the text line stays otherwise. */}
+        {!(program && cycle) && (
+          <p className="home-goal num" data-tour="home-goal">
+            {goalLine(profile, cycle?.goal ?? null, cycle ? (cycle.goal.deadline ?? addDays(fmtYmd(cycle.startedAt), 28)) : null, weights ?? [], today, unit)}
+            {cycle && weights && etaText(goalEta(cycle, weights, today))}
+          </p>
+        )}
+
+        {program && cycles && sessions && weights && profile !== undefined && (
+          <Suspense fallback={<div className="tl tl-placeholder" aria-hidden="true" />}>
+            <TodayLine today={today} cycle={cycle} cycles={cycles} sessions={sessions} weights={weights} profile={profile ?? null} unit={unit} />
+          </Suspense>
+        )}
 
         <button type="button" className="pm-cart pm-cat-coral" data-tour="home-meals" onClick={goToMeals}>
           <span className="pm-cart-head">

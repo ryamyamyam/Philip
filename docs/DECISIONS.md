@@ -359,3 +359,20 @@ Format: **Decision · Reason · Alternatives · Consequences · Date · Decided 
 - **Alternatives:** absolute e1RM trend for the date (dropped: block changes and conservative RIR labels made it swing and go "off"); trusting own logs always (that is how the lunge happened).
 - **Consequences:** no Dexie version change; optional fields (`profile.trainingYears`, `Prescribed.corrected`, `WorkoutSession.note/noteSavedAt`, `SessionExercise.noteSavedAt`) in backups with `schemaVersion` 1. Several unit/e2e expectations updated for the new bands. Diet break, maintenance bridge, missed-week re-entry, overshoot spreading, alcohol and steps stay advice-only.
 - **Date:** 2026-11-14/15 · **By:** Ryan (owner ask, answers in the spec, precache budget) · **Status:** Implemented, 0.16.1
+
+
+## D-040 — Story 17: food follows the real gym days, playbook TDEE, treadmill read, bodyweight progression, lift-day swaps, today's line (0.17.1)
+- **Context:** Owner, 2026-11-17: today's targets looked off; QA batch OBS-F17324, A4F4B9, 0E95EF, E73C29, 4DC2DF; and a "today's line" on Home (N-2/N-3). Step 0 found 2,326 kcal was a correct rest-day number and three real bugs (carb days frozen to weekdays; PB-2.2 never coded; fat not moving on three carb-day paths). Spec: `docs/stories/STORY_17_QA_BATCH.md`.
+- **Decision:**
+  1. **Gym days are derived, not stored**: this week's gym dates = planned dates (one-week move first) ∪ days with a workout logged or running; carb-day plans re-solve gym days for the actual count so the week equals the flat plan; weeks before the current one keep their stored weekday numbers; manual plans untouched.
+  2. **One-week move** (`program.weekDays`) from the calendar day box; Settings › Training days stays the permanent change and clears it.
+  3. **PB-2.2 in code** (`PB_TDEE`, two movement answers; general table only under 3 lifting days) and a one-time 0.17.1 re-check like Story 16's (META `tdeeUpdate`, Undo 24 h).
+  4. **Treadmill read:** Philip describes the machine's dials; the app computes incline % and mph itself and range-checks them; dials saved on the treadmill.
+  5. **PB-4.8 bodyweight progression:** reps → a set (max 4) → his yes to +2.5 kg; a logged weight within 15% of body weight reads as body weight; e1RM uses body weight + added load.
+  6. **Lift-day swaps:** `program.weekSwap` (this week) / `program.dayRotation` (from now on); wave positions and the 16 sessions unchanged.
+  7. **Today's line (PB-6.4):** lazy two-card carousel on Home; plan vs actual on the same axes with an on-track band, trend over noise (7-day average), no dual axes, small multiples for the lifts, BF uncertainty visible, status always in words. Lifts use Story 16's plan-relative e1RM and 3% band.
+  8. **Budget:** precache 1260 → **1300 KB (owner, 2026-11-17)**; first-screen JS 176.8 / 177 KB.
+- **Reason:** owner asks; numbers must follow what he actually does and stay explainable.
+- **Alternatives:** writing a new plan row on every day change (dropped: derived targets do it without writes and keep history); a 2.5% 1RM band (kept Story 16's 3% so Home and the card agree).
+- **Consequences:** optional fields only (`program.weekDays/dayRotation/weekSwap`, `treadmill.incline`, `CardioLog.inclineSetting`, `Prescribed.bw`), parsed in backups, `schemaVersion` 1. Some unit expectations updated for PB-2.2 and Bug C.
+- **Date:** 2026-11-17 · **By:** Ryan (owner asks, chart choices, budget) · **Status:** Implemented, 0.17.1

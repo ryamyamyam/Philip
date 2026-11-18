@@ -3,9 +3,9 @@
  * Days are a sequence, not weekdays: "today" is the next day of the current cycle that isn't done
  * or skipped. Missing a calendar day never skips or resets anything.
  */
-import type { IsoWeekday, TmRecord, WorkoutSession, YMD } from '../../db/types';
+import type { IsoWeekday, TmRecord, WeekDays, WorkoutSession, YMD } from '../../db/types';
 import { daysBetween, startOfWeek, toYmd } from '../date';
-import { planDates } from './schedule';
+import { dayOrderFor, planDates, type DayOrderSource } from './schedule';
 import {
   cycleOutcome,
   DAY_LIFT,
@@ -47,13 +47,13 @@ export function nextCycleIndex(cycles: readonly { index: number }[], sessions: r
   return Math.max(0, ...cycles.map((c) => c.index), ...sessions.map((s) => s.cycle)) + 1;
 }
 
-/** Next (week, day) to train in a cycle, or null when all 16 sessions are done or skipped. */
-export function nextSessionRef(sessions: readonly WorkoutSession[], cycle: number): SessionRef | null {
+/** Next (week, day) to train in a cycle, or null when all 16 sessions are done or skipped. Story 17: days run in `order`. */
+export function nextSessionRef(sessions: readonly WorkoutSession[], cycle: number, order?: DayOrderSource | null): SessionRef | null {
   const closed = new Set(
     sessions.filter((s) => s.cycle === cycle && s.status !== 'in_progress').map((s) => `${s.week}-${s.day}`),
   );
   for (const week of [1, 2, 3, 4] as const) {
-    for (const day of [1, 2, 3, 4] as const) if (!closed.has(`${week}-${day}`)) return { week, day };
+    for (const day of dayOrderFor(order, cycle, week)) if (!closed.has(`${week}-${day}`)) return { week, day };
   }
   return null;
 }
@@ -154,7 +154,7 @@ export type WorkoutCardState =
  * session dated today (sessions keep their start date) blocks starting another; a skipped one doesn't.
  */
 export function workoutCardState(
-  program: { currentCycle: number; trainingDays?: readonly IsoWeekday[] } | null,
+  program: ({ currentCycle: number; trainingDays?: readonly IsoWeekday[]; weekDays?: WeekDays } & DayOrderSource) | null,
   sessions: readonly WorkoutSession[],
   today: YMD,
 ): WorkoutCardState {
@@ -162,12 +162,12 @@ export function workoutCardState(
   if (program.currentCycle < 1) return { kind: 'briefing', cycle: 1 };
   const open = inProgress(sessions);
   if (open) return { kind: 'resume', session: open };
-  const next = nextSessionRef(sessions, program.currentCycle);
+  const next = nextSessionRef(sessions, program.currentCycle, program);
   const doneToday = sessions
     .filter((s) => s.date === today && s.status === 'done')
     .sort((a, b) => (b.finishedAt ?? b.startedAt) - (a.finishedAt ?? a.startedAt))[0];
   if (doneToday) {
-    const planned = planDates({ today, trainingDays: program.trainingDays, sessions, cycle: program.currentCycle });
+    const planned = planDates({ today, trainingDays: program.trainingDays, sessions, cycle: program.currentCycle, weekDays: program.weekDays ?? null, order: program });
     return { kind: 'doneToday', session: doneToday, next, nextDate: planned[0]?.date ?? null, cycleDone: next === null };
   }
   if (!next) return { kind: 'cycleDone', cycle: program.currentCycle };

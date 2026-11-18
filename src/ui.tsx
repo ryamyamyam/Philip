@@ -29,7 +29,7 @@ export type SheetState =
   /** Story 14 (OBS-92D8DB): "Why this plan", optionally for a phase picked on screen (the briefing). */
   | { kind: 'whyPlan'; phase?: 'lose' | 'maintain' | 'gain' }
   /** Story 16: today's plan under Philip's Playbook (shown once on 0.16.1; reopened from Settings). */
-  | { kind: 'playbook' };
+  | { kind: 'playbook'; /** Story 17: the 0.17.1 maintenance re-check (PB-2.2) instead. */ update?: 'tdee' };
 
 export interface UI {
   date: YMD;

@@ -13,7 +13,7 @@ async function calculatedTargets(page: Page) {
   await calc.getByLabel('Date of birth').fill('1998-03-01');
   await calc.getByLabel('Height (cm)').fill('180');
   await calc.getByLabel('Weight (kg)').fill('90');
-  await calc.getByLabel('Activity level').selectOption('moderate');
+  await calc.getByLabel('Your day, outside the gym').selectOption('active');
   await calc.getByRole('radio', { name: 'Lose fat' }).click();
   await calc.getByLabel('Target weight (kg)').fill('80');
   await calc.getByLabel('Rate per week (kg)').fill('0.5');

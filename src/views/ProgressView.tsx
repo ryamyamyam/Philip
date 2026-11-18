@@ -14,6 +14,7 @@ import { refreshPlan, reviewWeighIn } from '../lib/weighIn';
 import type { Profile, TargetPlan, WeightEntry } from '../db/types';
 import { useProfile, useTargetPlans, useTrainingProgram, useWeightEntries } from '../hooks/useData';
 import { overridesFor } from '../lib/goal/carbDays';
+import { referenceWeightKg } from '../lib/targets';
 import { planForDate } from '../lib/nutrition';
 import { trainingDaysOrDefault } from '../lib/training/schedule';
 import { t, type StringKey } from '../i18n';
@@ -300,7 +301,7 @@ function WeighInTake({
     setBusy(true);
     // Story 12 update: a plan with carb days keeps them, re-split on the new numbers.
     const carry = planForDate(plans, today)?.inputsSnapshot?.carbDays === true && program?.carbDays !== false;
-    await addTargetPlan(refreshPlan(r, today, carry ? overridesFor(r.to, trainingDaysOrDefault(program?.trainingDays), r.inputs.sex, true) : null));
+    await addTargetPlan(refreshPlan(r, today, carry ? overridesFor(r.to, trainingDaysOrDefault(program?.trainingDays), r.inputs.sex, true, referenceWeightKg(r.inputs.weightKg, r.inputs.heightCm)) : null));
     toast(t('weighIn.applied'));
     onDone();
   };

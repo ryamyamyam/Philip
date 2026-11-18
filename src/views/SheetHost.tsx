@@ -55,7 +55,7 @@ export function SheetHost({ sheet }: { sheet: SheetState }) {
     case 'playbook':
       return (
         <Suspense fallback={null}>
-          <PlaybookSheet />
+          <PlaybookSheet kind={sheet.update ?? 'playbook'} />
         </Suspense>
       );
   }

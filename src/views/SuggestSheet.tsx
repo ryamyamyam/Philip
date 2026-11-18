@@ -3,7 +3,7 @@ import { Icon } from '../components/Icon';
 import { Sheet } from '../components/Sheet';
 import { getProfile } from '../db/repo';
 import type { YMD } from '../db/types';
-import { useEntriesForDate, useProfile, useTargetPlans } from '../hooks/useData';
+import { useEntriesForDate, useGymContext, useProfile, useTargetPlans } from '../hooks/useData';
 import { t, type StringKey } from '../i18n';
 import { defaultMealFor } from '../lib/meals';
 import { fmtG, fmtKcal } from '../lib/format';
@@ -45,7 +45,8 @@ export default function SuggestSheet({ date }: { date: YMD }) {
   const abortRef = useRef<AbortController | null>(null);
 
   const consumed = useMemo(() => sumMacros(entries ?? []), [entries]);
-  const target = useMemo(() => (plans ? targetForDate(plans, date) : null), [plans, date]);
+  const gym = useGymContext();
+  const target = useMemo(() => (plans ? targetForDate(plans, date, gym) : null), [plans, date, gym]);
   const phase = useMemo(() => phaseFor(plans ? planForDate(plans, date) : null, profile), [plans, date, profile]);
   const ready = entries !== undefined && target !== null;
 

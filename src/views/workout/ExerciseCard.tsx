@@ -13,6 +13,8 @@ import { fmtBoth, fmtIn, fmtRest, fromDisplay, inputValue } from './units';
 import { Icon } from '../../components/Icon';
 import { startRule } from '../../lib/training/startLoad';
 import { useLongPress } from './ReorderList';
+import { t17 } from '../../i18n/s17';
+import { PB_BODYWEIGHT } from '../../lib/playbook/rules';
 
 const loadKindOf = (id: string): LoadKind => {
   try {
@@ -59,13 +61,15 @@ export interface ExerciseCardProps {
   onReorder?: () => void;
   /** Story 16 (PB-8.3): last week / this week and the e1RM status, rendered under the orders. */
   strength?: ReactNode;
+  /** Story 17 (PB-4.8): his yes to added load on a bodyweight move (kg added next time). */
+  onAddLoad?: (kg: number, reps: number) => Promise<void>;
 }
 
 /**
  * One exercise: PHILIP'S ORDERS (read-only, frozen on the session) above YOUR LIFT (the owner's own
  * numbers, empty until he types or taps "As ordered"). The two never overwrite each other.
  */
-export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, swapPreviewKg, onCheckin, onMissed, proposal, proposalOrder, thinking, onAccept, onDecline, onReorder, strength }: ExerciseCardProps) {
+export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSwap, swapPreviewKg, onCheckin, onMissed, proposal, proposalOrder, thinking, onAccept, onDecline, onReorder, strength, onAddLoad }: ExerciseCardProps) {
   const longPress = useLongPress(onReorder);
   const info = infoFor(ex.exerciseId);
   const pair = !!info.pair;
@@ -128,6 +132,7 @@ export function ExerciseCard({ ex, day, block, unit, bar, onChange, onRest, onSw
         <p className="small ex-cue">{t(`cue.${ex.exerciseId}` as StringKey)}</p>
         {slot && <p className="small muted ex-why">{t(`why.D${day}-${slot}` as StringKey)}</p>}
         {slot && summaryLine(ex, { kind: loadKindOf(ex.exerciseId), pair }, unit) && <p className="ex-summary num">{summaryLine(ex, { kind: loadKindOf(ex.exerciseId), pair }, unit)}</p>}
+        <BodyweightNote ex={ex} unit={unit} onAddLoad={onAddLoad} />
         {ex.prescription.some((p) => p.estimate) && (
           <p className="small ex-estimate">
             <span className="pm-pill">{t('session.estimate')}</span> {t('session.estimateWhy')}
@@ -299,6 +304,8 @@ type LoadKind = ReturnType<typeof startRule>['kind'];
 /** What goes before the ×: weight, assistance, Bodyweight, Band, or (nothing to anchor on) Your pick. */
 function loadText(p: Prescribed, kind: LoadKind, unit: PlateUnit, both = true, pair = false): string | null {
   const w = (kg: number) => (both ? fmtBoth(kg, unit) : fmtIn(kg, unit));
+  // Story 17 (PB-4.8): a bodyweight move's kg is load added on top of body weight.
+  if (p.kg !== null && kind === 'bodyweight' && !p.assist) return t17('bw.plus', { w: w(p.kg) });
   if (p.kg !== null) return p.assist ? t('session.assist', { w: w(p.kg) }) : pair ? t('session.pair', { w: w(p.kg) }) : w(p.kg);
   if (kind === 'bodyweight') return t('session.bodyweight');
   if (kind === 'band') return t('session.band');
@@ -637,6 +644,44 @@ function ProposalCard({
         <div className="ex-actions">
           <button type="button" className="btn btn-sm btn-secondary" onClick={onDecline}>
             {t('checkin.ok')}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Story 17 (OBS-0E95EF, PB-4.8): what a bodyweight move's order means today: reps first, then one more
+ * set, then (his yes, never automatic) added load; far under the range, the assisted version.
+ */
+function BodyweightNote({ ex, unit, onAddLoad }: { ex: SessionExercise; unit: PlateUnit; onAddLoad?: ((kg: number, reps: number) => Promise<void>) | undefined }) {
+  const [answer, setAnswer] = useState<'added' | 'kept' | null>(null);
+  const first = ex.prescription.find((p) => p.kind === 'accessory');
+  if (!first?.bw || first.bw === 'first') return null;
+  const sets = ex.prescription.filter((p) => p.kind === 'accessory').length;
+  const reps = first.targetReps ?? first.repMax;
+  const step = fmtIn(PB_BODYWEIGHT.addKg, unit);
+  if (first.bw === 'reps') return <p className="small ex-bw">{t17('bw.now.reps', { reps })}</p>;
+  if (first.bw === 'set') return <p className="small ex-bw">{t17('bw.now.set')}</p>;
+  if (first.bw === 'assisted') return <p className="small ex-bw">{t17('bw.assisted', { reps: first.repMin })}</p>;
+  // offerLoad
+  if (answer === 'kept') return null;
+  if (answer === 'added') return <p className="small ex-bw" role="status">{t17('bw.added', { kg: step, reps: first.repMin })}</p>;
+  return (
+    <div className="stack-xs ex-bw" data-testid="bw-offer">
+      <p className="small">{t17('bw.now.offer', { sets, reps, kg: step })}</p>
+      {onAddLoad && (
+        <div className="ex-actions">
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={() => void onAddLoad((first.kg ?? 0) + PB_BODYWEIGHT.addKg, first.repMin).then(() => setAnswer('added'))}
+          >
+            {t17('bw.addLoad', { kg: step })}
+          </button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAnswer('kept')}>
+            {t17('bw.keepBw')}
           </button>
         </div>
       )}

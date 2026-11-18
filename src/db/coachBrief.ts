@@ -53,7 +53,7 @@ export async function loadBrief(today: string, opts: { excludeSessionId?: string
             }
           : null,
       weights,
-      food: share ? { days: [...byDay.values()], target: targetForDate(plans, today) } : null,
+      food: share ? { days: [...byDay.values()], target: targetForDate(plans, today, program ? { today, trainingDays: program.trainingDays ?? null, weekDays: program.weekDays ?? null, sessions } : null) } : null,
       currentCycle: program?.currentCycle ?? 0,
       cycles,
       tmHistory,

@@ -6,7 +6,8 @@
  *       men:   10·kg + 6.25·cm − 5·age + 5
  *       women: 10·kg + 6.25·cm − 5·age − 161
  *     or, when body fat % is known, Katch–McArdle: 370 + 21.6 · lean mass (kg).
- *  2. Maintenance ≈ resting energy × activity factor (1.2 … 1.9).
+ *  2. Maintenance ≈ resting energy × activity factor: PB-2.2 (by daily movement and lifting
+ *     days, Story 17); under 3 lifting days the general 1.2–1.9 table.
  *  3. Goal adjustment = weekly rate × ~7,700 kcal/kg ÷ 7. The 7,700 kcal/kg figure is a rough
  *     energy-equivalence approximation; real weight change is not linear and varies by person.
  *  4. Safety (PB-7, owner-approved 2026-11-14): loss rate capped at 1% of body weight/week (1.25% above
@@ -18,17 +19,15 @@
  * Story 16: every number here comes from Philip's Playbook (`lib/playbook/rules.ts`).
  */
 import type { ActivityLevel, Goal, Sex } from '../db/types';
-import { fatFloorG, KCAL_PER_KG as PB_KCAL_PER_KG, PB_FAT, PB_GUARD, PB_PROTEIN, ratePctFor, type RateContext } from './playbook/rules';
+import { fatFloorG, GENERAL_ACTIVITY, KCAL_PER_KG as PB_KCAL_PER_KG, PB_FAT, PB_GUARD, PB_PROTEIN, ratePctFor, tdeeFactor, type RateContext } from './playbook/rules';
 
 export const KCAL_PER_KG = PB_KCAL_PER_KG;
 
-export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
-  sedentary: 1.2,
-  light: 1.375,
-  moderate: 1.55,
-  active: 1.725,
-  veryActive: 1.9,
-};
+/** General factors (under 3 lifting days only). With 3+ days the playbook's PB-2.2 table applies: `activityFactor`. */
+export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = GENERAL_ACTIVITY;
+
+/** PB-2.2 (Story 17): maintenance multiplier for this activity answer and lifting days a week. */
+export const activityFactor = (level: ActivityLevel, trainingDaysPerWeek: number): number => tdeeFactor(level, trainingDaysPerWeek);
 
 export const SAFETY = {
   maxLossPctPerWeek: PB_GUARD.maxLossPct / 100,
@@ -194,7 +193,7 @@ export function calculateTargets(i: CalcInputs): CalcResult {
   const warnings: CalcWarning[] = [];
   const reeMethod = i.bodyFatPct != null ? 'katch' : 'mifflin';
   const bmr = i.bodyFatPct != null ? katchMcArdle(i.weightKg, i.bodyFatPct) : mifflinStJeor(i.sex, i.weightKg, i.heightCm, i.ageYears);
-  const tdee = bmr * ACTIVITY_FACTORS[i.activityLevel];
+  const tdee = bmr * activityFactor(i.activityLevel, i.trainingDaysPerWeek);
 
   // Goal sanity checks
   const currentBmi = bmi(i.weightKg, i.heightCm);

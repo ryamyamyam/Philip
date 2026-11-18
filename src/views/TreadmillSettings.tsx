@@ -41,6 +41,8 @@ export function TreadmillSettings({ program }: { program: TrainingProgram }) {
     ...(scale === 'level' && num(maxMph) !== undefined ? { maxMph: num(maxMph)! } : {}),
     ...(scale === 'level' && num(minMph) !== undefined ? { minMph: num(minMph)! } : {}),
     source,
+    // Story 17: keep what Philip learned about the incline dial while it's the same machine.
+    ...(saved.incline && name.trim() === saved.name ? { incline: saved.incline } : {}),
   };
   const ok = validTreadmill(draft);
   const example = scale === 'mph' ? null : settingToMph(5, draft);

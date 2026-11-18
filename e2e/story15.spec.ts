@@ -16,7 +16,8 @@ test.use({ serviceWorkers: 'block', viewport: { width: 393, height: 793 } });
 
 const FIRST = {
   message: 'Lean bulk. A touch more food, three focused days, and I bump your incline press.',
-  kcal: { value: 2950, why: 'About 250 over your maintenance.', basis: 'practice' },
+  // Story 17 (PB-2.2): 'moderate' now reads as on-the-feet (1.65), so maintenance and the bulk range moved up.
+  kcal: { value: 3100, why: 'About 250 over your maintenance.', basis: 'practice' },
   proteinG: { value: 140, why: 'Enough for growth.', basis: 'research' },
   fatG: { value: 80, why: 'Comfortably above the floor.' },
   carbDays: { value: true, why: 'Fuel the sessions.' },
@@ -161,7 +162,7 @@ test('Philip plans; a note in Others sends it back; the revision moves the date;
   expect(prompts).toHaveLength(2);
   expect(prompts[1]).toContain('--- Follow-up ---');
   expect(prompts[1]).toContain('I wanna do this earlier.');
-  expect(prompts[1]).toContain('KEPT kcal 2950');
+  expect(prompts[1]).toContain('KEPT kcal 3100');
   const dateAfter = await s.getByText(/^By /).first().textContent();
   expect(dateAfter).not.toBe(dateBefore);
   await shot(page, '5-revised');

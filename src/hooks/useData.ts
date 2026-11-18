@@ -15,6 +15,8 @@ import type {
   YMD,
 } from '../db/types';
 import { allSavedMeals, getMeta, META } from '../db/repo';
+import type { GymContext } from '../lib/goal/gymDays';
+import { todayYmd } from '../lib/date';
 
 export function useEntriesForDate(date: YMD): FoodEntry[] | undefined {
   return useLiveQuery(() => db.foodEntries.where('date').equals(date).toArray(), [date]);
@@ -78,6 +80,19 @@ export function useCycles(): CycleRecord[] | undefined {
 
 export function useWorkoutSessions(): WorkoutSession[] | undefined {
   return useLiveQuery(() => db.workoutSessions.orderBy('date').toArray(), []);
+}
+
+/**
+ * Story 17 (OBS-F17324): what decides this week's gym days for carb-day plans: the training days, this
+ * week's move and the workouts logged. Undefined while loading; null before training is set up.
+ */
+export function useGymContext(): GymContext | null | undefined {
+  return useLiveQuery(async () => {
+    const program = await db.trainingProgram.get('me');
+    if (!program) return null;
+    const sessions = (await db.workoutSessions.toArray()).map((s) => ({ date: s.date, status: s.status }));
+    return { today: todayYmd(), trainingDays: program.trainingDays ?? null, weekDays: program.weekDays ?? null, sessions };
+  }, []);
 }
 
 export function useWorkoutSession(id: string | undefined): WorkoutSession | null | undefined {

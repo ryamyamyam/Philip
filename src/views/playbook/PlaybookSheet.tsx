@@ -3,7 +3,9 @@ import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Sheet } from '../../components/Sheet';
 import { useToast } from '../../components/Toast';
-import { canUndoPlaybook, getPlaybookUpdate, runPlaybookUpdate, undoPlaybookUpdate, type PlaybookUpdateRecord } from '../../db/playbookRepo';
+import { canUndoPlaybook, getPlaybookUpdate, runPlaybookUpdate, undoPlaybookUpdate, type PlaybookUpdateRecord, type UpdateKind } from '../../db/playbookRepo';
+import { t17 } from '../../i18n/s17';
+import type { ActivityLevel } from '../../db/types';
 import { updateProfile } from '../../db/repo';
 import { useProfile, useTrainingProgram } from '../../hooks/useData';
 import { t, type StringKey } from '../../i18n';
@@ -30,31 +32,40 @@ const macroLine = (m: Macros) => tp('pb.macros', { kcal: fmtKcal(m.calories), p:
  * re-check automatically and shows before → after with the PB IDs that caused each change, the loads
  * the sweep fixed, and Undo for 24 hours.
  */
-export default function PlaybookSheet() {
+export default function PlaybookSheet({ kind = 'playbook' }: { kind?: UpdateKind }) {
   const { closeSheet } = useUI();
   const toast = useToast();
   const profile = useProfile();
   const program = useTrainingProgram();
   const [rec, setRec] = useState<PlaybookUpdateRecord | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const askYears = profile !== undefined && (profile?.trainingYears ?? null) === null && rec === null;
+  // Story 17 (PB-2.2): the maintenance re-check asks his daily movement once, then applies.
+  const [moved, setMoved] = useState(false);
+  const tdee = kind === 'tdee';
+  const askYears = !tdee && profile !== undefined && (profile?.trainingYears ?? null) === null && rec === null;
+  const askMove = tdee && profile !== undefined && rec === null && !moved;
 
   useEffect(() => {
-    void getPlaybookUpdate().then((r) => setRec(r && r.status !== 'fresh' ? r : null));
-  }, []);
+    void getPlaybookUpdate(undefined, kind).then((r) => setRec(r && r.status !== 'fresh' ? r : null));
+  }, [kind]);
 
   // Known training age (or answered/skipped): apply automatically.
   const apply = async () => {
     setBusy(true);
     try {
-      setRec(await runPlaybookUpdate(todayYmd()));
+      setRec(await runPlaybookUpdate(todayYmd(), undefined, kind));
     } finally {
       setBusy(false);
     }
   };
   useEffect(() => {
-    if (rec === null && profile && profile.trainingYears != null && !busy) void apply();
+    if (!tdee && rec === null && profile && profile.trainingYears != null && !busy) void apply();
   }, [rec, profile?.trainingYears]);
+  const answerMove = async (level: ActivityLevel | null) => {
+    if (level !== null) await updateProfile({ activityLevel: level });
+    setMoved(true);
+    await apply();
+  };
 
   const answer = async (years: number | null) => {
     if (years !== null) await updateProfile({ trainingYears: years });
@@ -62,18 +73,18 @@ export default function PlaybookSheet() {
   };
 
   const undo = async () => {
-    await undoPlaybookUpdate(todayYmd());
-    setRec(await getPlaybookUpdate());
+    await undoPlaybookUpdate(todayYmd(), undefined, kind);
+    setRec(await getPlaybookUpdate(undefined, kind));
     toast(tp('pb.undone'));
   };
 
   const unit = program?.weightUnit ?? profile?.unitPrefs.weight ?? 'kg';
   const nothing = rec && !rec.manual && rec.changes.length === 0 && !rec.splitChanged && rec.loads.length === 0;
-  const line = !rec ? tp('pb.line') : rec.manual ? tp('pb.lineManual') : nothing ? tp('pb.lineNone') : tp('pb.line');
+  const line = !rec ? (tdee ? t17('tdee.line') : tp('pb.line')) : rec.manual ? tp('pb.lineManual') : nothing ? (tdee ? t17('tdee.lineNone') : tp('pb.lineNone')) : tdee ? t17('tdee.line') : tp('pb.line');
 
   return (
     <Sheet
-      title={tp('pb.title')}
+      title={tdee ? t17('tdee.title') : tp('pb.title')}
       onClose={closeSheet}
       full
       footer={
@@ -95,6 +106,23 @@ export default function PlaybookSheet() {
         <DialogBar speaker={t('coach.speaker')} portrait={<GymCharacter pose="point-up" framing="bust" scale={2} className="pm-dialog-portrait" />}>
           {line}
         </DialogBar>
+
+        {askMove && (
+          <section className="card stack-sm" aria-labelledby="pb-move">
+            <h3 id="pb-move">{t17('tdee.ask.title')}</h3>
+            <p className="small muted">{t17('tdee.ask.why')}</p>
+            <div className="stack-xs" role="group" aria-labelledby="pb-move">
+              {(['sedentary', 'active'] as const).map((lv) => (
+                <button key={lv} type="button" className="btn btn-secondary btn-block" disabled={busy} onClick={() => void answerMove(lv)}>
+                  {t17(`tdee.ask.${lv}`)}
+                </button>
+              ))}
+              <button type="button" className="btn btn-ghost btn-block" disabled={busy} onClick={() => void answerMove(null)}>
+                {tp('pb.years.skip')}
+              </button>
+            </div>
+          </section>
+        )}
 
         {askYears && (
           <section className="card stack-sm" aria-labelledby="pb-years">

@@ -17,11 +17,12 @@ import type {
   TargetPlan,
   TmRecord,
   TrainingProgram,
+  WeekDays,
   WeightEntry,
   WorkoutSession,
   YMD,
 } from './types';
-import { adjustedTm, blockForCycle, MAX_REST_BONUS_SEC, type LiftId } from '../lib/training/program';
+import { adjustedTm, blockForCycle, MAX_REST_BONUS_SEC, type Day, type LiftId, type Week } from '../lib/training/program';
 import type { SessionSlot } from '../lib/training/session';
 import { slotKey } from '../lib/training/exercises';
 import { tmsForCycle } from '../lib/training/progress';
@@ -345,6 +346,8 @@ export const META = {
   coachCloudToken: 'coachCloudToken',
   /** Story 16: the one-time playbook update on 0.16.1 (`db/playbookRepo.ts`). Device-only, not in backups. */
   playbookUpdate: 'playbookUpdate',
+  /** Story 17 (0.17.1): the one-time maintenance re-check under PB-2.2. */
+  tdeeUpdate: 'tdeeUpdate',
 } as const;
 
 /* ---------------- Training (Story 5, T-012) ---------------- */
@@ -472,9 +475,51 @@ export async function setTrainingDays(days: IsoWeekday[] | null, database: Phili
   const program = await database.trainingProgram.get('me');
   if (!program) return;
   const next: TrainingProgram = { ...program, updatedAt: Date.now() };
+  // Story 17: a new permanent set of days replaces any one-week move.
+  delete next.weekDays;
   if (days === null) delete next.trainingDays;
   else next.trainingDays = [...new Set(days)].sort((a, b) => a - b);
   await database.trainingProgram.put(next);
+}
+
+/**
+ * Story 17 (OBS-F17324): training weekdays for one calendar week only (a moved workout); null clears
+ * it. Food follows on its own: carb-day targets read the week's gym days (`lib/goal/gymDays.ts`).
+ */
+export async function setWeekDays(weekDays: WeekDays | null, database: PhilipDB = db): Promise<void> {
+  const program = await database.trainingProgram.get('me');
+  if (!program) return;
+  const { weekDays: _w, ...rest } = program;
+  const next: TrainingProgram = { ...rest, updatedAt: Date.now() };
+  if (weekDays) next.weekDays = { weekStart: weekDays.weekStart, days: [...new Set(weekDays.days)].sort((a, b) => a - b) };
+  await database.trainingProgram.put(next);
+}
+
+/**
+ * Story 17 (OBS-4DC2DF): the order the four program days run in. `scope: 'week'` = this program week of
+ * this cycle only; `'always'` = from now on (clears a pending one-week swap). `order: null` resets.
+ */
+export async function setDayOrderScope(scope: 'week' | 'always', order: Day[] | null, at: { cycle: number; week: Week }, database: PhilipDB = db): Promise<void> {
+  const program = await database.trainingProgram.get('me');
+  if (!program) return;
+  const { weekSwap: _s, dayRotation: _r, ...rest } = program;
+  const next: TrainingProgram = { ...rest, updatedAt: Date.now() };
+  if (scope === 'week') {
+    if (program.dayRotation) next.dayRotation = program.dayRotation;
+    if (order) next.weekSwap = { cycle: at.cycle, week: at.week, order: [...order] };
+  } else if (order) next.dayRotation = [...order];
+  await database.trainingProgram.put(next);
+}
+
+/**
+ * Story 17 (OBS-0E95EF, PB-4.8): his yes to added load on a bodyweight move. The next order of that
+ * exercise gets `kg` added (and the bottom of the range); deleting this session's log removes it again.
+ */
+export async function setNextLoad(exerciseId: string, afterSessionId: string, kg: number, reps: number | null, database: PhilipDB = db): Promise<void> {
+  const program = await database.trainingProgram.get('me');
+  if (!program) return;
+  const rest = (program.nextOverrides ?? []).filter((o) => o.exerciseId !== exerciseId);
+  await database.trainingProgram.put({ ...program, nextOverrides: [...rest, { exerciseId, afterSessionId, kg, reps, sets: null }], updatedAt: Date.now() });
 }
 
 /** Story 7 (OBS-F52773): remembers the owner's exercise order for a program day. */

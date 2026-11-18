@@ -5,6 +5,7 @@ import { useToast } from '../components/Toast';
 import { newId } from '../db/db';
 import { addTm, META, resetTrainingProgram, setMeta, saveWorkoutSession, setSlotChoice, setTrainingDays, updateProfile, updateTrainingProgram } from '../db/repo';
 import type { IsoWeekday, TrainingProgram, WorkoutSession } from '../db/types';
+import { t17 } from '../i18n/s17';
 import { defaultDaysFor, squatRdlTooClose, trainingDaysOrDefault } from '../lib/training/schedule';
 import { YourTime } from './goal/YourTime';
 import { useMeta, useProfile, useSlotChoices, useTrainingProgram, useWorkoutSessions } from '../hooks/useData';
@@ -187,7 +188,7 @@ function TrainingDays({ program }: { program: TrainingProgram }) {
           type="button"
           className="btn btn-secondary"
           disabled={!ok}
-          onClick={() => ok && void setTrainingDays(isPick(days) && count === 4 ? null : days).then(() => toast(t('training.daysSaved')))}
+          onClick={() => ok && void setTrainingDays(isPick(days) && count === 4 ? null : days).then(() => toast(program.carbDays !== false ? t17('training.daysSavedFood') : t('training.daysSaved')))}
         >
           {t('training.daysSave')}
         </button>

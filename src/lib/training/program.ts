@@ -260,6 +260,51 @@ export function nextTargetReps(
   return Math.min(repMax, Math.max(repMin, Math.min(...reps) + 1));
 }
 
+/* ---------------- Story 17 (OBS-0E95EF, PB-4.8): bodyweight moves ---------------- */
+
+export interface BodyweightNext {
+  /** Load added on top of body weight (kg); 0 = body weight only. */
+  addedKg: number;
+  sets: number;
+  targetReps: number;
+  /**
+   * 'first' no log · 'reps' chase reps · 'set' one more set · 'offerLoad' top of the range on every set at the
+   * most sets: Philip offers added load (yes/no, never automatic) · 'assisted' far under the range.
+   */
+  change: 'first' | 'reps' | 'set' | 'offerLoad' | 'assisted';
+}
+
+/**
+ * PB-4.8 (practice): pull-ups, chin-ups and other bodyweight moves progress by reps, then sets, and only
+ * then (his yes) by added load. A logged weight close to his body weight is read as "body weight" (he
+ * typed his weight into the kg field), not as added load, so it never ratchets up by itself.
+ */
+export function nextBodyweight(
+  last: readonly LoggedAccessorySet[] | null,
+  baseSets: number,
+  repMin: number,
+  repMax: number,
+  bodyWeightKg: number | null,
+  rules: { maxSets: number; bwReadBand: number; assistedShortBy: number },
+): BodyweightNext {
+  const logged = (last ?? []).filter((s) => s.done && s.reps !== null && (s.reps ?? 0) > 0);
+  const addedOf = (kg: number | null): number => {
+    if (kg === null || kg <= 0) return 0;
+    if (bodyWeightKg !== null && bodyWeightKg > 0 && Math.abs(kg - bodyWeightKg) <= bodyWeightKg * rules.bwReadBand) return 0;
+    return kg;
+  };
+  const maxSets = Math.max(baseSets, rules.maxSets);
+  if (logged.length === 0) return { addedKg: 0, sets: baseSets, targetReps: Math.floor((repMin + repMax) / 2), change: 'first' };
+  const addedKg = Math.max(...logged.map((s) => addedOf(s.kg)));
+  const sets = Math.min(maxSets, Math.max(baseSets, logged.length));
+  const weakest = Math.min(...logged.map((s) => s.reps ?? 0));
+  if (addedKg === 0 && weakest <= repMin - rules.assistedShortBy) return { addedKg, sets, targetReps: repMin, change: 'assisted' };
+  const allTop = logged.length >= sets && logged.every((s) => (s.reps ?? 0) >= repMax);
+  if (!allTop) return { addedKg, sets, targetReps: Math.min(repMax, Math.max(repMin, weakest + 1)), change: 'reps' };
+  if (sets < maxSets) return { addedKg, sets: sets + 1, targetReps: repMax, change: 'set' };
+  return { addedKg, sets, targetReps: repMax, change: 'offerLoad' };
+}
+
 /** New TM after a review cut, rounded to 0.5 kg (the end-of-day review, D-027). */
 export const adjustedTm = (tmKg: number, factor: number): number => roundTo(tmKg * factor, 0.5);
 

@@ -150,6 +150,23 @@ export function setRatio(e: SessionExercise): SetRatio | null {
   return { actual: pick.actual, ordered: pick.ordered, ratio: pick.actual / pick.ordered };
 }
 
+/**
+ * Story 17 (PB-4.8 with PB-8.1): a bodyweight move against its order, with the load = body weight + the
+ * added kg (0 when none). Null without a body weight or a qualifying set.
+ */
+export function bodyweightRatio(e: SessionExercise, bodyWeightKg: number | null): SetRatio | null {
+  if (bodyWeightKg === null || !(bodyWeightKg > 0)) return null;
+  const load = (kg: number | null) => bodyWeightKg + Math.max(0, kg ?? 0);
+  const scored = e.actual
+    .map((a) => ({ a, p: e.prescription.find((x) => x.order === a.order) }))
+    .filter((x): x is { a: (typeof e.actual)[number]; p: Prescribed } => !!x.p && x.p.kind !== 'warmup' && !x.p.timed && x.a.done && x.a.reps !== null)
+    .map(({ a, p }) => ({ ordered: e1rmEpley(load(p.kg), p.targetReps ?? p.repMin, p.rir), actual: e1rmEpley(load(a.kg), a.reps as number, setRir(p, a.reps)) }))
+    .filter((x): x is { ordered: number; actual: number } => x.ordered !== null && x.actual !== null);
+  if (!scored.length) return null;
+  const pick = scored.reduce((m, x) => (x.actual > m.actual ? x : m));
+  return { actual: Math.round(pick.actual * 10) / 10, ordered: Math.round(pick.ordered * 10) / 10, ratio: pick.actual / pick.ordered };
+}
+
 export interface PlanPoint extends E1rmSession {
   /** Achieved ÷ ordered e1RM of the session's key (or hardest) set. */
   ratio: number;

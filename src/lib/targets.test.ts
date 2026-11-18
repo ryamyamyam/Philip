@@ -16,7 +16,9 @@ const base: CalcInputs = {
   heightCm: 180,
   weightKg: 80,
   activityLevel: 'moderate',
-  trainingDaysPerWeek: 4,
+  // Story 17: under 3 lifting days the general 1.2–1.9 table applies; these cases pin that table.
+  // The playbook's PB-2.2 multipliers (3+ days) are tested in 'PB-2.2 maintenance multiplier' below.
+  trainingDaysPerWeek: 2,
   goal: 'lose',
   targetWeightKg: 75,
   weeklyRateKg: null,
@@ -222,5 +224,23 @@ describe('Katch–McArdle branch (OBS-F047E3)', () => {
     const fast = calculateTargets({ ...base, bodyFatPct: 15, weeklyRateKg: 2 });
     expect(fast.warnings).toContainEqual({ code: 'rateCapped', rateKg: 0.8 });
     expect(fast.warnings.map((w) => w.code)).toContain('aggressiveDeficit');
+  });
+});
+
+describe('PB-2.2 maintenance multiplier (Story 17)', () => {
+  const lifter: CalcInputs = { ...base, trainingDaysPerWeek: 4, goal: 'maintain', targetWeightKg: null };
+  it('sitting and 3–4 days = 1.45; on the feet = 1.65', () => {
+    expect(calculateTargets({ ...lifter, activityLevel: 'sedentary' }).tdee).toBe(Math.round(1780 * 1.45));
+    expect(calculateTargets({ ...lifter, activityLevel: 'active' }).tdee).toBe(Math.round(1780 * 1.65));
+  });
+  it('5–6 days = 1.55 / 1.75; 3 days counts as 3–4', () => {
+    expect(calculateTargets({ ...lifter, activityLevel: 'sedentary', trainingDaysPerWeek: 5 }).tdee).toBe(Math.round(1780 * 1.55));
+    expect(calculateTargets({ ...lifter, activityLevel: 'active', trainingDaysPerWeek: 6 }).tdee).toBe(Math.round(1780 * 1.75));
+    expect(calculateTargets({ ...lifter, activityLevel: 'sedentary', trainingDaysPerWeek: 3 }).tdee).toBe(Math.round(1780 * 1.45));
+  });
+  it('older answers map to the two playbook ones (light → sitting, moderate+ → on the feet)', () => {
+    expect(calculateTargets({ ...lifter, activityLevel: 'light' }).tdee).toBe(Math.round(1780 * 1.45));
+    expect(calculateTargets({ ...lifter, activityLevel: 'moderate' }).tdee).toBe(Math.round(1780 * 1.65));
+    expect(calculateTargets({ ...lifter, activityLevel: 'veryActive' }).tdee).toBe(Math.round(1780 * 1.65));
   });
 });

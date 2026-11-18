@@ -139,7 +139,29 @@ function program(x: unknown): TrainingProgram | null {
     ...(o.dayOrder != null ? { dayOrder: dayOrder(o.dayOrder, `${p}.dayOrder`) } : {}),
     ...(o.nextOverrides != null ? { nextOverrides: list(o.nextOverrides, `${p}.nextOverrides`).map((v, i) => override(v, `${p}.nextOverrides[${i}]`)) } : {}),
     ...(o.treadmill != null ? { treadmill: treadmill(o.treadmill, `${p}.treadmill`) } : {}),
+    ...(o.weekDays != null ? { weekDays: weekDays(o.weekDays, `${p}.weekDays`) } : {}),
+    ...(o.dayRotation != null ? { dayRotation: dayPerm(o.dayRotation, `${p}.dayRotation`) } : {}),
+    ...(o.weekSwap != null ? { weekSwap: weekSwap(o.weekSwap, `${p}.weekSwap`) } : {}),
   };
+}
+
+/** Story 17: a one-week move of training days (optional). */
+function weekDays(x: unknown, path: string): { weekStart: string; days: IsoWeekday[] } {
+  const o = obj(x, path);
+  if (!isValidYmd(o.weekStart)) fail(path, 'weekStart must be a YYYY-MM-DD date');
+  return { weekStart: o.weekStart as string, days: trainingDays(o.days, `${path}.days`) };
+}
+
+/** Story 17: an order of the four program days (a permutation of 1–4). */
+function dayPerm(x: unknown, path: string): (1 | 2 | 3 | 4)[] {
+  const d = list(x, path);
+  if (d.length !== 4 || ![1, 2, 3, 4].every((n) => d.includes(n))) fail(path, 'must be the days 1–4 in some order');
+  return d as (1 | 2 | 3 | 4)[];
+}
+
+function weekSwap(x: unknown, path: string): { cycle: number; week: 1 | 2 | 3 | 4; order: (1 | 2 | 3 | 4)[] } {
+  const o = obj(x, path);
+  return { cycle: num(o, 'cycle', path, 1, 10000), week: int(o, 'week', [1, 2, 3, 4] as const, path), order: dayPerm(o.order, `${path}.order`) };
 }
 
 /** Story 10: the owner's treadmill (optional). */
@@ -152,6 +174,17 @@ function treadmill(x: unknown, path: string): Treadmill {
     ...(o.minMph != null ? { minMph: num(o, 'minMph', path, 0, 2) } : {}),
     ...(o.maxMph != null ? { maxMph: num(o, 'maxMph', path, 4, 15) } : {}),
     source: oneOf(o, 'source', ['philip', 'me'] as const, path),
+    ...(o.incline != null ? { incline: treadmillIncline(o.incline, `${path}.incline`) } : {}),
+  };
+}
+
+/** Story 17: what the treadmill's incline number means. */
+function treadmillIncline(x: unknown, path: string): NonNullable<Treadmill['incline']> {
+  const o = obj(x, path);
+  return {
+    scale: oneOf(o, 'scale', ['pct', 'level'] as const, path),
+    ...(o.maxLevel != null ? { maxLevel: num(o, 'maxLevel', path, 2, 40) } : {}),
+    ...(o.maxPct != null ? { maxPct: num(o, 'maxPct', path, 1, 40) } : {}),
   };
 }
 
@@ -191,6 +224,7 @@ function cardio(x: unknown, path: string): CardioLog {
     speed: numOrNull(o, 'speed', path, 0, 100),
     speedUnit: oneOf(o, 'speedUnit', ['mph', 'kmh', 'level'] as const, path),
     ...(o.speedMph != null ? { speedMph: num(o, 'speedMph', path, 0, 30) } : {}),
+    ...(o.inclineSetting != null ? { inclineSetting: num(o, 'inclineSetting', path, 0, 100) } : {}),
     done: bool(o, 'done'),
     skipped: bool(o, 'skipped'),
   };
@@ -363,8 +397,11 @@ function prescribed(x: unknown, path: string): Prescribed {
     ...(o.assist === true ? { assist: true } : {}),
     // Story 16 (PB-8.4): the check replaced Philip's number (optional).
     ...(o.corrected != null ? { corrected: corrected(o.corrected, `${path}.corrected`) } : {}),
+    ...(typeof o.bw === 'string' && BW_CHANGES.includes(o.bw as NonNullable<Prescribed['bw']>) ? { bw: o.bw as NonNullable<Prescribed['bw']> } : {}),
   };
 }
+
+const BW_CHANGES: readonly NonNullable<Prescribed['bw']>[] = ['first', 'reps', 'set', 'offerLoad', 'assisted'];
 
 function corrected(x: unknown, path: string): NonNullable<Prescribed['corrected']> {
   const o = obj(x, path);

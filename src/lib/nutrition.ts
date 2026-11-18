@@ -1,6 +1,7 @@
 import type { FoodEntry, Macros, Meal, TargetPlan, YMD } from '../db/types';
 import { MEALS } from '../db/types';
 import { weekdayOf } from './date';
+import { carbDayTarget, type GymContext } from './goal/gymDays';
 
 export const ZERO: Macros = { calories: 0, proteinG: 0, fatG: 0, carbsG: 0 };
 
@@ -52,10 +53,15 @@ export function planForDate(plans: readonly TargetPlan[], date: YMD): TargetPlan
   return best;
 }
 
-/** Macro target for a date, honoring weekly-planning overrides. */
-export function targetForDate(plans: readonly TargetPlan[], date: YMD): Macros | null {
+/**
+ * Macro target for a date, honoring weekly-planning overrides. Story 17 (OBS-F17324): with `gym` (the
+ * training schedule and logs), a carb-day plan follows the days he actually trains this week.
+ */
+export function targetForDate(plans: readonly TargetPlan[], date: YMD, gym?: GymContext | null): Macros | null {
   const plan = planForDate(plans, date);
   if (!plan) return null;
+  const dynamic = gym ? carbDayTarget(plan, date, gym) : null;
+  if (dynamic) return dynamic;
   const override = plan.weekdayOverrides?.[weekdayOf(date)];
   const src = override ?? plan;
   return { calories: src.calories, proteinG: src.proteinG, fatG: src.fatG, carbsG: src.carbsG };

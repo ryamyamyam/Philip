@@ -33,6 +33,11 @@ describe('AC 1: the changed values live only in rules.ts', () => {
     [/\b7700\b/, 'kcal per kg'],
     [/shiftPct/, 'carb shift %'],
     [/'[a-z-]+':\s*L\('(squat|bench|rdl|ohp|bw)',\s*0?\.\d+\)/, 'accessory ratio'],
+    // Story 17 (D-040): PB-2.2 multipliers, PB-4.8 bodyweight progression, PB-6.4 today's-line bands.
+    [/sedentary:\s*1\.\d+,\s*light:/, 'activity factors'],
+    [/\b1\.45\b|\b1\.65\b/, 'PB-2.2 multiplier'],
+    [/maxSets:\s*\d/, 'bodyweight max sets'],
+    [/weightKg:\s*0\.5,\s*bfPts/, 'today line bands'],
   ];
   it('no stray literals of the playbook numbers outside lib/playbook/rules.ts', () => {
     const offenders: string[] = [];

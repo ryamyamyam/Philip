@@ -183,8 +183,20 @@ export interface TrainingProgram {
   nextOverrides?: AccessoryOverride[];
   /** Story 10 (OBS-E19B38): the owner's treadmill and what its speed number means. Absent = the owner's unit. */
   treadmill?: Treadmill;
+  /** Story 17 (OBS-F17324): training weekdays for one calendar week only (a moved workout). Ignored outside that week. */
+  weekDays?: WeekDays;
+  /** Story 17 (OBS-4DC2DF): the order the four program days run in each week ("from now on"). Absent = 1, 2, 3, 4. */
+  dayRotation?: (1 | 2 | 3 | 4)[];
+  /** Story 17 (OBS-4DC2DF): a day order for one program week of one cycle ("this week only"). */
+  weekSwap?: { cycle: number; week: 1 | 2 | 3 | 4; order: (1 | 2 | 3 | 4)[] };
   createdAt: number;
   updatedAt: number;
+}
+
+/** Story 17: this calendar week's training weekdays (Monday-start `weekStart`). */
+export interface WeekDays {
+  weekStart: YMD;
+  days: IsoWeekday[];
 }
 
 /** The owner's treadmill (Story 10). `level` dials map linearly from minMph (level 1) to maxMph (maxLevel). */
@@ -197,6 +209,8 @@ export interface Treadmill {
   maxMph?: number;
   /** Philip estimated it (Gemini), or the owner set it. */
   source: 'philip' | 'me';
+  /** Story 17 (OBS-A4F4B9): what the incline number means: already % (most machines), or a level 1–N up to `maxPct`. */
+  incline?: { scale: 'pct' | 'level'; maxLevel?: number; maxPct?: number };
 }
 
 /** Append-only TM history. The TM for a cycle is the latest row with effectiveCycle ≤ that cycle. */
@@ -316,6 +330,8 @@ export interface CardioLog {
   speedUnit: 'mph' | 'kmh' | 'level';
   /** Story 10: Philip's projected mph for `speed` when it was logged (an estimate for levels). Absent before Story 10. */
   speedMph?: number;
+  /** Story 17 (OBS-A4F4B9): the incline number as the machine shows it, when it isn't already a %. */
+  inclineSetting?: number;
   done: boolean;
   skipped: boolean;
 }

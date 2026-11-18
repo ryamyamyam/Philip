@@ -21,12 +21,16 @@ import { goalWeeks } from '../lib/goal/deadline';
 import { macrosFor } from '../lib/goal/proposal';
 import { macrosWithFat } from '../lib/goal/update';
 import { overridesFor } from '../lib/goal/carbDays';
+import { referenceWeightKg } from '../lib/targets';
 import { trainingDaysOrDefault } from '../lib/training/schedule';
 import { blockForCycle } from '../lib/training/program';
 import { slotKey } from '../lib/training/exercises';
 import { nextCycleIndex } from '../lib/training/progress';
 import { progressionFor } from '../lib/training/nextCycle';
 import { lastSessionIdFor } from '../lib/training/sessionLog';
+
+/** Story 17 (Bug C): reference weight for the carb-day fat rules (BMI-adjusted when height is known). */
+const refKg = (kg: number, heightCm: number | null): number => (heightCm ? referenceWeightKg(kg, heightCm) : kg);
 
 export { firedPrompts, markPromptFired } from './goalPrompts';
 
@@ -110,7 +114,7 @@ export async function applyGoalPlan(id: number, items: GoalPlanItems, today: YMD
             weeklyRateKg: Math.round((Math.abs(c.endWeightKg - c.startWeightKg) / weeks) * 100) / 100,
           },
           // Story 12 update: training days +carbs, rest days −carbs (same week), on the days in force after Apply.
-          weekdayOverrides: overridesFor(m, trainingDaysOrDefault(items.days ?? program.trainingDays), profile.sex, carbOn),
+          weekdayOverrides: overridesFor(m, trainingDaysOrDefault(items.days ?? program.trainingDays), profile.sex, carbOn, refKg(c.startWeightKg, profile.heightCm)),
           createdAt: now,
         })) as number;
       }

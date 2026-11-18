@@ -172,3 +172,14 @@ If the lifter logs less than the plan, the day's final report states the effect 
 ## 11. Fatigue and warm-up
 - High fatigue/soreness: keep loads heavy, cut working sets ~30 %, cap at 2–3 RIR. `practice`
 - Warm-up for A1/B1 heavy lifts: 50 % × 8, 70 % × 4, 85 % × 1–2; isolations 0–1 warm-up set. `practice`
+
+
+---
+
+## Story 17 additions (2026-11-17, D-040)
+
+| ID | Rule | Label |
+|---|---|---|
+| PB-2.2 | Now in code (`PB_TDEE`): mostly sitting 1.45 / 1.55, on the feet or 10,000+ steps 1.65 / 1.75 for 3–4 / 5–6 lifting days. Under 3 lifting days the general 1.2–1.9 table applies (no playbook row). | practice |
+| PB-4.8 | **Bodyweight moves** (pull-up, chin-up): progress by reps to the top of the range on every set, then one more set (max 4), then — only with the lifter's yes — +2.5 kg added. A logged weight within 15 % of body weight is read as body weight. e1RM uses body weight + added load. Far under the range → the assisted version. | practice |
+| PB-6.4 | **Today's line**: expected today = straight line from the goal's start to its target (weight, body fat), the cycle plan's weekly steps for the Big 4. Actual weight = 7-day average. On track within ±0.5 kg / ±1.5 BF points / Story 16's 3 % for lifts. A BF reading older than 28 days asks for a new one. Charts: plan and actual on the same axes, band shown, no dual axes, small multiples for the lifts. | practice |

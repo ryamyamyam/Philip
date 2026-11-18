@@ -5,6 +5,7 @@
 import { exerciseFor, exerciseInfo, MAIN_EXERCISE, menuSlot, type ExerciseId, type Slot } from './exercises';
 import { startingKg, startRule } from './startLoad';
 import type { LoadReason } from '../playbook/loads';
+import { PB_BODYWEIGHT } from '../playbook/rules';
 import { DEFAULT_BAR_SETUP, incrementKg, loadFor, roundToStep, type BarSetup, type PlateUnit } from './plates';
 import {
   accessoryRules,
@@ -12,6 +13,8 @@ import {
   DAY_LIFT,
   DELOAD_WEEK,
   nextAccessoryKg,
+  nextBodyweight,
+  type BodyweightNext,
   nextTargetReps,
   tmIncrement,
   warmupSets,
@@ -49,6 +52,8 @@ export interface Prescribed {
   assist?: boolean;
   /** Story 16 (PB-8.4): the plausibility check replaced Philip's number; what it was and why. */
   corrected?: { fromKg: number; reason: LoadReason };
+  /** Story 17 (PB-4.8): a bodyweight move's progression step (kg = added load; null = body weight only). */
+  bw?: BodyweightNext['change'];
 }
 
 export interface PlannedExercise {
@@ -192,6 +197,37 @@ function accessory(input: SessionInput, block: Block, slot: Slot, unit: PlateUni
     if (input.phase === 'gain' && slot !== 'B') sets += PHASE_ACCESSORY.bulkExtraSets;
   }
   const last = input.lastSets?.(id) ?? null;
+  // Story 17 (OBS-0E95EF, PB-4.8): bodyweight moves progress by reps, then sets, then (his yes) added load.
+  if (info.bodyweight) {
+    const bw = nextBodyweight(last, sets, m.repMin, m.repMax, input.bodyWeightKg ?? null, PB_BODYWEIGHT);
+    let added: number | null = bw.addedKg > 0 ? bw.addedKg : null;
+    let reps = bw.targetReps;
+    let n = input.week === DELOAD_WEEK ? rules.sets : bw.sets;
+    const o = input.override?.(id) ?? null;
+    if (o) {
+      if (o.kg !== null) added = o.kg > 0 ? o.kg : null;
+      if (o.reps !== null) reps = o.reps;
+      if (o.sets !== null) n = o.sets;
+    }
+    return {
+      slot,
+      exerciseId: id,
+      prescription: Array.from({ length: n }, (_, i) => ({
+        order: i,
+        kind: 'accessory' as const,
+        kg: added,
+        pct: null,
+        repMin: m.repMin,
+        repMax: m.repMax,
+        timed: false,
+        perSide: !!info.perSide,
+        rir: rules.rir,
+        restSec: rules.restSec,
+        targetReps: reps,
+        bw: o && (o.kg !== null || o.reps !== null || o.sets !== null) ? 'reps' : bw.change,
+      })),
+    };
+  }
   const next = nextAccessoryKg(last, rules.sets, m.repMax, incrementKg(unit), info.timed || startRule(id).kind === 'assist' ? undefined : m.repMin, rules.rir);
   let kg = next.kg === null ? null : input.week === DELOAD_WEEK ? next.kg : roundToStep(next.kg, unit);
   // Story 6 §6: no log for this exercise yet → Philip's starting estimate instead of "Your pick".

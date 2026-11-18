@@ -14,6 +14,8 @@ import ReplanButton from '../goal/ReplanButton';
 import { tl } from '../../i18n/learn';
 import { useUI } from '../../ui';
 import { useProfile } from '../../hooks/useData';
+import { dayOrderFor } from '../../lib/training/schedule';
+import { SwapDays } from './SwapDays';
 
 const DAYS: Day[] = [1, 2, 3, 4];
 const WEEKS: Week[] = [1, 2, 3, 4];
@@ -78,6 +80,8 @@ export function PlanView({
         <p className="small muted">{t('plan.evidence')}</p>
       </details>
 
+      <SwapDays program={program} cycle={cycle} sessions={sessions} />
+
       <div className="segmented" role="tablist" aria-label={t('plan.weeks')}>
         {WEEKS.map((w) => (
           <button key={w} type="button" role="tab" aria-selected={week === w} aria-pressed={week === w} onClick={() => setWeek(w)}>
@@ -86,7 +90,7 @@ export function PlanView({
         ))}
       </div>
 
-      {DAYS.map((day) => {
+      {dayOrderFor(program, cycle.index, week).map((day) => {
         const lift = DAY_LIFT[day];
         const done = sessions.find((s) => s.cycle === cycle.index && s.week === week && s.day === day && s.status !== 'in_progress');
         const known = LIFTS.every((l) => tms[l] !== null);

@@ -268,7 +268,9 @@ describe('your time', () => {
     expect(calcFor(4)!.proteinG).toBe(calcFor(3)!.proteinG);
     expect(three.nutritionChanged).toBe(false);
     const five = planAvailability({ daysPerWeek: 5, strengthMin: 45, cardioMin: 25 }, cur, calcFor);
-    expect(five).toMatchObject({ nutritionChanged: false, strengthChanged: true, cardioChanged: false, changed: true, closeDays: true });
+    // Story 17 (PB-2.2): 5 lifting days use the 5–6 column (1.55 / 1.75), so maintenance and food move up.
+    expect(five).toMatchObject({ nutritionChanged: true, strengthChanged: true, cardioChanged: false, changed: true, closeDays: true });
+    expect(five.nutrition!.calories).toBeGreaterThan(cur.plan!.calories);
     expect(planAvailability({ daysPerWeek: 4, strengthMin: 60, cardioMin: 25 }, cur, calcFor).changed).toBe(false);
     // Bulk: days don't move protein in the calculator, so food stays.
     expect(planAvailability({ daysPerWeek: 3, strengthMin: 60, cardioMin: 25 }, { ...cur, phase: 'gain', cardioPlanned: 15 }, () => calcFor(4)).nutritionChanged).toBe(false);
@@ -383,7 +385,10 @@ describe('macros by phase and carb days (Story 12 update)', () => {
     const cur = { days: [1, 2, 4, 5] as const, strengthMin: 60, cardioPlanned: 15, phase: 'gain' as const, plan: { calories: 2800, proteinG: 150, fatG: 78, carbsG: 370 }, weightKg: 75, heightCm: 184, carbDays: false, sex: 'male' as const };
     const on = planAvailability({ daysPerWeek: 4, strengthMin: 60, cardioMin: 15, carbDays: true }, cur, () => null);
     expect(on).toMatchObject({ changed: true, writePlan: true, carbDaysOn: true, food: cur.plan });
-    expect(on.carb?.train.carbsG).toBe(461);
+    // Story 17 (Bug C): this path now passes his weight too, so fat moves as PB-3.4 says (gym = floor, rest = 1.0 g/kg).
+    expect(on.carb?.train.carbsG).toBe(484);
+    expect(on.carb?.rest.fatG).toBe(75);
+    expect(on.carb?.train.fatG).toBe(Math.round(Math.max(0.6 * 75, (0.2 * on.carb!.train.calories) / 9)));
     const moved = planAvailability({ daysPerWeek: 3, strengthMin: 60, cardioMin: 15, carbDays: true }, { ...cur, carbDays: true }, () => null);
     expect(moved.writePlan).toBe(true);
     expect(Object.values(moved.carb!.overrides).filter((m) => m!.carbsG > 370)).toHaveLength(3);

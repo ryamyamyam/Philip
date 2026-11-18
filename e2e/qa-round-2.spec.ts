@@ -250,7 +250,7 @@ test('F047E3: log weight (kg), one entry per date (overwrites), chart shows actu
   await calc.getByLabel('Height (cm)').fill('180');
   await calc.getByLabel('Weight (kg)').fill('80');
   await calc.getByLabel('Body fat (%)').fill('18');
-  await calc.getByLabel('Activity level').selectOption('moderate');
+  await calc.getByLabel('Your day, outside the gym').selectOption('active');
   await calc.getByRole('radio', { name: 'Lose fat' }).click();
   await calc.getByLabel('Target weight (kg)').fill('76');
   await calc.getByLabel('Rate per week (kg)').fill('0.5');

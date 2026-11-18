@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { MacroSplitBar } from '../components/MacroSplitBar';
 import { NumberField } from '../components/NumberField';
+import { movementOf } from '../lib/playbook/rules';
 import { useToast } from '../components/Toast';
 import { addTargetPlan, updateProfile } from '../db/repo';
 import type { ActivityLevel, Goal, Macros, Profile, Sex, TargetPlan, Weekday } from '../db/types';
@@ -132,7 +133,8 @@ interface CalcForm {
   rate: string;
 }
 
-const ACTIVITIES: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'veryActive'];
+/** Story 17 (PB-2.2): two answers, daily movement; lifting days are asked separately. */
+const ACTIVITIES: readonly ActivityLevel[] = ['sedentary', 'active'];
 const GOALS: Goal[] = ['lose', 'maintain', 'gain'];
 
 const r1 = (n: number) => String(Math.round(n * 10) / 10);
@@ -174,7 +176,7 @@ function formFromProfile(p: Profile): CalcForm {
     heightIn: totalIn != null ? String(Math.round(totalIn) % 12) : '',
     weight: w(p.weightKg),
     bodyFat: p.bodyFatPct != null ? r1(p.bodyFatPct) : '',
-    activity: p.activityLevel ?? '',
+    activity: p.activityLevel ? movementOf(p.activityLevel) : '',
     trainingDays: p.trainingDaysPerWeek != null ? String(p.trainingDaysPerWeek) : '3',
     goal: p.goal ?? '',
     targetWeight: w(p.targetWeightKg),

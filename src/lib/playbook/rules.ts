@@ -25,6 +25,40 @@ export const PB_PHASE = {
 export const cutLine = (sex: Sex | null): number => PB_PHASE.cutAtBf[sex ?? 'male'];
 export const bulkLine = (sex: Sex | null): number => PB_PHASE.bulkAtOrBelowBf[sex ?? 'male'];
 
+/**
+ * PB-2.2: maintenance multiplier (× resting energy) by daily movement and lifting days a week (practice).
+ * Workout calories are inside it; never add them on top. 3 days counts as 3–4. Story 17 (D-040).
+ */
+export const PB_TDEE = {
+  sedentary: { '3-4': 1.45, '5-6': 1.55 },
+  active: { '3-4': 1.65, '5-6': 1.75 },
+  /** 5 or more lifting days a week use the '5-6' column. */
+  highDaysFrom: 5,
+  /** Below 3 lifting days the playbook has no row: the general (non-lifter) factors apply. */
+  minDays: 3,
+} as const;
+
+/** The two movement answers (Story 17): mostly sitting, or on the feet / 10,000+ steps. */
+export type PbMovement = 'sedentary' | 'active';
+
+/** Story 17: an older five-level activity answer → the playbook's two (sedentary, light → sitting). */
+export function movementOf(level: string | null | undefined): PbMovement {
+  return level === 'moderate' || level === 'active' || level === 'veryActive' ? 'active' : 'sedentary';
+}
+
+/**
+ * General activity factors for people lifting under 3 days a week (no playbook row; the common
+ * 1.2–1.9 table, practice). Kept only for that case.
+ */
+export const GENERAL_ACTIVITY = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, veryActive: 1.9 } as const;
+
+/** PB-2.2: the multiplier for an activity answer and lifting days a week. */
+export function tdeeFactor(level: keyof typeof GENERAL_ACTIVITY, trainingDays: number): number {
+  if (!(trainingDays >= PB_TDEE.minDays)) return GENERAL_ACTIVITY[level];
+  const col = trainingDays >= PB_TDEE.highDaysFrom ? '5-6' : '3-4';
+  return PB_TDEE[movementOf(level)][col];
+}
+
 /** PB-2.3: kcal per kg of body-weight change (rough average). daily kcal = rate % / 100 × kg × 7,700 ÷ 7. */
 export const KCAL_PER_KG = 7700;
 
@@ -148,6 +182,27 @@ export const PB_INCREMENTS = {
   upperCompound: 2.5,
   lowerCompound: [2.5, 5] as const,
 } as const;
+
+/**
+ * PB-4.8 (practice, Story 17): bodyweight moves (pull-up, chin-up) progress by reps, then sets, then (his
+ * yes) added load. `bwReadBand`: a logged weight within this share of body weight is read as body weight.
+ */
+export const PB_BODYWEIGHT = {
+  maxSets: 4,
+  /** The step offered once he owns the top of the range at `maxSets` (kg). */
+  addKg: 2.5,
+  bwReadBand: 0.15,
+  /** This many reps or more under the bottom of the range: offer the assisted version. */
+  assistedShortBy: 2,
+} as const;
+
+/**
+ * PB-6.4 (practice, Story 17): today's line on Home. Status bands around the expected-today value.
+ * Weight ±0.5 kg (inside the normal day-to-day swing of a 7-day average); body fat ±1.5 points (home
+ * readings carry a few points of error); a BF reading older than 28 days asks for a new one; fewer than
+ * 3 weigh-ins in the window and the chart shows only the plan. The Big 4 use PB_LOADS.onTrackBand.
+ */
+export const PB_TODAY_LINE = { weightKg: 0.5, bfPts: 1.5, bfStaleDays: 28, minWeighIns: 3 } as const;
 
 /** PB-4.4: the Big 4 run a 4-week %TM wave; week 4 deloads. */
 export const PB_WAVE = { weeks: 4, deloadWeek: 4, tmShare: 0.9 } as const;

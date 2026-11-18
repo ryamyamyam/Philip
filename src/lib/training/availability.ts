@@ -134,7 +134,9 @@ export function planAvailability(wish: AvailabilityWish, cur: AvailabilityCurren
   const on = w.carbDays !== false;
   const wasOn = cur.carbDays !== false;
   const food = nutrition ?? cur.plan;
-  const carb = on && food ? carbDays(food, days, cur.sex ?? null) : null;
+  // Story 17 (Bug C): the reference weight moves fat too (gym-day floor, rest-day 1.0 g/kg), as on every other path.
+  const refKg = cur.weightKg !== null ? (cur.heightCm ? referenceWeightKg(cur.weightKg, cur.heightCm) : cur.weightKg) : null;
+  const carb = on && food ? carbDays(food, days, cur.sex ?? null, refKg) : null;
   const writePlan = !!food && (nutritionChanged || on !== wasOn || (on && daysChanged));
   return {
     days,

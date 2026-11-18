@@ -4,7 +4,7 @@ import { DialogBar } from '../../components/DialogBar';
 import { GymCharacter } from '../../components/GymCharacter';
 import { Icon } from '../../components/Icon';
 import { StatRow } from '../../components/StatRow';
-import { addTm, allCoachNotes, applyCheckin, applyReview, deleteWorkoutSession, isPastCycleLog, META, saveWorkoutSession, setDayOrder, setSlotChoice, type ReviewChange } from '../../db/repo';
+import { addTm, allCoachNotes, applyCheckin, applyReview, deleteWorkoutSession, isPastCycleLog, META, saveWorkoutSession, setDayOrder, setNextLoad, setSlotChoice, updateTrainingProgram, type ReviewChange } from '../../db/repo';
 import { exerciseHistory } from '../../lib/coach/brief';
 import { useCycles, useMeta, useProfile, useWeightEntries, useWorkoutSessions } from '../../hooks/useData';
 import { historyFor, loadProfileFrom, roundingFor, sessionLoadCheck, traitsOf } from '../../lib/playbook/loadContext';
@@ -130,7 +130,7 @@ function useBodyWeightKg(): number | null {
 
 function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Props, 'open'>) {
   const bodyWeightKg = useBodyWeightKg();
-  const ref = nextSessionRef(sessions, cycle.index);
+  const ref = nextSessionRef(sessions, cycle.index, program);
   const { plan, missing } = ref ? planFor(program, cycle, sessions, tmHistory, choices, ref.week, ref.day, bodyWeightKg) : { plan: null, missing: null };
   if (!ref) return <p>{t('session.cycleDone')}</p>;
   if (missing) return <Calibration lift={missing} cycle={cycle.index} unit={program.weightUnit} />;
@@ -156,7 +156,7 @@ function StartScreen({ program, cycle, sessions, tmHistory, choices }: Omit<Prop
         </p>
         <ul className="start-list">
           {applyOrder(plan.exercises, opts.order).map((e) => (
-            <PreviewRow key={e.slot} e={e} day={plan.day} block={plan.block} choices={choices} strip={<StrengthStrip exerciseId={e.exerciseId} prescription={e.prescription} sessions={sessions} date={todayYmd()} unit={program.weightUnit} />} />
+            <PreviewRow key={e.slot} e={e} day={plan.day} block={plan.block} choices={choices} strip={<StrengthStrip exerciseId={e.exerciseId} prescription={e.prescription} sessions={sessions} date={todayYmd()} unit={program.weightUnit} bodyWeightKg={bodyWeightKg} />} />
           ))}
           <li className="num">{t('cardio.preview', { n: plannedCardio(plan.phase, 'mph', cardioPlan).planMin, min: program.availability?.strengthMin ?? SESSION_BUDGET_MIN })}</li>
         </ul>
@@ -667,10 +667,11 @@ function LiveSession({
           onAccept={accept}
           onDecline={() => setPending(null)}
           onReorder={canReorder ? () => setReordering(true) : undefined}
-          strength={<StrengthStrip exerciseId={ex.exerciseId} prescription={ex.prescription} sessions={sessions} date={session.date} excludeId={session.id} unit={unit} />}
+          strength={<StrengthStrip exerciseId={ex.exerciseId} prescription={ex.prescription} sessions={sessions} date={session.date} excludeId={session.id} unit={unit} bodyWeightKg={bodyWeightKg} />}
+          onAddLoad={(kg, reps) => setNextLoad(ex.exerciseId, session.id, kg, reps)}
         />
       ))}
-      <CardioCard cardio={cardio} cut={cycle.phase === 'lose'} treadmill={program.treadmill} budgetMin={program.availability?.strengthMin ?? SESSION_BUDGET_MIN} onChange={(next) => save({ ...session, cardio: next })} />
+      <CardioCard cardio={cardio} cut={cycle.phase === 'lose'} treadmill={program.treadmill} budgetMin={program.availability?.strengthMin ?? SESSION_BUDGET_MIN} onChange={(next) => save({ ...session, cardio: next })} onTreadmill={(m) => updateTrainingProgram({ treadmill: m })} />
       <section className="card stack-sm" aria-label={tp('session.dayNote')}>
         <NoteField label={tp('session.dayNote')} value={session.note ?? ''} savedAt={session.noteSavedAt ?? null} testId="day-note" onSave={(note) => save({ ...session, note, noteSavedAt: Date.now() })} />
       </section>

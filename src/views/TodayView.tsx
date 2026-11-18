@@ -6,7 +6,7 @@ import { AmbientScene } from '../components/AmbientScene';
 import { DeckActions } from '../components/ControlDeck';
 import { TodayCard } from '../components/TodayCard';
 import { MEALS } from '../db/types';
-import { useEntriesForDate, useProfile, useSavedMeals, useTargetPlans } from '../hooks/useData';
+import { useEntriesForDate, useGymContext, useProfile, useSavedMeals, useTargetPlans } from '../hooks/useData';
 import { useDaySlide } from '../hooks/useDaySlide';
 import { useSwipe } from '../hooks/useSwipe';
 import { t } from '../i18n';
@@ -33,7 +33,8 @@ export function TodayView() {
   const profile = useProfile();
 
   const totals = useMemo(() => sumMacros(entries ?? []), [entries]);
-  const target = useMemo(() => (plans ? targetForDate(plans, date) : null), [plans, date]);
+  const gym = useGymContext();
+  const target = useMemo(() => (plans ? targetForDate(plans, date, gym) : null), [plans, date, gym]);
   const phase = useMemo(() => phaseFor(plans ? planForDate(plans, date) : null, profile), [plans, date, profile]);
   const byMeal = useMemo(() => groupByMeal(entries ?? []), [entries]);
   const score = useMemo(

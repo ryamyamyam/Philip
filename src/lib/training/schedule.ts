@@ -3,8 +3,8 @@
  * Planned dates are never stored: they're recomputed from today every time, so a missed day pushes
  * the rest (and the goal day) forward, and training on an off day pulls them back. No guilt marks.
  */
-import type { IsoWeekday, WorkoutSession, YMD } from '../../db/types';
-import { addDays, weekdayOf } from '../date';
+import type { IsoWeekday, WeekDays, WorkoutSession, YMD } from '../../db/types';
+import { addDays, startOfWeek, weekdayOf } from '../date';
 import { DAY_LIFT, type Day, type LiftId, type Week } from './program';
 
 /** Philip's pick: squat and RDL 3 days apart, bench and OHP 3 days apart, weekend free (coaching default). */
@@ -78,11 +78,62 @@ export function squatRdlTooClose(days: readonly IsoWeekday[]): boolean {
   return closeTriples(days) > 0;
 }
 
+/* ---------------- Story 17: one-week moves and day swaps ---------------- */
+
+/** This week's moved days, when they belong to the week of `date`; else null. */
+export function weekDaysFor(date: YMD, weekDays: WeekDays | null | undefined): IsoWeekday[] | null {
+  return weekDays && weekDays.weekStart === startOfWeek(date) ? [...weekDays.days].sort((a, b) => a - b) : null;
+}
+
+/** OBS-F17324: is `date` a planned training date (this week's move first, else the usual weekdays)? */
+export function isTrainingDate(date: YMD, trainingDays: readonly IsoWeekday[] | null | undefined, weekDays?: WeekDays | null): boolean {
+  const days = weekDaysFor(date, weekDays) ?? trainingDaysOrDefault(trainingDays);
+  return days.includes(isoWeekday(date));
+}
+
+/**
+ * OBS-F17324: this week's days with one workout moved from `from` to `to` (both ISO weekdays). Null when
+ * the move isn't possible (from isn't a training day, or to already is one).
+ */
+export function moveDay(current: readonly IsoWeekday[], from: IsoWeekday, to: IsoWeekday): IsoWeekday[] | null {
+  if (from === to || !current.includes(from) || current.includes(to)) return null;
+  return [...current.filter((d) => d !== from), to].sort((a, b) => a - b);
+}
+
+export interface DayOrderSource {
+  dayRotation?: readonly Day[] | null;
+  weekSwap?: { cycle: number; week: Week; order: readonly Day[] } | null;
+}
+
+const isPerm = (o: readonly number[] | null | undefined): o is readonly Day[] => !!o && o.length === 4 && [1, 2, 3, 4].every((d) => o.includes(d));
+
+/** OBS-4DC2DF: the order the four program days run in a program week (this-week swap, else rotation, else 1–4). */
+export function dayOrderFor(src: DayOrderSource | null | undefined, cycle: number, week: Week): Day[] {
+  const ws = src?.weekSwap;
+  if (ws && ws.cycle === cycle && ws.week === week && isPerm(ws.order)) return [...ws.order];
+  if (isPerm(src?.dayRotation)) return [...(src?.dayRotation as Day[])];
+  return [1, 2, 3, 4];
+}
+
+/** OBS-4DC2DF: `order` with days `a` and `b` swapped. */
+export function swapDays(order: readonly Day[], a: Day, b: Day): Day[] {
+  return order.map((d) => (d === a ? b : d === b ? a : d));
+}
+
+/** OBS-4DC2DF: squat (Day 1) and RDL (Day 3) run back to back in this order (the week's wrap included). */
+export function squatRdlAdjacent(order: readonly Day[]): boolean {
+  const i = order.indexOf(1);
+  const j = order.indexOf(3);
+  if (i < 0 || j < 0) return false;
+  const gap = Math.abs(i - j);
+  return gap === 1 || gap === order.length - 1;
+}
+
 /** Remaining (week, day) refs of a cycle in sequence order; an in-progress one stays in its place. */
-function remainingRefs(sessions: readonly WorkoutSession[], cycle: number): { week: Week; day: Day }[] {
+function remainingRefs(sessions: readonly WorkoutSession[], cycle: number, order?: DayOrderSource | null): { week: Week; day: Day }[] {
   const closed = new Set(sessions.filter((s) => s.cycle === cycle && s.status !== 'in_progress').map((s) => `${s.week}-${s.day}`));
   const out: { week: Week; day: Day }[] = [];
-  for (const week of [1, 2, 3, 4] as const) for (const day of [1, 2, 3, 4] as const) if (!closed.has(`${week}-${day}`)) out.push({ week, day });
+  for (const week of [1, 2, 3, 4] as const) for (const day of dayOrderFor(order, cycle, week)) if (!closed.has(`${week}-${day}`)) out.push({ week, day });
   return out;
 }
 
@@ -92,6 +143,10 @@ export interface PlanInput {
   sessions: readonly WorkoutSession[];
   /** Current cycle index; null or < 1 when no cycle is running. */
   cycle: number | null;
+  /** Story 17: a one-week move of training days. */
+  weekDays?: WeekDays | null;
+  /** Story 17: day rotation / this-week swap. */
+  order?: DayOrderSource | null;
 }
 
 /**
@@ -99,26 +154,26 @@ export interface PlanInput {
  * day with nothing done yet, or when a session is in progress today; otherwise the next training day.
  * The last one is the cycle's goal day.
  */
-export function planDates({ today, trainingDays, sessions, cycle }: PlanInput): PlannedDay[] {
+export function planDates({ today, trainingDays, sessions, cycle, weekDays, order }: PlanInput): PlannedDay[] {
   if (cycle === null || cycle < 1) return [];
-  const refs = remainingRefs(sessions, cycle);
+  const refs = remainingRefs(sessions, cycle, order);
   if (refs.length === 0) return [];
-  const days = new Set(trainingDaysOrDefault(trainingDays));
+  const isDay = (d: YMD) => isTrainingDate(d, trainingDays, weekDays);
   const todays = sessions.filter((s) => s.date === today);
   const doneToday = todays.some((s) => s.status === 'done');
   const openToday = todays.some((s) => s.status === 'in_progress');
 
   let date: YMD;
-  if (openToday || (!doneToday && days.has(isoWeekday(today)))) date = today;
+  if (openToday || (!doneToday && isDay(today))) date = today;
   else {
     date = addDays(today, 1);
-    while (!days.has(isoWeekday(date))) date = addDays(date, 1);
+    while (!isDay(date)) date = addDays(date, 1);
   }
   const out: PlannedDay[] = [];
   refs.forEach((r, i) => {
     if (i > 0) {
       date = addDays(date, 1);
-      while (!days.has(isoWeekday(date))) date = addDays(date, 1);
+      while (!isDay(date)) date = addDays(date, 1);
     }
     out.push({ date, week: r.week, day: r.day, lift: DAY_LIFT[r.day], isGoalDay: i === refs.length - 1 });
   });

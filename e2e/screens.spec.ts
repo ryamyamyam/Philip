@@ -86,7 +86,7 @@ test('targets calculator end to end', async ({ page }) => {
   await calc.getByLabel('Height — Feet').fill('5');
   await calc.getByLabel('Inches').fill('11');
   await calc.getByLabel('Weight (lb)').fill('180');
-  await calc.getByLabel('Activity level').selectOption('moderate');
+  await calc.getByLabel('Your day, outside the gym').selectOption('active');
   await calc.getByLabel('Training days per week').selectOption('4');
   await calc.getByRole('radio', { name: 'Lose fat' }).click();
   await calc.getByLabel('Target weight (lb)').fill('170');

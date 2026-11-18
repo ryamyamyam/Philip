@@ -848,3 +848,201 @@
 .targets-intro {
   margin: 0;
 }
+
+/* ======================================================================
+   Story 17 (N-2, N-3, D-040) — Today's line: a two-card carousel above the Meal log.
+   scroll-snap, no library. Plan = dashed muted ink; band = low-contrast fill; actual = teal;
+   today = a red marker (fill only). The status is always a word; the pill tone repeats it.
+   ====================================================================== */
+.tl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.tl-placeholder {
+  min-height: 11rem;
+}
+.tl-track {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.tl-track::-webkit-scrollbar {
+  display: none;
+}
+.tl-card.pm-cart {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  min-height: 0;
+  gap: var(--space-0-5);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-1);
+  font-family: var(--font-display);
+}
+.tl-row {
+  display: block;
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  color: var(--color-text-2);
+}
+.tl-pill {
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.tl-pill.tone-good {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.tl-pill.tone-warn {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.tl-chart-wrap {
+  position: relative;
+  display: block;
+}
+.tl-chart {
+  display: block;
+  overflow: visible;
+}
+.tl-band {
+  fill: var(--color-display-2);
+}
+.tl-plan {
+  fill: none;
+  stroke: var(--color-text-3);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+.tl-actual {
+  fill: none;
+  stroke: var(--color-label);
+  stroke-width: 2.5;
+}
+.tl-actual-dot {
+  fill: var(--color-label);
+}
+.tl-dot-faint {
+  fill: var(--color-border-strong);
+}
+.tl-today {
+  fill: var(--color-notable);
+}
+.tl-end {
+  position: absolute;
+  right: 0;
+  top: 0;
+  color: var(--color-text-3);
+  font-size: var(--text-xs);
+}
+.tl-few {
+  position: absolute;
+  left: var(--space-1);
+  top: 0;
+  color: var(--color-text-2);
+}
+.tl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-1) var(--space-3);
+}
+.tl-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tl-tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+.tl-tile-name {
+  text-transform: uppercase;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl-tile-nums {
+  order: 2;
+  flex: none;
+  color: var(--color-text-2);
+  line-height: var(--leading-tight);
+  font-size: var(--text-xs);
+}
+.tl-tile .tl-chart-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 1.1rem;
+}
+.tl-tile .tl-chart {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tl-title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+  white-space: nowrap;
+}
+.tl-k {
+  color: var(--color-text);
+  text-transform: uppercase;
+}
+.tl-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.tl-foot .tl-window {
+  margin-left: auto;
+}
+.tl-dots {
+  display: flex;
+  gap: var(--space-1);
+}
+.tl-dot {
+  width: var(--touch);
+  height: var(--touch);
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+}
+.tl-dot::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  background: var(--color-border-strong);
+}
+.tl-dot[aria-pressed='true']::after {
+  background: var(--color-ink);
+}
+.tl-dot:focus-visible {
+  outline: var(--border-thick) solid var(--color-focus);
+}
+.tl-window button {
+  min-height: var(--touch);
+  font-size: var(--text-xs);
+  padding: 0 var(--space-2);
+}
+.tl-empty {
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-track {
+    scroll-behavior: auto;
+  }
+}

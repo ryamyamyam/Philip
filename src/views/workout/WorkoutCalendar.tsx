@@ -17,13 +17,14 @@ import { startingWeight } from '../../lib/training/cycleGoal';
 import { KG_PER_LB } from '../../lib/training/plates';
 import { DAY_LIFT, DELOAD_WEEK, type LiftId } from '../../lib/training/program';
 import { tmsForCycle, type WorkoutCardState } from '../../lib/training/progress';
-import { isoWeekday, planDates, trainingDaysOrDefault, type PlannedDay } from '../../lib/training/schedule';
+import { isTrainingDate, planDates, type PlannedDay } from '../../lib/training/schedule';
 import { buildSession } from '../../lib/training/session';
 import { fmtIn } from './units';
 import { infoFor } from '../../lib/training/sessionLog';
 import { useCycles } from '../../hooks/useData';
 import { cardioValue } from './CardioCard';
 import { CoachReport } from './CoachReportLazy';
+import { MoveWorkout } from './MoveWorkout';
 
 const LIFT_KEY: Record<LiftId, StringKey> = { squat: 'exercise.squat', bench: 'exercise.bench', rdl: 'exercise.rdl', ohp: 'exercise.ohp' };
 const TAG_KEY: Record<LiftId, StringKey> = { squat: 'cal.tag.squat', bench: 'cal.tag.bench', rdl: 'cal.tag.rdl', ohp: 'cal.tag.ohp' };
@@ -88,8 +89,8 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
     return m;
   }, [sessions]);
   const planned = useMemo(
-    () => planDates({ today, trainingDays: program.trainingDays, sessions, cycle: cycle ? program.currentCycle : null }),
-    [today, program.trainingDays, program.currentCycle, sessions, cycle],
+    () => planDates({ today, trainingDays: program.trainingDays, sessions, cycle: cycle ? program.currentCycle : null, weekDays: program.weekDays ?? null, order: program }),
+    [today, program, sessions, cycle],
   );
   const plannedByDate = useMemo(() => new Map(planned.map((p) => [p.date, p])), [planned]);
   // Story 11: the day a goal was reached keeps a flower.
@@ -186,6 +187,7 @@ export function WorkoutCalendar({ sessions, state, program, cycle, tmHistory, pr
         date={selected}
         today={today}
         sessions={byDate.get(selected) ?? []}
+        allSessions={sessions}
         plan={plannedByDate.get(selected) ?? null}
         nextPlanned={planned[0] ?? null}
         state={state}
@@ -212,6 +214,7 @@ function DayBox({
   date,
   today,
   sessions,
+  allSessions,
   plan,
   nextPlanned,
   state,
@@ -229,6 +232,7 @@ function DayBox({
   date: YMD;
   today: YMD;
   sessions: WorkoutSession[];
+  allSessions: readonly WorkoutSession[];
   plan: PlannedDay | null;
   nextPlanned: PlannedDay | null;
   state: WorkoutCardState;
@@ -335,7 +339,7 @@ function DayBox({
       </>
     );
   } else if (isToday && state.kind === 'next') {
-    const onPlan = trainingDaysOrDefault(program.trainingDays).includes(isoWeekday(today));
+    const onPlan = isTrainingDate(today, program.trainingDays, program.weekDays);
     const preview = previewFor(program, cycle, tmHistory, state.week, state.day, unit);
     philip = (
       <Philip pose="point-down-smirk">
@@ -399,6 +403,7 @@ function DayBox({
         <h2 id="cal-day-h">{isToday ? t('cal.today') : fmtDate(date, 'long')}</h2>
         {body}
         {planBox}
+        {!done && !open && <MoveWorkout date={date} today={today} program={program} sessions={allSessions} />}
         {logs.map((s) => {
           const locked = s.cycle !== program.currentCycle;
           return (

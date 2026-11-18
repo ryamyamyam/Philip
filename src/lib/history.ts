@@ -1,3 +1,4 @@
+import type { GymContext } from './goal/gymDays';
 import type { FoodEntry, Macros, TargetPlan, YMD } from '../db/types';
 import { adherenceScore, type AdherenceResult } from './adherence';
 import { addDays, dateRange } from './date';
@@ -13,7 +14,7 @@ export interface DaySummary {
 }
 
 /** Daily summaries computed from individual entries (never stored). Uses the plan active on each date. */
-export function summarizeDays(entries: readonly FoodEntry[], plans: readonly TargetPlan[], start: YMD, end: YMD): DaySummary[] {
+export function summarizeDays(entries: readonly FoodEntry[], plans: readonly TargetPlan[], start: YMD, end: YMD, gym?: GymContext | null): DaySummary[] {
   const byDate = new Map<YMD, FoodEntry[]>();
   for (const e of entries) {
     if (e.date < start || e.date > end) continue;
@@ -24,7 +25,7 @@ export function summarizeDays(entries: readonly FoodEntry[], plans: readonly Tar
   return dateRange(start, end).map((date) => {
     const list = byDate.get(date) ?? [];
     const totals = list.length ? sumMacros(list) : ZERO;
-    const target = targetForDate(plans, date);
+    const target = targetForDate(plans, date, gym);
     return {
       date,
       logged: list.length > 0,
@@ -81,8 +82,8 @@ export interface WeekSummary {
 }
 
 /** Weekly plan vs actual. Planned = sum of each day's target; actual = sum of logged intake. */
-export function summarizeWeek(entries: readonly FoodEntry[], plans: readonly TargetPlan[], weekStart: YMD): WeekSummary {
-  const days = summarizeDays(entries, plans, weekStart, addDays(weekStart, 6));
+export function summarizeWeek(entries: readonly FoodEntry[], plans: readonly TargetPlan[], weekStart: YMD, gym?: GymContext | null): WeekSummary {
+  const days = summarizeDays(entries, plans, weekStart, addDays(weekStart, 6), gym);
   const withTargets = days.filter((d) => d.target);
   const planned =
     withTargets.length === 7

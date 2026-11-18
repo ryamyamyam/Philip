@@ -11,6 +11,7 @@ Base branch for new work: `main`.
 
 | ID | Feature | Role | Status | Branch | Depends on |
 |---|---|---|---|---|---|
+| T-035 | Story 17 QA batch: gym-day food, TDEE, treadmill read, bodyweight progression, lift swaps, today's line (D-040) | Core + Feature + QA | Ready for owner review (WebKit on the Mac pending) | `feat/T-035-qa-batch` | `main` @ `04d250b` |
 | T-034 | Story 16 Philip's Playbook, sane loads, notes, strength on track (D-039) | Core + Feature + QA | Ready for owner review (WebKit on the Mac pending) | `feat/T-034-playbook` | `main` @ `c5eba7d` |
 | T-028 | Story 11 goal reached → next goal → Philip's plan; Philip in the cloud (D-034) | Core + Feature + QA | Ready for owner review | `feat/T-028-next-goal` | `main` @ `1130a6f` |
 | T-027 | Story 10 QA batch (8 observations, D-032) | Core + Feature + QA | Ready for owner review | `feat/T-027-qa-batch` | `main` @ `36b730b` |
@@ -29,6 +30,12 @@ Base branch for new work: `main`.
 | T-009 | Design system v2 (handheld-RPG look): tokens, components, Today, Progress, Settings, Targets, QA theme, docs | Feature (+ shared files, owner-approved) | Ready for owner review on device | `feat/T-009-design-system` | — |
 
 ---
+
+### T-035 — Story 17: QA batch + today's line (D-040), 0.17.1
+- **Role:** Core + Feature + QA (one session). **Branch:** `feat/T-035-qa-batch` on `main` @ `04d250b`. **Status:** Built, awaiting WebKit on the Mac and owner review.
+- **Spec:** `docs/stories/STORY_17_QA_BATCH.md`.
+- **Files:** new `src/lib/goal/{gymDays,todayLine}.ts`, `src/views/home/TodayLine.tsx`, `src/views/workout/{MoveWorkout,SwapDays}.tsx`, `src/i18n/s17.ts`, `src/db/story17.test.ts`, `e2e/story17.spec.ts`; changed rules, targets, nutrition, history, schedule, progress, program, session, treadmill, e1rm, availability, trainingBackup, repo, playbookRepo, goalRepo, coachBrief, types, useData, Home/Today/Suggest/Targets/Progress/TrainingSettings/TreadmillSettings/Plan/Calendar/Session/Exercise/Cardio/Strength views, PlaybookSheet/Watcher, SheetHost, ui, styles, tests, `scripts/size-budget.mjs` (precache 1300), `package.json` 0.17.1, docs.
+- **Log:** see the hand-off in the commit message.
 
 ### T-034 — Story 16: Philip's Playbook (D-039), 0.16.1
 - **Role:** Core + Feature + QA (one session). **Branch:** `feat/T-034-playbook` on `main` @ `c5eba7d`. **Status:** Built, awaiting WebKit on the Mac and owner review.

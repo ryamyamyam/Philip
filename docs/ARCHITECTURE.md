@@ -249,3 +249,10 @@ These are the seams that keep parallel work safe. Changing any of them is an arc
 - **Notes:** `playbook/notes.ts` (signals, `noteReviewItems`, `reviewDay`); `ExerciseCard#NoteField` saves on blur/Enter; `WorkoutSession.note`; `ReviewChange` gains `next` and `swap`.
 - **Strength:** `lib/strength/e1rm.ts` (Epley with RIR, `setRatio`, planned lines from the cycle, `planSeries`, `projection`, `combinedStrengthDate`, week lines, `strengthDateShift`). UI: `workout/StrengthStrip.tsx` (card and preview), `StrengthGoal.tsx` (Progress › Strength and next to Goals), dashed planned line in `StrengthPanel`, summary line in `SessionView`, calendar marker in `WorkoutCalendar`.
 - **Bundles:** `adjustedTm`/`MAX_REST_BONUS_SEC` moved to `training/program.ts` (re-exported from `checkin.ts`) so the check-in engine is no longer in the first screen; `workout/CoachReportLazy.tsx` lazy-loads the report; Story 16 strings in the lazy pack `i18n/playbook.ts` (`tp()`).
+
+
+## Story 17 (D-040)
+- **Gym days are derived** (`lib/goal/gymDays.ts`): `targetForDate(plans, date, gym)` re-solves carb-day plans for this week's actual gym dates (planned after any one-week move ∪ logged workouts); older weeks use the stored weekday numbers. Views get the context from `useGymContext()`.
+- **Schedule order**: `isTrainingDate` (one-week `program.weekDays`), `dayOrderFor` (`weekSwap` → `dayRotation` → 1–4) feed `planDates` and `nextSessionRef`.
+- **Today's line**: `lib/goal/todayLine.ts` (pure math) + `views/home/TodayLine.tsx` (lazy chunk, inline SVG charts, scroll-snap carousel).
+- **One-time updates**: `db/playbookRepo.ts` runs `kind: 'playbook'` (0.16.1) and `kind: 'tdee'` (0.17.1), each with its own META record and Undo.
